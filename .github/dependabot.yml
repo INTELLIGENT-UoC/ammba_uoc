@@ -36,6 +36,13 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: ["minor", "patch"]
+    # Hardhat 3 is a major rewrite — migration tracked separately.
+    # Keep getting minor/patch + security advisories on the 2.x line.
+    ignore:
+      - dependency-name: "hardhat"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@nomicfoundation/hardhat-toolbox"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
     directory: "/amm-clearing-node"

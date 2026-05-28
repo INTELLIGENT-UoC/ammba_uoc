@@ -1,0 +1,50 @@
+---
+description: AMMBA project rules — read AGENTS.md for full context
+alwaysApply: true
+---
+
+# AMMBA — Cursor project rules
+
+**Always start by reading [AGENTS.md](mdc:AGENTS.md)** in the repo root. It is
+the canonical onboarding document and lists conventions, "how to change X"
+recipes, and things never to break.
+
+## Quick orientation
+
+This is a P2P energy market with three components:
+
+- `amm-smart-contract/` — Solidity (Hardhat 2). On-chain audit anchor.
+- `amm-clearing-node/` — Python 3.13, FastAPI, uv. Sigmoid clearing + pro-rata
+  allocation. The pipeline lives in `src/clearing.py`.
+- `amm-execution-node/` — Python 3.13, FastAPI, uv. Penalties (shortfall + VCG)
+  in `src/penalties.py`.
+
+Each component has its own `AGENTS.md` with deeper details — open it when
+working in that component.
+
+## Non-negotiable conventions
+
+- All on-chain integers are scaled × 10000 (`NODE_FLOAT_SCALING_FACTOR`).
+- Trade `_id` = `"0x" + blake2b-256(json.dumps(trade, sort_keys=True))`.
+  **`sort_keys=True` is required** for hash determinism.
+- Every participant trades with the AMM pool, not directly with each other.
+  Exception: preference-matched mutual pairs.
+- Trade schema uses nested `bid.bid_component` / `offer.offer_component`
+  shape — do not flatten.
+- Both services are fully async — no blocking I/O in request paths.
+- The sigmoid implementation is intentionally duplicated between the two
+  Python services. If you change one, change the other and add a test.
+
+## Tooling
+
+- Python: use `uv` (`uv sync --extra dev`, `uv run pytest`).
+- Contract: `npm ci` then `npx hardhat test` / `npx hardhat compile`.
+- Never deploy to Energy Web mainnet from CI or scripts — Volta testnet only.
+
+## Quality bar
+
+Every code change must pass the relevant test suite locally before being
+proposed. See the "How to verify your change" table in AGENTS.md.
+
+Commits and PR titles must follow Conventional Commits (see
+[CONTRIBUTING.md](mdc:CONTRIBUTING.md)).

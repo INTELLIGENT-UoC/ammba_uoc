@@ -69,7 +69,10 @@ Three components, each independently deployable:
 - **VCG-style penalties** — deviations from committed quantity are priced
   against a counterfactual clearing where the deviating party is replaced.
 
-Full details and formulas: see component-level READMEs and source comments.
+Full details and formulas: see [ARCHITECTURE.md](ARCHITECTURE.md). For
+contributors and AI coding assistants, the canonical onboarding doc is
+[AGENTS.md](AGENTS.md) (with per-component `AGENTS.md` files in each service
+directory).
 
 ## Quick start
 
@@ -141,15 +144,23 @@ repo root and the `configuration.yaml` inside each service directory.
 ## Repository layout
 
 ```
-AMMBA/
+ammba_uoc/
 ├── amm-smart-contract/    # Solidity contract + Hardhat tests
 ├── amm-clearing-node/     # FastAPI clearing service
 ├── amm-execution-node/    # FastAPI penalty service
-├── docker-compose.yml     # All three services
-├── .env.example           # Template for required environment variables
+├── docker-compose.yml     # Both Python services
+├── ARCHITECTURE.md        # Full system reference (algorithms, schemas, decisions)
+├── AGENTS.md              # Canonical onboarding for contributors + AI assistants
+├── CLAUDE.md              # Claude-Code-specific shim → AGENTS.md
+├── CONTRIBUTING.md        # Workflow, commit format, branch protection
+├── SECURITY.md            # Private vulnerability reporting policy
+├── .env.example           # Required environment variables
 ├── LICENSE                # GPLv3
 └── README.md
 ```
+
+Each component directory also contains its own `AGENTS.md` with a tight,
+code-pointer-dense guide to that service.
 
 ## Contributing
 
