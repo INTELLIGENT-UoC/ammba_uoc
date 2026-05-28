@@ -1,0 +1,21 @@
+application:
+  host: "0.0.0.0"
+  port: 8081
+
+offchain_db:
+  base_url: "http://localhost:8080"
+
+blockchain:
+  rpc_url: "https://volta-rpc.energyweb.org"
+  contract_address: "0x0000000000000000000000000000000000000000"
+
+market:
+  time_slot_sec: 900              # 15-minute slots (GSY DEX default)
+
+communities:
+  communityid_1:
+    k_upper_ct_per_kwh: 28.5      # Retail buy price
+    k_lower_ct_per_kwh: 8.0       # Feed-in tariff
+    theta: 1.0                    # Sigmoid midpoint (optimized offline)
+    steepness: 2.5                # Sigmoid steepness (optimized offline)
+    pool_id: "AMM_POOL_communityid_1"

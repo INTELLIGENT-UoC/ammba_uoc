@@ -1,0 +1,25 @@
+[project]
+name = "amm-clearing-node"
+version = "0.1.0"
+description = "AMMBA Clearing Node - Off-chain clearing service for P2P energy batch auctions"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.34.0",
+    "web3>=7.0.0",
+    "httpx>=0.28.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-httpx>=0.35.0",
+    "respx>=0.22.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

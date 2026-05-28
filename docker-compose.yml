@@ -1,0 +1,39 @@
+services:
+  amm-clearing-node:
+    build: ./amm-clearing-node
+    environment:
+      - OFFCHAIN_DB_URL=http://offchain-db:8080
+      - RPC_URL=https://volta-rpc.energyweb.org
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-}
+      - CLEARING_NODE_PRIVATE_KEY=${CLEARING_NODE_PRIVATE_KEY:-}
+      - TIME_SLOT_SEC=900
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ammba
+
+  amm-execution-node:
+    build: ./amm-execution-node
+    environment:
+      - OFFCHAIN_DB_URL=http://offchain-db:8080
+      - TIME_SLOT_SEC=900
+      - EXECUTION_OFFSET_MIN=-120
+      - POLLING_INTERVAL_SEC=300
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ammba
+
+networks:
+  ammba:
+    driver: bridge

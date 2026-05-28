@@ -1,0 +1,17 @@
+{
+  "name": "amm-smart-contract",
+  "version": "1.0.0",
+  "description": "AMMBA on-chain audit anchor for the P2P energy batch-auction clearing mechanism.",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile"
+  },
+  "keywords": ["ammba", "energy-web-chain", "amm", "p2p-energy"],
+  "author": "INTELLIGENT-UoC",
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.28.6"
+  }
+}

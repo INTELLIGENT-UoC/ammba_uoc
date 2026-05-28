@@ -1,0 +1,38 @@
+# Project-local reference materials (third-party code, transcripts, large data)
+/LLM_context/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / tools
+.vscode/
+.idea/
+.claude/
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Hardhat
+node_modules/
+amm-smart-contract/artifacts/
+amm-smart-contract/cache/
+amm-smart-contract/ignition/deployments/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs
+*.log
