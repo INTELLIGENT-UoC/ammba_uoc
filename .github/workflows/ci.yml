@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changed components
+    runs-on: ubuntu-latest
+    outputs:
+      clearing: ${{ steps.filter.outputs.clearing }}
+      execution: ${{ steps.filter.outputs.execution }}
+      contract: ${{ steps.filter.outputs.contract }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            clearing:
+              - 'amm-clearing-node/**'
+              - '.github/workflows/ci.yml'
+            execution:
+              - 'amm-execution-node/**'
+              - '.github/workflows/ci.yml'
+            contract:
+              - 'amm-smart-contract/**'
+              - '.github/workflows/ci.yml'
+
+  clearing-node:
+    name: clearing-node (pytest)
+    needs: changes
+    if: needs.changes.outputs.clearing == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amm-clearing-node
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: amm-clearing-node/uv.lock
+      - run: uv python install 3.13
+      - run: uv sync --extra dev --frozen
+      - run: uv run pytest -v
+
+  execution-node:
+    name: execution-node (pytest)
+    needs: changes
+    if: needs.changes.outputs.execution == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amm-execution-node
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: amm-execution-node/uv.lock
+      - run: uv python install 3.13
+      - run: uv sync --extra dev --frozen
+      - run: uv run pytest -v
+
+  contract:
+    name: smart-contract (hardhat)
+    needs: changes
+    if: needs.changes.outputs.contract == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amm-smart-contract
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: amm-smart-contract/package-lock.json
+      - run: npm ci
+      - run: npx hardhat compile
+      - run: npx hardhat test
+
+  ci-ok:
+    name: CI
+    needs: [clearing-node, execution-node, contract]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required jobs succeeded or were skipped
+        run: |
+          for r in "${{ needs.clearing-node.result }}" "${{ needs.execution-node.result }}" "${{ needs.contract.result }}"; do
+            if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
+              echo "A required job failed: $r"
+              exit 1
+            fi
+          done
