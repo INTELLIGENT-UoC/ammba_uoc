@@ -25,11 +25,13 @@ VCG-style penalties) is **deferred** and not in the active stack.
 | Path | Stack | Role |
 |---|---|---|
 | `amm-clearing-node/`  | Python 3.12+, FastAPI, uv | **(v1)** The clearing pipeline; speaks the `int.*` ontology |
+| `amm-calibration/`    | Python 3.11+, uv (no heavy deps) | Offline optimization of per-community sigmoid params from history |
 | `amm-smart-contract/` | Solidity 0.8.24, Hardhat 2, Node 20 | On-chain audit anchor (optional for v1) |
 | `amm-execution-node/` | Python 3.12+, FastAPI, uv | **(deferred)** post-delivery penalties |
 
 For the full system reference (algorithms, data flow, schemas, decision log),
-see [ARCHITECTURE.md](ARCHITECTURE.md).
+see [ARCHITECTURE.md](ARCHITECTURE.md). For every provisional integration
+decision and where to change it, see [INTEGRATION_NOTES.md](INTEGRATION_NOTES.md).
 
 ---
 
@@ -65,6 +67,13 @@ ammba_uoc/
 │   ├── schemas/intelligent/         # vendored GSY DEX int.* schemas (wire contract)
 │   ├── sim/                         # local off-chain DB simulator (dev only)
 │   └── tests/                       # 55 pytest tests (incl. conftest fake DB + e2e)
+│
+├── amm-calibration/                # offline sigmoid-param optimization (a job, not a service)
+│   ├── AGENTS.md
+│   ├── src/                         # pricing.py, optimizer.py, measurements.py, calibrate.py
+│   └── tests/
+│
+├── INTEGRATION_NOTES.md            # provisional decisions + where to change each (read before integration work)
 │
 └── amm-execution-node/             # ← deferred (not in v1 MVP)
     ├── AGENTS.md                    # component-specific onboarding
