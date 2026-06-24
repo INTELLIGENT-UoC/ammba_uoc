@@ -51,13 +51,24 @@ class OffchainDBClient:
         return resp.json()
 
     async def post_trades(self, trades: list[dict]) -> None:
-        """Write trade objects to the off-chain DB.
+        """Write int:Trade objects to the off-chain DB.
 
         POST /trades-normalized
         """
         resp = await self._client.post("/trades-normalized", json=trades)
         resp.raise_for_status()
         logger.info("Posted %d trades to off-chain DB", len(trades))
+
+    async def post_clearing_result(self, result: dict) -> None:
+        """Write the int:ClearingResult for a market slot to the off-chain DB.
+
+        POST /clearing-results
+        """
+        resp = await self._client.post("/clearing-results", json=result)
+        resp.raise_for_status()
+        logger.info(
+            "Posted clearing result for market_id=%s", result.get("marketId")
+        )
 
     async def close(self) -> None:
         await self._client.aclose()

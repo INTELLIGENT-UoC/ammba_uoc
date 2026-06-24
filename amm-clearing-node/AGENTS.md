@@ -5,37 +5,44 @@
 
 ## What this service does
 
-Runs the **8-step clearing algorithm** when a market slot closes:
+Runs the clearing pipeline when a market slot closes:
 
-1. Idempotency check (skip if already cleared)
-2. Fetch open orders from off-chain DB
-3. Aggregate supply / demand
-4. Compute clearing price via sigmoid
-5. Record on-chain via `clearMarket()` (optional)
-6. Pro-rata allocation
-7. Preference matching (mutual pairs + energy-type multipliers)
-8. POST normalised trades back to off-chain DB
+0. Idempotency check (skip if the market already has trades)
+1. Fetch open orders, translate `int:Order` → internal, validate inbound
+2. Aggregate supply / demand
+3. Compute the uniform clearing price via the sigmoid
+4. Record on-chain via `clearMarket()` (optional; deferred for the MVP)
+5. Pro-rata allocation
+6. Preference matching (mutual preferred pairs)
+7. Generate `int:Trade` objects (direct preference pairs, Buyer→Pool, Pool→Seller)
+8. POST `int:Trade` list + the `int:ClearingResult` back to the off-chain DB
 
-Returns a summary dict with totals, clearing price, and tx hash.
+The AMM pool is a virtual counterparty: participants trade with the pool at the
+uniform price, except preference-matched mutual pairs who trade directly. Pool
+half-trades serialize to the bilateral `int:Trade` schema via a configured pool
+actor UUID and deterministic pool standing orders (see `adapters.py`).
 
 ## File map
 
 ```
 src/
 ├── main.py            # FastAPI app, POST /trigger-clearing, GET /health
-├── clearing.py        # ★ run_clearing() — the 8-step pipeline orchestrator
+├── clearing.py        # ★ run_clearing() — the pipeline orchestrator
+├── adapters.py        # ★ int.* ↔ internal translation; int:Trade / int:ClearingResult builders
+├── ontology.py        # loads schemas/intelligent/*, dependency-free validator
 ├── sigmoid.py         # sigmoid_price(), to_node_int(), from_node_int()
-├── trade_builder.py   # build_*_trade() helpers, blake2b_hash()
-├── preferences.py     # mutual pairs + energy-type multipliers
-├── offchain_db.py     # async httpx client for GSY DEX REST API
-├── contract.py        # web3.py wrapper for AMMContract
+├── preferences.py     # mutual preferred-pair matching
+├── offchain_db.py     # async httpx client for the off-chain DB REST API
+├── contract.py        # web3.py wrapper for AMMContract (optional/deferred)
 └── config.py          # YAML + env-var settings, Pydantic models
+schemas/intelligent/   # vendored GSY DEX int.* JSON Schemas (the wire contract)
+sim/                   # local off-chain DB simulator for end-to-end tests (dev only)
 tests/
-└── test_*.py          # one file per src module, 43 tests total
+└── test_*.py          # incl. conftest.py (schema-validating fake DB), 55 tests total
 ```
 
-Start at `clearing.py` for any algorithmic change — every step is a numbered
-section with a comment header.
+Start at `clearing.py` for an algorithmic change (numbered step sections) or
+`adapters.py` for anything touching the wire format.
 
 ## Public API
 
@@ -62,11 +69,14 @@ If `CONTRACT_ADDRESS` or `CLEARING_NODE_PRIVATE_KEY` is unset, clearing runs
 ## Dev loop
 
 ```bash
-uv sync --extra dev                              # install
-uv run pytest -v                                 # 43 tests
+uv sync --extra dev                              # install (incl. pytest)
+uv run pytest -v                                 # 55 tests
 uv run pytest tests/test_clearing.py -v          # subset
 uv run uvicorn src.main:app --port 8081 --reload # local server
+uv run uvicorn sim.offchain_sim:app --port 8080  # local off-chain DB simulator
 ```
+
+See [`sim/README.md`](sim/README.md) for the full local end-to-end flow.
 
 ## Patterns
 
@@ -79,23 +89,27 @@ uv run uvicorn src.main:app --port 8081 --reload # local server
   (DB + chain). Keeps the rest unit-testable in isolation.
 - **Pydantic for boundaries**, dataclasses or plain dicts internally. Don't
   push Pydantic models through every internal function — it adds noise.
-- **Mock at the HTTP layer.** Tests use `respx` to mock `httpx` responses
-  rather than mocking client methods. More realistic, catches schema drift.
+- **The wire is `int.*`; the inside is internal.** Only `adapters.py` knows
+  both. The algorithm modules (`clearing.py` minus its edges, `preferences.py`,
+  `sigmoid.py`) never see ontology field names.
+- **Validate at the boundary.** `clearing.py` validates inbound orders and every
+  outbound trade / clearing result via `ontology.py`; the test fake and the
+  simulator do the same, so format drift fails the test.
 
 ## Conventions to preserve
 
 1. Step numbering (0–8) in `clearing.py`. If you add a step, renumber and
    update the docstring.
-2. `blake2b_hash(data)` returns `"0x" + 64 hex chars` for a 32-byte digest.
-   Don't switch to SHA-256 — GSY DEX uses blake2b.
-3. `pool_id = f"AMM_POOL_{community_uuid}"` (defined once; don't inline).
-4. Trade `parameters` dict carries provenance:
-   `{selected_energy, energy_rate, amm_tx_hash, theta, steepness,
-   total_supply_kwh, total_demand_kwh, preference_matched}`. Adding a new
-   field is fine; renaming an existing one is a breaking change for
-   downstream consumers.
-5. **`sigmoid.py` is duplicated** in `amm-execution-node/src/sigmoid.py`.
-   If you change one, change the other and add a regression test in both.
+2. **Wire objects conform to `schemas/intelligent/*`.** Build them only via the
+   `adapters.py` helpers; don't hand-assemble `int:Trade` / `int:ClearingResult`
+   dicts elsewhere.
+3. **Trade IDs are deterministic `uuid5`** (`adapters.trade_uuid`) so a re-run is
+   reproducible. Pool order/actor UUIDs are likewise derived in `adapters.py`.
+4. **Price units:** internal is ct/kWh (sigmoid bounds); the wire is EUR/kWh.
+   Convert only via `CT_PER_EUR` in `adapters.py`.
+5. **`pool_actor_uuid`** (per community in `config.py`) is the pool's identity on
+   the wire. The `int:Trade` representation of pool half-trades is provisional
+   pending GSY's pool-registration decision.
 
 ## Common change recipes
 
@@ -104,10 +118,11 @@ uv run uvicorn src.main:app --port 8081 --reload # local server
 - **New preference rule**: implement in `preferences.py` as a pure function,
   call it from the relevant step in `clearing.py`, add `test_preferences.py`
   cases.
-- **New trade type**: add a `build_<x>_trade()` to `trade_builder.py`
-  following the existing shape; add a hash determinism test.
+- **New wire field / trade type**: update the relevant schema in
+  `schemas/intelligent/`, add/extend a builder in `adapters.py`, and assert it
+  validates in `test_adapters.py`.
 - **New off-chain DB endpoint**: add an async method to
-  `offchain_db.py:OffChainDBClient`; use `respx` in tests.
+  `offchain_db.py:OffchainDBClient` and a matching route in `sim/offchain_sim.py`.
 
 ## Don'ts
 
@@ -118,3 +133,6 @@ uv run uvicorn src.main:app --port 8081 --reload # local server
   contract.
 - Don't change `NODE_FLOAT_SCALING_FACTOR = 10000`. It is shared with the
   Solidity contract.
+- Don't leak internal field names (`energy`, `energy_rate`, `status`, nested
+  `requirements`/`attributes`) onto the wire — `additionalProperties: false`
+  in the schemas will reject them, and the tests will catch it.

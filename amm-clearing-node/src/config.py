@@ -13,6 +13,10 @@ class CommunityConfig(BaseModel):
     theta: float
     steepness: float
     pool_id: str
+    # Actor identity (UUID) the AMM pool trades as on the int:Trade wire. The
+    # pool is a virtual counterparty; this is the FK used as buyerId/sellerId for
+    # pool trades. Provisional pending GSY's pool-registration decision.
+    pool_actor_uuid: str
 
 
 class Settings(BaseModel):

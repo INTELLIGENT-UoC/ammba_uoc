@@ -1,0 +1,50 @@
+[
+  {
+    "orderId": "aaaaaaaa-0001-4001-8001-000000000001",
+    "marketId": "33333333-3333-4333-8333-333333333333",
+    "orderType": "Bid",
+    "orderStatus": "Submitted",
+    "timeSlot": "2026-07-01T10:00:00Z",
+    "quantity": 5.0,
+    "priceLimit": 0.28,
+    "createdBy": "bbbbbbbb-0001-4001-8001-000000000001",
+    "createdAt": "2026-07-01T09:45:00Z",
+    "preferredTradingPartner": "cccccccc-0001-4001-8001-000000000001"
+  },
+  {
+    "orderId": "aaaaaaaa-0002-4002-8002-000000000002",
+    "marketId": "33333333-3333-4333-8333-333333333333",
+    "orderType": "Offer",
+    "orderStatus": "Submitted",
+    "timeSlot": "2026-07-01T10:00:00Z",
+    "quantity": 5.0,
+    "priceLimit": 0.08,
+    "createdBy": "cccccccc-0001-4001-8001-000000000001",
+    "createdAt": "2026-07-01T09:45:00Z",
+    "energyType": "PV",
+    "preferredTradingPartner": "bbbbbbbb-0001-4001-8001-000000000001"
+  },
+  {
+    "orderId": "aaaaaaaa-0003-4003-8003-000000000003",
+    "marketId": "33333333-3333-4333-8333-333333333333",
+    "orderType": "Bid",
+    "orderStatus": "Submitted",
+    "timeSlot": "2026-07-01T10:00:00Z",
+    "quantity": 5.0,
+    "priceLimit": 0.26,
+    "createdBy": "bbbbbbbb-0002-4002-8002-000000000002",
+    "createdAt": "2026-07-01T09:45:00Z"
+  },
+  {
+    "orderId": "aaaaaaaa-0004-4004-8004-000000000004",
+    "marketId": "33333333-3333-4333-8333-333333333333",
+    "orderType": "Offer",
+    "orderStatus": "Submitted",
+    "timeSlot": "2026-07-01T10:00:00Z",
+    "quantity": 6.0,
+    "priceLimit": 0.10,
+    "createdBy": "cccccccc-0002-4002-8002-000000000002",
+    "createdAt": "2026-07-01T09:45:00Z",
+    "energyType": "GREY"
+  }
+]
