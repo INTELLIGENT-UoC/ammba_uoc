@@ -12,23 +12,24 @@ that gets you from zero to making changes safely.
 
 ## TL;DR (read this even if you read nothing else)
 
-AMMBA is a **P2P energy market**: every 15 minutes, buyers and sellers submit
-orders, a **sigmoid-based clearing price** is computed from supply/demand,
-quantities are **pro-rata allocated**, and trades go through an **AMM pool**.
-Clearing results are anchored on the **Energy Web Chain** (a public PoA chain).
-After delivery, an execution node computes **VCG-style penalties** for
-deviations.
+AMMBA is a **P2P energy market** and an alternative matching engine for the GSY
+Decentralized Exchange: every 15 minutes, buyers and sellers submit orders, a
+**sigmoid-based clearing price** is computed from supply/demand, quantities are
+**pro-rata allocated**, and trades go through an **AMM pool**. It consumes and
+produces the GSY DEX `int.*` ontology objects (orders in, trades + clearing
+result out). Clearing results can be anchored on the **Energy Web Chain**.
 
-Three components, all independently testable and deployable:
+The **v1 MVP is the clearing node**. The execution node (post-delivery
+VCG-style penalties) is **deferred** and not in the active stack.
 
 | Path | Stack | Role |
 |---|---|---|
-| `amm-smart-contract/` | Solidity 0.8.24, Hardhat 2, Node 20 | On-chain audit anchor |
-| `amm-clearing-node/`  | Python 3.13, FastAPI, uv | Runs the 8-step clearing algorithm |
-| `amm-execution-node/` | Python 3.13, FastAPI, uv | Computes post-delivery penalties |
+| `amm-clearing-node/`  | Python 3.12+, FastAPI, uv | **(v1)** The clearing pipeline; speaks the `int.*` ontology |
+| `amm-smart-contract/` | Solidity 0.8.24, Hardhat 2, Node 20 | On-chain audit anchor (optional for v1) |
+| `amm-execution-node/` | Python 3.12+, FastAPI, uv | **(deferred)** post-delivery penalties |
 
 For the full system reference (algorithms, data flow, schemas, decision log),
-see [ARCHITECTURE.md](ARCHITECTURE.md) — 800-line authoritative doc.
+see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
@@ -41,7 +42,7 @@ ammba_uoc/
 ├── ARCHITECTURE.md                  # full system reference
 ├── README.md                        # user-facing intro
 ├── CONTRIBUTING.md                  # workflow, commit format
-├── docker-compose.yml               # both Python services
+├── docker-compose.yml               # clearing node + optional simulator (--profile dev)
 │
 ├── amm-smart-contract/
 │   ├── AGENTS.md                    # component-specific onboarding
@@ -49,29 +50,26 @@ ammba_uoc/
 │   ├── test/AMMContract.test.js     # 17 hardhat tests
 │   └── scripts/deploy.js
 │
-├── amm-clearing-node/
+├── amm-clearing-node/              # ← v1 MVP
 │   ├── AGENTS.md                    # component-specific onboarding
 │   ├── src/
 │   │   ├── main.py                  # FastAPI app + routes
-│   │   ├── clearing.py              # ★ the 8-step clearing pipeline
+│   │   ├── clearing.py              # ★ the clearing pipeline
+│   │   ├── adapters.py             # ★ int.* ↔ internal; int:Trade / int:ClearingResult builders
+│   │   ├── ontology.py             # schema loader + dependency-free validator
 │   │   ├── sigmoid.py               # price function
-│   │   ├── trade_builder.py         # Trade dict construction + blake2b
-│   │   ├── preferences.py           # mutual pairs + energy-type multipliers
-│   │   ├── offchain_db.py           # httpx client for GSY DEX
-│   │   ├── contract.py              # web3.py client for AMMContract
+│   │   ├── preferences.py           # mutual preferred-pair matching
+│   │   ├── offchain_db.py           # httpx client for the off-chain DB
+│   │   ├── contract.py              # web3.py client for AMMContract (optional)
 │   │   └── config.py                # YAML + env-var settings
-│   └── tests/                       # 43 pytest tests
+│   ├── schemas/intelligent/         # vendored GSY DEX int.* schemas (wire contract)
+│   ├── sim/                         # local off-chain DB simulator (dev only)
+│   └── tests/                       # 55 pytest tests (incl. conftest fake DB + e2e)
 │
-└── amm-execution-node/
+└── amm-execution-node/             # ← deferred (not in v1 MVP)
     ├── AGENTS.md                    # component-specific onboarding
-    ├── src/
-    │   ├── main.py                  # FastAPI app + --poll mode
-    │   ├── execution.py             # cycle orchestration
-    │   ├── penalties.py             # ★ shortfall + 2× VCG formulas
-    │   ├── sigmoid.py               # copy of clearing-node's, for counterfactuals
-    │   ├── offchain_db.py
-    │   └── config.py
-    └── tests/                       # 19 pytest tests
+    ├── src/                         # penalties.py (shortfall + VCG), execution.py, ...
+    └── tests/                       # pytest tests
 ```
 
 The `★` files are the algorithmic heart of each service — start there when
@@ -86,19 +84,23 @@ investigating any clearing/penalty behaviour.
 cd amm-smart-contract && npm ci && npx hardhat test           # 17 tests
 cd amm-smart-contract && npx hardhat compile
 
-# Clearing node
+# Clearing node (v1)
 cd amm-clearing-node && uv sync --extra dev && uv run pytest -v
 cd amm-clearing-node && uv run uvicorn src.main:app --port 8081
 
-# Execution node
-cd amm-execution-node && uv sync --extra dev && uv run pytest -v
-cd amm-execution-node && uv run uvicorn src.main:app --port 8082
+# Local off-chain DB simulator (dev; serves/validates int.* objects)
+cd amm-clearing-node && uv run uvicorn sim.offchain_sim:app --port 8080
 
-# Full stack (both Python services; the GSY DEX off-chain DB is not bundled)
-docker compose up --build
+# Local stack: clearing node + simulator, wired together
+docker compose --profile dev up --build
+
+# Execution node (deferred — kept for later work)
+cd amm-execution-node && uv sync --extra dev && uv run pytest -v
 ```
 
-Health checks: `curl localhost:8081/health` and `localhost:8082/health`.
+Health check: `curl localhost:8081/health`. See
+[`amm-clearing-node/sim/README.md`](amm-clearing-node/sim/README.md) for the full
+local end-to-end flow.
 
 ---
 
@@ -108,26 +110,32 @@ Health checks: `curl localhost:8081/health` and `localhost:8082/health`.
    `NODE_FLOAT_SCALING_FACTOR = 10000`. Example: 28.5 ct/kWh → `285000`.
    Helpers live in `sigmoid.py` (`to_node_int`, `from_node_int`).
 
-2. **Trade hashing**: `_id` of a trade is `"0x" + blake2b-256` of the
-   `json.dumps(trade, sort_keys=True)` payload. See
-   [`amm-clearing-node/src/trade_builder.py`](amm-clearing-node/src/trade_builder.py)
-   `blake2b_hash()`. **Order of keys matters** — `sort_keys=True` is mandatory.
+2. **The wire contract is the `int.*` ontology** in
+   [`amm-clearing-node/schemas/intelligent/`](amm-clearing-node/schemas/intelligent).
+   Orders in (`int:Order`), trades out (`int:Trade`), and the per-slot summary
+   (`int:ClearingResult`) follow these flat, camelCase, EUR/kWh, ISO-8601, UUID
+   schemas. Translate at the `adapters.py` boundary; never leak internal field
+   names onto the wire. The old nested `bid_component`/`offer_component` shape and
+   `trade_builder.py` are retired.
 
-3. **Pool-mediated trades**: every participant trades with the pool, not with
-   each other. Two trades per allocation: Buyer→Pool and Pool→Seller.
-   The **only exception** is preference-matched mutual pairs (direct trade,
-   `parameters.preference_matched = True`).
+3. **Trade IDs are deterministic `uuid5`** (`adapters.trade_uuid`); pool actor and
+   pool order UUIDs are likewise derived in `adapters.py`. (Replaces the previous
+   blake2b `_id` convention.)
 
-4. **Pool identifier**: `AMM_POOL_{community_uuid}` (provisional; tracked in
-   ARCHITECTURE.md open items).
+4. **Pool-mediated trades**: every participant trades with the pool, not with
+   each other. Two trades per allocation: Buyer→Pool and Pool→Seller. The **only
+   exception** is preference-matched mutual pairs (direct buyer↔seller trade). On
+   the wire, the pool is a configured actor (`pool_actor_uuid` per community) with
+   deterministic standing orders — provisional, tracked in ARCHITECTURE.md open
+   items.
 
-5. **Off-chain DB schema is fixed**: nested
-   `bid.bid_component` / `offer.offer_component` structure, mirroring the GSY
-   DEX Postman collection. Don't flatten it; downstream consumers depend on it.
+5. **Price units**: internal computation is ct/kWh (the sigmoid bounds); the wire
+   is EUR/kWh. The `CT_PER_EUR` conversion lives only in `adapters.py`.
 
-6. **Sigmoid is duplicated** between clearing and execution nodes (see
-   `sigmoid.py` in both). This is **intentional** — independent deployability
-   beats DRY here. If you change one, change both, and add a regression test.
+6. **Validation is dependency-free** (`ontology.py`). Don't add `jsonschema`;
+   extend the small validator if a schema feature is missing. `sigmoid.py` is
+   still duplicated in the (deferred) execution node — keep them in sync if it is
+   revived.
 
 7. **Async everywhere** in the Python services: `httpx.AsyncClient`, FastAPI
    async endpoints, pytest-asyncio in `auto` mode. Don't introduce blocking
@@ -143,15 +151,16 @@ Health checks: `curl localhost:8081/health` and `localhost:8082/health`.
 
 ### Adding a feature to the clearing algorithm
 1. Read [`amm-clearing-node/src/clearing.py`](amm-clearing-node/src/clearing.py)
-   end-to-end — it's ~300 lines and orchestrates the whole flow. Each numbered
-   step (0–8) is a clear seam.
-2. Most feature work goes in `preferences.py`, `trade_builder.py`, or
-   `sigmoid.py` — `clearing.py` itself is just the pipeline.
-3. Add tests in `amm-clearing-node/tests/`. Pattern: one file per source module,
-   `test_<module>.py`. Use the existing test fixtures as templates — they
-   already include sample orders, bids, and offers in the right schema.
-4. Run `uv run pytest -v`. Don't introduce new dependencies without updating
-   `pyproject.toml` and re-running `uv sync`.
+   end-to-end — it orchestrates the whole flow; each numbered step (0–8) is a
+   clear seam.
+2. Most feature work goes in `preferences.py` or `sigmoid.py`; anything touching
+   the wire format goes in `adapters.py` (+ the schema in `schemas/intelligent/`).
+   `clearing.py` itself is just the pipeline.
+3. Add tests in `amm-clearing-node/tests/`. Use `conftest.py:make_int_order` for
+   schema-valid `int:Order` fixtures and `FakeDBClient` (it validates every
+   posted trade / clearing result against the ontology).
+4. Run `uv sync --extra dev && uv run pytest -v`. Don't introduce new
+   dependencies without updating `pyproject.toml` and re-running `uv sync`.
 
 ### Touching the smart contract
 1. Read [`amm-smart-contract/contracts/AMMContract.sol`](amm-smart-contract/contracts/AMMContract.sol)
@@ -186,16 +195,17 @@ Health checks: `curl localhost:8081/health` and `localhost:8082/health`.
 | What you changed | Minimum verification |
 |---|---|
 | Sigmoid / pricing | `pytest tests/test_sigmoid.py` + property test with random ratios |
-| Trade construction | `pytest tests/test_trade_builder.py` — check hash determinism |
-| Preferences | `pytest tests/test_preferences.py` — both mutual-pair and energy-type cases |
-| Clearing pipeline | `pytest tests/test_clearing.py` end-to-end |
-| Penalties | `pytest tests/test_penalties.py` — supply-limited and demand-limited rounds |
-| Smart contract | `npx hardhat test` — all 17 |
-| FastAPI surface | `pytest tests/test_main.py` + `curl localhost:808x/health` |
+| Wire format / adapter | `pytest tests/test_adapters.py tests/test_ontology.py` |
+| Trade construction | `pytest tests/test_adapters.py` — built trades must validate against `int:Trade` |
+| Preferences | `pytest tests/test_preferences.py` |
+| Clearing pipeline | `pytest tests/test_clearing.py` |
+| End-to-end (node ↔ off-chain DB) | `pytest tests/test_e2e.py` (runs against the simulator) |
+| Smart contract | `npx hardhat test` |
 | Anything in CI | Push to a branch and watch the GitHub Actions run |
 
-For UI/manual smoke tests, `docker compose up` then exercise the endpoints
-with the example payloads in [README.md](README.md).
+For manual smoke tests, `docker compose --profile dev up` then exercise the
+endpoints with the example payloads in [README.md](README.md) /
+[`sim/README.md`](amm-clearing-node/sim/README.md).
 
 ---
 
@@ -205,9 +215,10 @@ with the example payloads in [README.md](README.md).
   Default network is Volta testnet.
 - **Don't put secrets in code or YAML.** Use env vars; `.env.example` lists
   what's required.
-- **Don't break the trade hash determinism** — `sort_keys=True` and the
-  blake2b digest size are load-bearing.
-- **Don't add blocking I/O in request paths** — both services are fully async.
+- **Don't leak internal field names onto the wire** — orders/trades/clearing
+  results must conform to the `int.*` schemas (`additionalProperties: false`).
+  Build wire objects only via `adapters.py`.
+- **Don't add blocking I/O in request paths** — the service is fully async.
 - **Don't merge if CI is red.** Branch protection enforces this on `main`.
 - **Don't write to `IMPLEMENTATION_GUIDE.md`** (if present locally) — it's the
   immutable original spec. Update `ARCHITECTURE.md` instead.

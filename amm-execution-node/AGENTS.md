@@ -3,6 +3,14 @@
 > Component-specific onboarding. See the [repo-root AGENTS.md](../AGENTS.md)
 > for the big picture first.
 
+> **Status: deferred — not part of the v1 MVP.** The v1 integration target is
+> the clearing node alone (orders in → trades out, via the GSY DEX `int.*`
+> ontology). This service and its penalty mechanism are kept for later work but
+> are not deployed in the active stack (removed from `docker-compose.yml`) and
+> have not yet been migrated to the `int.*` ontology. The measurement feed it
+> needs (`int:Measurement`) and a home for per-slot pricing parameters
+> (`theta`/`steepness`) are still open with GSY before this can be revived.
+
 ## What this service does
 
 Runs **after delivery**. Reads settled trades and metered measurements,

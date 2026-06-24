@@ -11,7 +11,10 @@ RUN uv sync --no-dev --frozen 2>/dev/null || uv sync --no-dev
 
 # Application layer
 COPY configuration.yaml ./
+COPY schemas/ ./schemas/
 COPY src/ ./src/
+# Local off-chain DB simulator (dev-only; only run via the compose "dev" profile)
+COPY sim/ ./sim/
 
 EXPOSE 8081
 

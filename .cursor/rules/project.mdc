@@ -11,29 +11,31 @@ recipes, and things never to break.
 
 ## Quick orientation
 
-This is a P2P energy market with three components:
+This is a P2P energy market and an alternative matching engine for the GSY DEX:
 
-- `amm-smart-contract/` — Solidity (Hardhat 2). On-chain audit anchor.
-- `amm-clearing-node/` — Python 3.13, FastAPI, uv. Sigmoid clearing + pro-rata
-  allocation. The pipeline lives in `src/clearing.py`.
-- `amm-execution-node/` — Python 3.13, FastAPI, uv. Penalties (shortfall + VCG)
-  in `src/penalties.py`.
+- `amm-clearing-node/` — **(v1)** Python 3.12+, FastAPI, uv. Sigmoid clearing +
+  pro-rata allocation. Pipeline in `src/clearing.py`; wire-format translation in
+  `src/adapters.py`.
+- `amm-smart-contract/` — Solidity (Hardhat 2). On-chain audit anchor (optional).
+- `amm-execution-node/` — **(deferred, not in v1)** Penalties (shortfall + VCG).
 
 Each component has its own `AGENTS.md` with deeper details — open it when
 working in that component.
 
 ## Non-negotiable conventions
 
+- The wire contract is the `int.*` ontology (`amm-clearing-node/schemas/intelligent/`):
+  `int:Order` in, `int:Trade` + `int:ClearingResult` out — flat, camelCase,
+  EUR/kWh, ISO-8601, UUIDs. Translate only in `src/adapters.py`; never leak
+  internal field names (the schemas are `additionalProperties: false`).
+- Trade IDs are deterministic `uuid5` (`adapters.trade_uuid`), not blake2b.
+- Prices: internal ct/kWh, wire EUR/kWh — convert via `CT_PER_EUR` in `adapters.py`.
 - All on-chain integers are scaled × 10000 (`NODE_FLOAT_SCALING_FACTOR`).
-- Trade `_id` = `"0x" + blake2b-256(json.dumps(trade, sort_keys=True))`.
-  **`sort_keys=True` is required** for hash determinism.
 - Every participant trades with the AMM pool, not directly with each other.
-  Exception: preference-matched mutual pairs.
-- Trade schema uses nested `bid.bid_component` / `offer.offer_component`
-  shape — do not flatten.
-- Both services are fully async — no blocking I/O in request paths.
-- The sigmoid implementation is intentionally duplicated between the two
-  Python services. If you change one, change the other and add a test.
+  Exception: preference-matched mutual pairs. On the wire the pool is a configured
+  actor (`pool_actor_uuid`) with deterministic standing orders (provisional).
+- Validate against the schemas with `src/ontology.py` (no `jsonschema` dep).
+- The service is fully async — no blocking I/O in request paths.
 
 ## Tooling
 

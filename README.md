@@ -6,12 +6,20 @@ AMMBA runs periodic batch auctions for community energy markets. Prosumers submi
 buy/sell orders into an off-chain DB during a market window. When the window
 closes, a sigmoid-based **uniform clearing price** is computed from the
 supply/demand ratio, and all participants trade against a central AMM pool with
-quantities allocated **pro-rata**. Clearing results are anchored on the Energy
-Web Chain for transparent audit. After delivery, an execution node computes
-penalties for participants that deviated from their commitments.
+quantities allocated **pro-rata**. Clearing results can be anchored on the Energy
+Web Chain for transparent audit.
 
-> Status: Phase 1 + Phase 2 implemented (clearing + penalties). Integration
-> testing and on-chain deployment to Volta/EWC are next.
+AMMBA acts as an alternative matching engine for the
+[GSY Decentralized Exchange](https://github.com/gridsingularity): it consumes and
+produces the GSY DEX `int.*` ontology objects (orders in, trades and clearing
+results out), so it is interchangeable with the other matching engines.
+
+> Status: v1 MVP — the **clearing node** reads `int:Order`, clears, and emits
+> `int:Trade` + `int:ClearingResult`, validated against the vendored ontology
+> schemas and exercised end-to-end against a local off-chain DB simulator. The
+> execution node (penalties) is deferred. Transport is REST today; the EW Client
+> Gateway request/response channels will replace it once the channel conventions
+> are finalised upstream.
 
 ---
 
@@ -54,9 +62,9 @@ Three components, each independently deployable:
 
 | Component | Stack | Purpose |
 |---|---|---|
-| [`amm-smart-contract/`](amm-smart-contract/) | Solidity 0.8.24, Hardhat | On-chain audit anchor. Stores cleared market results and emits `MarketCleared` events. |
-| [`amm-clearing-node/`](amm-clearing-node/) | Python 3.11+, FastAPI, web3.py | Runs the 8-step clearing algorithm: fetch orders → sigmoid price → pro-rata allocation → preference matching → build trades → write to off-chain DB → anchor on-chain. |
-| [`amm-execution-node/`](amm-execution-node/) | Python 3.11+, FastAPI | Post-delivery: reads metered measurements, computes shortfall and VCG penalties, writes adjustments back. |
+| [`amm-clearing-node/`](amm-clearing-node/) | Python 3.11+, FastAPI, web3.py | **(v1)** Runs the clearing pipeline: fetch `int:Order` → sigmoid price → pro-rata allocation → preference matching → build `int:Trade` → write trades + `int:ClearingResult` to the off-chain DB → optionally anchor on-chain. |
+| [`amm-smart-contract/`](amm-smart-contract/) | Solidity 0.8.24, Hardhat | On-chain audit anchor. Stores cleared market results and emits `MarketCleared` events. Optional for v1. |
+| [`amm-execution-node/`](amm-execution-node/) | Python 3.11+, FastAPI | **(deferred)** Post-delivery penalties (shortfall, VCG). Kept for later work; not part of the v1 MVP and not yet migrated to the `int.*` ontology. |
 
 ## Core algorithms
 
@@ -64,10 +72,11 @@ Three components, each independently deployable:
   ratio, bounded between feed-in tariff and retail price.
 - **Pro-rata allocation** — the short side is fully served; the long side is
   rationed in proportion to each participant's submitted quantity.
-- **Preference matching** — energy-type multipliers (e.g. green premium) and
-  bilateral mutual-preference pairs are honoured before pool clearing.
-- **VCG-style penalties** — deviations from committed quantity are priced
-  against a counterfactual clearing where the deviating party is replaced.
+- **Preference matching** — mutual preferred-partner pairs are settled directly
+  (priority allocation) before the remaining volume clears against the pool.
+  (Energy-type differential pricing is implemented but not yet wired to the
+  `int.*` trade output; VCG-style deviation penalties live in the deferred
+  execution node.)
 
 Full details and formulas: see [ARCHITECTURE.md](ARCHITECTURE.md). For
 contributors and AI coding assistants, the canonical onboarding doc is
@@ -76,22 +85,23 @@ directory).
 
 ## Quick start
 
-Requires Docker + Docker Compose. The off-chain DB (GSY DEX) is **not** bundled —
-point `OFFCHAIN_DB_URL` at your running instance.
+Requires Docker + Docker Compose. The real GSY DEX off-chain DB is **not**
+bundled. For local end-to-end testing, the `dev` compose profile starts a
+schema-validating off-chain DB simulator (`amm-clearing-node/sim/`):
 
 ```bash
 git clone https://github.com/INTELLIGENT-UoC/ammba_uoc.git
 cd ammba_uoc
-cp .env.example .env          # then fill in RPC_URL, keys, CONTRACT_ADDRESS
-docker compose up --build
+cp .env.example .env             # fill in RPC_URL / keys only if anchoring on-chain
+docker compose --profile dev up --build
 ```
 
-This starts the clearing node on `:8081` and the execution node on `:8082`.
-Health checks:
+This starts the clearing node on `:8081` and the off-chain DB simulator on
+`:8080` (seeded with a sample market). For a real deployment, drop `--profile dev`
+and set `OFFCHAIN_DB_URL` to the GSY DEX off-chain DB. Health check:
 
 ```bash
 curl http://localhost:8081/health
-curl http://localhost:8082/health
 ```
 
 ### Triggering a clearing
@@ -99,7 +109,15 @@ curl http://localhost:8082/health
 ```bash
 curl -X POST http://localhost:8081/trigger-clearing \
   -H 'Content-Type: application/json' \
-  -d '{"slot_start_unix": 1735689600}'
+  -d '{"market_id":"33333333-3333-4333-8333-333333333333",
+       "community_uuid":"11111111-1111-4111-8111-111111111111",
+       "time_slot":1782900000}'
+```
+
+Then inspect the trades the simulator received:
+
+```bash
+curl 'http://localhost:8080/trades?market_id=33333333-3333-4333-8333-333333333333'
 ```
 
 ### Deploying the smart contract
@@ -119,12 +137,11 @@ Each Python service uses [uv](https://docs.astral.sh/uv/):
 ```bash
 cd amm-clearing-node
 uv sync --extra dev
-uv run pytest -v                                   # 43 tests
-
-cd ../amm-execution-node
-uv sync --extra dev
-uv run pytest -v                                   # 19 tests
+uv run pytest -v                                   # 55 tests (incl. an end-to-end run against the simulator)
 ```
+
+The execution node is deferred (not part of the v1 MVP); its tests still live in
+`amm-execution-node/` for later work.
 
 ## Configuration
 
@@ -138,17 +155,19 @@ repo root and the `configuration.yaml` inside each service directory.
 | `CONTRACT_ADDRESS` | clearing-node | Address of the deployed `AMMContract` |
 | `CLEARING_NODE_PRIVATE_KEY` | clearing-node | Funded EOA that signs `clearMarket()` txs |
 | `DEPLOYER_PRIVATE_KEY` | hardhat | One-time, for contract deployment |
-| `OFFCHAIN_DB_URL` | both nodes | GSY DEX off-chain DB endpoint |
-| `TIME_SLOT_SEC` | both nodes | Market slot length in seconds (default `900`) |
+| `OFFCHAIN_DB_URL` | clearing-node | GSY DEX off-chain DB endpoint (or the local simulator) |
+| `TIME_SLOT_SEC` | clearing-node | Market slot length in seconds (default `900`) |
 
 ## Repository layout
 
 ```
 ammba_uoc/
 ├── amm-smart-contract/    # Solidity contract + Hardhat tests
-├── amm-clearing-node/     # FastAPI clearing service
-├── amm-execution-node/    # FastAPI penalty service
-├── docker-compose.yml     # Both Python services
+├── amm-clearing-node/     # FastAPI clearing service (v1)
+│   ├── schemas/intelligent/   # vendored GSY DEX int.* ontology schemas (wire contract)
+│   └── sim/                    # local off-chain DB simulator (dev only)
+├── amm-execution-node/    # FastAPI penalty service (deferred)
+├── docker-compose.yml     # Clearing node + optional simulator (--profile dev)
 ├── ARCHITECTURE.md        # Full system reference (algorithms, schemas, decisions)
 ├── AGENTS.md              # Canonical onboarding for contributors + AI assistants
 ├── CLAUDE.md              # Claude-Code-specific shim → AGENTS.md

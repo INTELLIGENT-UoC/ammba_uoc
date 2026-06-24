@@ -1,7 +1,33 @@
 # ARCHITECTURE.md — AMMBA Comprehensive Documentation
 
-> **Last updated**: 2026-02-24
-> **Status**: Phase 1 + Phase 2 implemented. Integration testing and deployment pending.
+> **Last updated**: 2026-06-24
+> **Status**: v1 MVP — the clearing node is integrated with the GSY DEX `int.*`
+> ontology and tested end-to-end against a local off-chain DB simulator. The
+> execution node (penalties) is deferred.
+
+> ### v1 integration note (read before the older sections below)
+>
+> Parts of this document predate the GSY DEX data-contract alignment and are kept
+> for algorithmic reference. The integration-facing reality as of v1:
+>
+> - **Wire contract = the `int.*` ontology** (`amm-clearing-node/schemas/intelligent/`).
+>   The clearing node consumes `int:Order` and produces `int:Trade` +
+>   `int:ClearingResult`. These are **flat** (UUID foreign keys, camelCase,
+>   EUR/kWh, ISO-8601), unlike the older nested `bid_component`/`offer_component`
+>   trade shape described in §7, which is retired. All translation happens in
+>   `src/adapters.py`; the internal algorithm dicts are unchanged.
+> - **The pool is a counterparty on the wire too.** Because `int:Trade` is
+>   bilateral (one bid + one offer + a real buyer + seller), pool half-trades are
+>   serialized by giving the pool a configured actor UUID (`pool_actor_uuid`) and
+>   deterministic standing pool orders. This is provisional pending GSY's
+>   pool-registration decision (§13).
+> - **Units**: the sigmoid runs in ct/kWh (community bounds); the wire is EUR/kWh.
+>   Conversion is isolated in `adapters.py` (`CT_PER_EUR`).
+> - **Transport**: plain REST today (to the real off-chain DB or the bundled
+>   simulator). The EW Client Gateway request/response channels replace it later,
+>   behind the same adapter boundary.
+> - **Scope**: the execution node, on-chain settlement conformance, energy-type
+>   differential pricing, and the CGW transport are out of v1.
 
 ---
 
@@ -175,23 +201,24 @@ price = K_upper - (K_upper - K_lower) / (1 + exp(-B * (ratio - theta)))
 - Clamped to [K_lower, K_upper]
 - `to_node_int()` / `from_node_int()` scaling utilities (factor: 10000)
 
-##### `src/trade_builder.py` — Trade Object Construction
-Three trade builders matching the GSY DEX nested schema:
+##### `src/adapters.py` — Wire translation + trade construction
+> Supersedes the former `src/trade_builder.py` (which built the retired nested
+> trade shape with blake2b `_id`s). Trades are now built directly as flat
+> `int:Trade` objects.
 
-| Function | Trade Type | buyer | seller |
-|----------|-----------|-------|--------|
-| `build_buyer_pool_trade()` | Buyer -> Pool | participant | pool_id |
-| `build_pool_seller_trade()` | Pool -> Seller | pool_id | participant |
-| `build_direct_preference_trade()` | Buyer -> Seller | buyer | seller |
+Three `int:Trade` builders, all validated against `int.trade.schema.v1.json`:
 
-All trades include:
-- `trade_uuid` (UUIDv4)
-- `_id` (blake2b-256 hash of the entire trade object)
-- Nested `bid.bid_component` / `offer.offer_component` structure
-- `parameters` dict with `{selected_energy, energy_rate, amm_tx_hash, theta, steepness, total_supply_kwh, total_demand_kwh, preference_matched}`
-- `residual_bid` / `residual_offer` for partial fills (energy that wasn't matched)
+| Function | Trade Type | buyerId | sellerId |
+|----------|-----------|---------|----------|
+| `build_buyer_pool_int_trade()` | Buyer -> Pool | participant | `pool_actor_uuid` |
+| `build_pool_seller_int_trade()` | Pool -> Seller | `pool_actor_uuid` | participant |
+| `build_direct_int_trade()` | Buyer -> Seller (preference) | buyer | seller |
 
-`blake2b_hash()`: Deterministic hashing via `hashlib.blake2b(json.dumps(data, sort_keys=True), digest_size=32)`, prefixed with `0x`.
+Each `int:Trade` is flat: `tradeId` (deterministic `uuid5`), `marketId`, `bidId`,
+`buyerId`, `offerId`, `sellerId`, `tradeStatus`, `tradeQuantity`, `tradePrice`
+(EUR/kWh), `tradedAt` (ISO-8601). Pool half-trades reference deterministic pool
+standing-order UUIDs for the missing side. `adapters.py` also builds the
+`int:ClearingResult` and maps inbound `int:Order` → the internal dict.
 
 ##### `src/preferences.py` — Preference Matching
 Two mechanisms implemented:
@@ -461,7 +488,14 @@ penalty = max(0, (p_cf - clearing_price) * total_traded)
 
 ## 7. Data Schemas
 
-### 7.1 Order Object (from off-chain DB)
+> **v1 wire format:** The authoritative on-the-wire schemas are the vendored
+> `int.*` JSON Schemas in `amm-clearing-node/schemas/intelligent/`
+> (`int.order`, `int.trade`, `int.clearing-result`). The shapes shown in 7.1–7.3
+> below are the **internal** representation (and, for 7.2, the retired nested
+> trade shape). `src/adapters.py` maps between the two; see the v1 integration
+> note at the top of this document.
+
+### 7.1 Order Object (internal representation, mapped from `int:Order`)
 ```json
 {
   "order_id": "0xabc...",
@@ -635,16 +669,18 @@ cd amm-smart-contract && npx hardhat test
 | setClearingNode | 2 | Update address, onlyOwner |
 | View functions | 4 | getClearingResult, getCommunityParams, edge cases |
 
-### 9.2 Clearing Node Tests (43 tests)
+### 9.2 Clearing Node Tests (55 tests)
 ```
-cd amm-clearing-node && uv run pytest -v
+cd amm-clearing-node && uv sync --extra dev && uv run pytest -v
 ```
 | File | Tests | Description |
 |------|-------|-------------|
-| `test_sigmoid.py` | 10 | Scaling roundtrip, balanced/imbalanced markets, clamping, edge cases, cross-validation with simulation.py, monotonicity |
-| `test_trade_builder.py` | 10 | Blake2b determinism/length/sorted-keys, buyer-pool trade structure, pool-seller trade structure, residual handling |
-| `test_clearing.py` | 10 | Basic clearing, supply/demand imbalance, no bids/offers, idempotency, order filtering, price bounds, pro-rata verification |
-| `test_preferences.py` | 13 | Mutual pair finding (4), priority allocation (3), energy type multipliers (5: green subsidy, levy cap, dynamic scaling, null, zero), integration (1) |
+| `test_sigmoid.py` | 10 | Scaling roundtrip, balanced/imbalanced markets, clamping, edge cases, cross-validation, monotonicity |
+| `test_ontology.py` | — | Validator: valid order/trade pass; missing-required, bad-enum, additionalProperties, bad-uuid, non-positive quantity fail |
+| `test_adapters.py` | — | Time/price conversion, deterministic pool/trade UUIDs, `int:Order`→internal mapping, built `int:Trade`/`int:ClearingResult` validate |
+| `test_clearing.py` | — | Clearing against the int.* contract: imbalance, no bids/offers (NO_BID result), idempotency, status filtering, price bounds, pro-rata, direct preference pair |
+| `test_e2e.py` | — | End-to-end via the real client against the off-chain DB simulator (ASGI), schema-validated both ways |
+| `test_preferences.py` | 13 | Mutual pair finding, priority allocation, energy-type multipliers (function retained; dormant on the int.* path), integration |
 
 ### 9.3 Execution Node Tests (19 tests)
 ```
@@ -655,7 +691,7 @@ cd amm-execution-node && uv run pytest -v
 | `test_penalties.py` | 14 | Shortfall (5: basic, exact delivery, over-delivery, eta tolerance, zero traded), seller externality (3: basic, no withholding, high withholding), buyer externality (3: basic, no underreport, demand-limited), aggregate (3) |
 | `test_execution.py` | 5 | Timeslot computation (2), no trades skip, shortfall detection, no deviations |
 
-**Total: 79 tests across all components.**
+**Total: 91 tests across all components** (clearing 55, execution 19 — deferred, contract 17).
 
 ---
 
@@ -680,8 +716,8 @@ npx hardhat test          # Verify 17 tests pass
 
 # Clearing node
 cd ../amm-clearing-node
-uv sync                   # Install dependencies
-uv run pytest -v          # Verify 43 tests pass
+uv sync --extra dev       # Install dependencies (incl. pytest)
+uv run pytest -v          # Verify 55 tests pass
 
 # Execution node
 cd ../amm-execution-node
@@ -758,7 +794,9 @@ Architectural and implementation decisions made during development:
 | 6 | **Energy type multipliers applied post-trade-generation** | Multipliers modify existing trade parameters rather than influencing allocation. This preserves the clearing price purity. | 2026-02-24 |
 | 7 | **Separate sigmoid.py in both nodes** | Execution node needs sigmoid for counterfactual pricing. Duplicated rather than sharing a package to keep nodes independently deployable. | 2026-02-24 |
 | 8 | **CJS (not ESM) for smart contract project** | Hardhat 2 + hardhat-toolbox uses `require()`. Consistent with ecosystem. | 2026-02-24 |
-| 9 | **blake2b-256 (not SHA-256) for trade IDs** | Matches GSY DEX convention. Prefix `0x` for consistency with blockchain hashes. | 2026-02-24 |
+| 9 | ~~**blake2b-256 for trade IDs**~~ **Superseded (v1)** | `int:Trade` uses a UUID `tradeId`. We now derive a deterministic `uuid5` in `adapters.py` (reproducible re-runs) instead of a blake2b `_id`. | 2026-06-24 |
+| 11 | **int:Trade serialized with the pool as an actor** | `int:Trade` is bilateral; pool half-trades reference a configured `pool_actor_uuid` and deterministic standing pool orders so they validate. Provisional pending GSY pool registration (§13.1). | 2026-06-24 |
+| 12 | **Dependency-free ontology validator** | Validate at the I/O boundary against the vendored `int.*` schemas without adding `jsonschema` (lockfile hygiene). See `src/ontology.py`. | 2026-06-24 |
 | 10 | **Execution node polling loop vs. cron** | Built-in polling loop (`--poll` flag) matches GSY DEX execution engine pattern. Can also be triggered via HTTP for testing. | 2026-02-24 |
 
 ---
@@ -769,23 +807,23 @@ Architectural and implementation decisions made during development:
 
 | # | Item | Blocker | Priority | Notes |
 |---|------|---------|----------|-------|
-| 1 | **Pool area_uuid registration** | Confirm with GSY DEX maintainers how to register the AMM pool as an area in the off-chain DB | HIGH | Currently using `AMM_POOL_{community_uuid}` convention. Need to verify this works with the DB schema. |
-| 2 | **PATCH /orders endpoint** | GSY DEX off-chain DB may not support PATCH. Need confirmation | HIGH | After clearing, orders should be marked "Executed" to prevent re-processing. Currently relying on idempotency check (existing trades). |
-| 3 | **Preferences in order schema** | Confirm that `requirements` and `attributes` fields are supported in the off-chain DB order schema | MEDIUM | Currently coded to the GSY DEX preference spec, but haven't verified the DB accepts these fields. |
-| 4 | **Energy type multiplier storage** | Where does community manager configure green_subsidy / grey_levy? | MEDIUM | Currently passed as `EnergyTypeMultipliers` to `run_clearing()`. Need a DB endpoint or config mechanism. |
-| 5 | **Penalty output persistence** | How to store penalty results — extend trade parameters? New endpoint? Settlement service? | MEDIUM | `run_execution_cycle()` returns results but doesn't persist them. |
-| 6 | **EW Digital Spine integration** | Blocked on Energy Web meeting | LOW | Metering data currently comes from off-chain DB `/asset_measurements`. Digital Spine would provide real smart meter data. |
-| 7 | **Ontology / topological data** | Blocked on EW Digital Spine specs | LOW | Grid topology for network-aware clearing. Phase 3+ feature. |
-| 8 | **Partial order residual strategy** | How to handle unfilled portions of orders | LOW | Trade builder creates `residual_bid`/`residual_offer` objects, but these aren't posted back as new orders. |
+| 1 | **Pool representation in `int:Trade`** | Confirm with GSY how the AMM pool registers as an actor and whether synthetic pool standing orders are acceptable | HIGH | v1 serializes pool half-trades with `pool_actor_uuid` + deterministic pool order UUIDs (`adapters.py`). Provisional convention. |
+| 2 | **Transport: REST vs EW CGW** | Confirm AMM targets the CGW publish/poll request/response pattern; lock topic names, FQCNs, a distinct AMM client id, gateway URL | HIGH | v1 uses REST (real DB or the local simulator). CGW client slots in behind the adapter once conventions are fixed. |
+| 3 | **`marketId` UUID ↔ bytes32** | Who owns the mapping; which encoding crosses the wire | HIGH | `int:*` uses UUID `marketId`; the orders.query payload and on-chain path use bytes32. Affects `contract.py`. |
+| 4 | **Matchable order statuses** | Which `int:Order.orderStatus` values count as open/matchable | MEDIUM | v1 treats `Submitted`/`PartiallyFilled` as open (`MATCHABLE_ORDER_STATUSES`). |
+| 5 | **Trade / clearing-result write path** | No `*.upsert` envelope exists; confirm how AMM writes back over EWDS | MEDIUM | v1 posts REST `/trades-normalized` + `/clearing-results`. |
+| 6 | **Order status update after clearing** | GSY DEX may not support PATCH; how are cleared orders marked executed | MEDIUM | Relying on the idempotency check (existing trades) for now. |
+| 7 | **Per-slot pricing params home** | `int:Trade`/`int:ClearingResult` have no field for `theta`/`steepness` | LOW | Needed only if the (deferred) execution node is revived. |
+| 8 | **Measurement feed for penalties** | `int:Measurement` shape, units/sign convention; no `/asset_measurements` route exists | LOW | Blocks reviving the execution node. |
 
 ### 13.2 Implementation TODOs
 
 | # | Item | Component | Priority | Notes |
 |---|------|-----------|----------|-------|
-| 9 | **Integration test with real off-chain DB** | All | HIGH | All current tests use mocks. Need to test against a running GSY DEX instance. |
+| 9 | **Integration test with real off-chain DB** | Clearing | HIGH | Local end-to-end now runs against the schema-validating simulator (`tests/test_e2e.py`, `sim/`). Still need a run against a real GSY DEX instance. |
 | 10 | **Volta testnet deployment** | Smart Contract | HIGH | Deploy to Volta, run end-to-end with real transactions. |
-| 11 | **Retry logic for off-chain DB calls** | Clearing + Execution | MEDIUM | Currently no retries on HTTP failures. Add exponential backoff via `tenacity` or `httpx` retry. |
-| 12 | ~~**CI/CD pipeline**~~ DONE | All | — | GitHub Actions runs all 79 tests on push/PR. See `.github/workflows/ci.yml`. |
+| 11 | **Retry logic for off-chain DB calls** | Clearing | MEDIUM | Currently no retries on HTTP failures. Add exponential backoff via `tenacity` or `httpx` retry. |
+| 12 | ~~**CI/CD pipeline**~~ DONE | All | — | GitHub Actions runs the test suites on push/PR. See `.github/workflows/ci.yml`. |
 | 13 | **Logging to structured JSON** | Clearing + Execution | LOW | Current logging is plaintext. Structured logs would help with observability. |
 | 14 | **Metrics / monitoring** | Clearing + Execution | LOW | Add Prometheus metrics: clearing duration, trade count, penalty totals, etc. |
 | 15 | **Energy type multiplier configuration UI/API** | Clearing | LOW | Community managers need a way to set multipliers. Currently code-level config only. |

@@ -2,7 +2,9 @@ services:
   amm-clearing-node:
     build: ./amm-clearing-node
     environment:
-      - OFFCHAIN_DB_URL=http://offchain-db:8080
+      # Point at the real GSY DEX off-chain DB in staging/production, or at the
+      # bundled simulator (compose "dev" profile) for local end-to-end testing.
+      - OFFCHAIN_DB_URL=${OFFCHAIN_DB_URL:-http://offchain-db-sim:8080}
       - RPC_URL=https://volta-rpc.energyweb.org
       - CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-}
       - CLEARING_NODE_PRIVATE_KEY=${CLEARING_NODE_PRIVATE_KEY:-}
@@ -17,20 +19,17 @@ services:
     networks:
       - ammba
 
-  amm-execution-node:
-    build: ./amm-execution-node
-    environment:
-      - OFFCHAIN_DB_URL=http://offchain-db:8080
-      - TIME_SLOT_SEC=900
-      - EXECUTION_OFFSET_MIN=-120
-      - POLLING_INTERVAL_SEC=300
+  # Local-only simulator of the GSY DEX off-chain DB. Serves and validates int.*
+  # ontology objects so the clearing node can run end-to-end against correct data
+  # formats without the real GSY environment. Opt-in:
+  #   docker compose --profile dev up
+  # Never started in staging/production (no profile match there).
+  offchain-db-sim:
+    build: ./amm-clearing-node
+    command: ["uv", "run", "uvicorn", "sim.offchain_sim:app", "--host", "0.0.0.0", "--port", "8080"]
+    profiles: ["dev"]
     ports:
-      - "8082:8082"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      - "8080:8080"
     networks:
       - ammba
 
