@@ -1,0 +1,16 @@
+[project]
+name = "amm-calibration"
+version = "0.1.0"
+description = "AMMBA parameter calibration - offline optimization of sigmoid params from historical measurements"
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

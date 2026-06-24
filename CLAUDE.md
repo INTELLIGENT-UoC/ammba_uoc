@@ -6,6 +6,12 @@ This file is read by Claude Code at the start of every session in this repo.
 the project map, conventions, "how to make changes safely" recipes, and what
 not to break. Everything below is Claude-Code-specific guidance only.
 
+**Before changing anything touching the GSY integration, read
+[INTEGRATION_NOTES.md](INTEGRATION_NOTES.md).** It lists every provisional
+decision (transport, pool representation, identifiers, units, calibration
+assumptions, proposed ontology extensions) and exactly where in the code to
+change each one when GSY / Energy Web answer.
+
 ## Tool preferences in this repo
 
 - Use **`uv run`** to invoke Python tools — both services are uv-managed.
