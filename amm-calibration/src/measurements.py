@@ -5,12 +5,10 @@ Input is a list of int:Measurement objects (the GSY DEX ontology shape:
 Output is one `Slot` per time slot with aggregate supply and demand, ready for
 the optimizer.
 
-SIGN CONVENTION (provisional — open question with GSY): we assume the
-**net-load** convention used in the reference research data, where a positive
-``energyKwh`` is net consumption (demand) and a negative value is net injection
-(production surplus). Flip ``positive_is_consumption=False`` if GSY confirms the
-opposite. This is the single semantic assumption to revisit once the measurement
-feed is specified — see INTEGRATION_NOTES.md.
+SIGN CONVENTION (confirmed by GSY): positive ``energyKwh`` is net consumption
+(demand), negative is net injection / production (supply) — the net-load
+convention used in the reference research data. The ``positive_is_consumption``
+flag stays for flexibility but the default is the agreed convention.
 """
 
 from src.optimizer import Slot

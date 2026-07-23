@@ -22,9 +22,10 @@ from datetime import UTC, datetime
 CT_PER_EUR = 100.0
 
 # int:Order.orderStatus values that the AMM treats as open and eligible to
-# match. The ontology has no literal "Open"; provisional pending GSY's answer
-# on the matchable-status set (see ARCHITECTURE.md open items).
-MATCHABLE_ORDER_STATUSES = {"Submitted", "PartiallyFilled"}
+# match. GSY confirmed "Submitted" is the ontology's representation of the open
+# status. (PartiallyFilled is not expected in the batch-AMM flow — orders are
+# fresh each slot; revisit if partial fills ever reach the AMM.)
+MATCHABLE_ORDER_STATUSES = {"Submitted"}
 INTERNAL_OPEN = "Open"
 
 # Deterministic namespace for derived UUIDs (pool actor, pool orders, trade ids).
