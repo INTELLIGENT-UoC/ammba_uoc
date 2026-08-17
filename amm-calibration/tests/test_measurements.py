@@ -6,7 +6,7 @@ from src.measurements import aggregate_slots
 
 def _meas(slot, area, energy, community="c1"):
     return {
-        "areaUuid": area,
+        "facilityId": area,
         "communityUuid": community,
         "timeSlot": slot,
         "creationTime": 0,

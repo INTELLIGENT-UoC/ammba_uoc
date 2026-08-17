@@ -1,7 +1,7 @@
 """Aggregate historical int:Measurement records into per-slot market state.
 
 Input is a list of int:Measurement objects (the GSY DEX ontology shape:
-``areaUuid``, ``communityUuid``, ``timeSlot``, ``creationTime``, ``energyKwh``).
+``facilityId``, ``communityUuid``, ``timeSlot``, ``creationTime``, ``energyKwh``).
 Output is one `Slot` per time slot with aggregate supply and demand, ready for
 the optimizer.
 
