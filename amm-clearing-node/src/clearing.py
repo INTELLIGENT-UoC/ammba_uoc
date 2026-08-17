@@ -54,8 +54,13 @@ async def run_clearing(
     db_client: OffchainDBClient,
     contract_client: AMMContractClient | None,
     time_slot_sec: int = 900,
+    strict_validation: bool = True,
 ) -> dict:
     """Execute the full clearing cycle for a single market slot.
+
+    ``strict_validation=False`` keeps inbound orders that fail int:Order
+    validation (logging the violation) — needed against the GSY staging
+    gateway while their DTOs are still being aligned with the ontology.
 
     Returns a summary dict with clearing results.
     """
@@ -80,13 +85,27 @@ async def run_clearing(
         try:
             validate_order(raw)
         except SchemaValidationError:
+            if strict_validation:
+                logger.warning(
+                    "Dropping order failing int:Order validation: %s",
+                    raw.get("orderId", "<no id>"),
+                    exc_info=True,
+                )
+                continue
             logger.warning(
-                "Dropping order failing int:Order validation: %s",
+                "Order %s fails int:Order validation; keeping it "
+                "(strict_validation=False)",
                 raw.get("orderId", "<no id>"),
                 exc_info=True,
             )
-            continue
-        internal_orders.append(int_order_to_internal(raw))
+        try:
+            internal_orders.append(int_order_to_internal(raw))
+        except Exception:
+            logger.warning(
+                "Dropping order that could not be converted: %s",
+                raw.get("orderId", "<no id>"),
+                exc_info=True,
+            )
 
     open_orders = [o for o in internal_orders if o.get("status") == "Open"]
     bids = [o for o in open_orders if o.get("order_type") == "Bid"]

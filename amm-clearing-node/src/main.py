@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from src.clearing import run_clearing
 from src.config import Settings, load_settings
 from src.contract import AMMContractClient
+from src.ewds_client import EwdsConfig, EwdsOffchainClient
 from src.offchain_db import OffchainDBClient
 
 logging.basicConfig(
@@ -40,9 +41,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="AMM Clearing Node", version="0.1.0")
 
-    # Shared clients stored on app state
+    # Shared clients stored on app state. Transport-selectable: direct REST to
+    # the off-chain DB (default / local simulator) or publish/poll via the EW
+    # CGW gateway (the GSY-confirmed integration path).
     app.state.settings = settings
-    app.state.db_client = OffchainDBClient(settings.offchain_db_url)
+    if settings.offchain_transport == "ewds":
+        app.state.db_client = EwdsOffchainClient(
+            EwdsConfig(
+                gateway_url=settings.ewds_gateway_url,
+                request_fqcn=settings.ewds_request_fqcn,
+                response_fqcn=settings.ewds_response_fqcn,
+                topic_owner=settings.ewds_topic_owner,
+                topic_version=settings.ewds_topic_version,
+                client_id=settings.ewds_client_id,
+                timeout_ms=settings.ewds_response_timeout_ms,
+                poll_interval_ms=settings.ewds_poll_interval_ms,
+            )
+        )
+        logger.info(
+            "Off-chain transport: EWDS gateway at %s (clientId base %s)",
+            settings.ewds_gateway_url,
+            settings.ewds_client_id,
+        )
+    else:
+        app.state.db_client = OffchainDBClient(settings.offchain_db_url)
+        logger.info("Off-chain transport: REST at %s", settings.offchain_db_url)
 
     # Contract client (optional — may not have credentials in dev)
     app.state.contract_client = None
@@ -86,6 +109,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 db_client=app.state.db_client,
                 contract_client=app.state.contract_client,
                 time_slot_sec=settings.time_slot_sec,
+                strict_validation=settings.strict_order_validation,
             )
         except Exception:
             logger.exception("Clearing failed for market_id=%s", req.market_id)

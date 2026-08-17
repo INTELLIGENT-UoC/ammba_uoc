@@ -29,6 +29,24 @@ class Settings(BaseModel):
     time_slot_sec: int = 900
     communities: dict[str, CommunityConfig] = {}
 
+    # Off-chain transport: "rest" (direct off-chain DB API / local simulator)
+    # or "ewds" (publish/poll via the EW CGW gateway).
+    offchain_transport: str = "rest"
+    # Strict: drop inbound orders failing int:Order validation. Lenient (False):
+    # log the violation and still attempt conversion — needed against the GSY
+    # staging gateway until their DTOs are aligned with the ontology.
+    strict_order_validation: bool = True
+
+    # EWDS gateway settings (defaults mirror GSY's EwdsClient).
+    ewds_gateway_url: str = "http://ewds-gateway-api:3333"
+    ewds_request_fqcn: str = "gsy.intelligent.requests.pub"
+    ewds_response_fqcn: str = "gsy.intelligent.responses.sub"
+    ewds_topic_owner: str = "integration.apps.intelligent.auth.ewc"
+    ewds_topic_version: str = "1.0.0"
+    ewds_client_id: str = "ammclearingnode"
+    ewds_response_timeout_ms: int = 60000
+    ewds_poll_interval_ms: int = 400
+
 
 def load_settings(config_path: Path | None = None) -> Settings:
     """Load settings from YAML, then override with environment variables."""
@@ -50,9 +68,7 @@ def load_settings(config_path: Path | None = None) -> Settings:
         data["rpc_url"] = raw.get("blockchain", {}).get(
             "rpc_url", "https://volta-rpc.energyweb.org"
         )
-        data["contract_address"] = raw.get("blockchain", {}).get(
-            "contract_address", ""
-        )
+        data["contract_address"] = raw.get("blockchain", {}).get("contract_address", "")
         data["time_slot_sec"] = raw.get("market", {}).get("time_slot_sec", 900)
 
         communities_raw = raw.get("communities", {})
@@ -64,19 +80,44 @@ def load_settings(config_path: Path | None = None) -> Settings:
     # Environment variable overrides always win
     env_map = {
         "OFFCHAIN_DB_URL": "offchain_db_url",
+        "OFFCHAIN_TRANSPORT": "offchain_transport",
         "RPC_URL": "rpc_url",
         "CONTRACT_ADDRESS": "contract_address",
         "CLEARING_NODE_PRIVATE_KEY": "clearing_node_private_key",
         "TIME_SLOT_SEC": "time_slot_sec",
         "HOST": "host",
         "PORT": "port",
+        "EWDS_GATEWAY_URL": "ewds_gateway_url",
+        "EWDS_TOPIC_OWNER": "ewds_topic_owner",
+        "EWDS_TOPIC_VERSION": "ewds_topic_version",
+        "EWDS_RESPONSE_TIMEOUT_MS": "ewds_response_timeout_ms",
+        "EWDS_RESPONSE_POLL_INTERVAL_MS": "ewds_poll_interval_ms",
     }
+    int_fields = {"time_slot_sec", "port", "ewds_response_timeout_ms", "ewds_poll_interval_ms"}
     for env_key, field in env_map.items():
         val = os.environ.get(env_key)
         if val is not None:
-            if field in ("time_slot_sec", "port"):
-                data[field] = int(val)
-            else:
+            data[field] = int(val) if field in int_fields else val
+
+    # Fallback chains matching GSY's EwdsClient env conventions.
+    fallback_chains = {
+        "ewds_request_fqcn": ("EWDS_REQUEST_PUBLISH_FQCN", "EWDS_REQUEST_FQCN"),
+        "ewds_response_fqcn": ("EWDS_RESPONSE_SUBSCRIBE_FQCN", "EWDS_RESPONSE_FQCN"),
+        "ewds_client_id": ("EWDS_AMM_CLIENT_ID", "EWDS_RESPONSE_CLIENT_ID"),
+    }
+    for field, env_keys in fallback_chains.items():
+        for env_key in env_keys:
+            val = os.environ.get(env_key)
+            if val:
                 data[field] = val
+                break
+
+    strict = os.environ.get("OFFCHAIN_STRICT_VALIDATION")
+    if strict is not None:
+        data["strict_order_validation"] = strict.strip().lower() not in (
+            "0",
+            "false",
+            "no",
+        )
 
     return Settings(**data)
