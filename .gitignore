@@ -1,6 +1,11 @@
 # Project-local reference materials (third-party code, transcripts, large data)
 /LLM_context/
 
+# Internal / local reference — not for the public repo (integration planning
+# notes, PO-facing memos, etc.). Kept on disk locally; excluded from tracking.
+/INTEGRATION_NOTES.md
+*.docx
+
 # OS
 .DS_Store
 Thumbs.db

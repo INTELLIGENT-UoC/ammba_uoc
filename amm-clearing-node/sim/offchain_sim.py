@@ -42,6 +42,20 @@ class Store:
         self.orders: list[dict] = []
         self.trades: list[dict] = []
         self.clearing_results: list[dict] = []
+        # EWDS gateway emulation: per-topic message queues and per-(topic,
+        # clientId) consumer offsets, mimicking the CGW's consumer groups.
+        self.topics: dict[str, list[dict]] = {}
+        self.offsets: dict[tuple[str, str], int] = {}
+
+    def publish(self, topic: str, payload: str) -> None:
+        self.topics.setdefault(topic, []).append({"payload": payload})
+
+    def consume(self, topic: str, client_id: str, amount: int) -> list[dict]:
+        queue = self.topics.get(topic, [])
+        cursor = self.offsets.get((topic, client_id), 0)
+        batch = queue[cursor : cursor + amount]
+        self.offsets[(topic, client_id)] = cursor + len(batch)
+        return batch
 
     def seed_from_file(self, path: Path = SEED_PATH) -> None:
         if not path.exists():
@@ -52,6 +66,40 @@ class Store:
             validate_order(order)
         self.orders = orders
         logger.info("Seeded %d orders from %s", len(orders), path)
+
+
+def _int_order_to_current_dto(order: dict) -> dict:
+    """Render an int:Order seed in the CURRENT EWDS handler DTO dialect.
+
+    The live GSY handler still emits the pre-ontology shape (lowercase
+    ``status: "open"``, lowercase order type, unix timestamps, nested
+    requirements/attributes). The simulator serves that shape on the gateway
+    path on purpose, so the clearing node's tolerant normalizer is exercised
+    against exactly what staging returns today.
+    """
+    dto = {
+        "orderId": order["orderId"],
+        "marketId": order["marketId"],
+        "orderType": order["orderType"].lower(),
+        "status": "open" if order["orderStatus"] == "Submitted" else order["orderStatus"].lower(),
+        "areaUuid": order["createdBy"],
+        "nonce": 1,
+        "timeSlot": iso_to_unix(order["timeSlot"]),
+        "creationTime": iso_to_unix(order["createdAt"]),
+        "quantity": order["quantity"],
+        "priceLimit": order["priceLimit"],
+        "createdBy": order["createdBy"],
+    }
+    requirements = {}
+    if order.get("preferredTradingPartner"):
+        requirements["tradingPartnerId"] = order["preferredTradingPartner"]
+    if order.get("energySourcePreference"):
+        requirements["energyType"] = order["energySourcePreference"]
+    if requirements:
+        dto["requirements"] = requirements
+    if order.get("energyType"):
+        dto["attributes"] = {"energyType": order["energyType"]}
+    return dto
 
 
 def create_app(store: Store | None = None) -> FastAPI:
@@ -112,8 +160,76 @@ def create_app(store: Store | None = None) -> FastAPI:
     async def reset():
         store.trades.clear()
         store.clearing_results.clear()
+        store.topics.clear()
+        store.offsets.clear()
         store.seed_from_file()
         return {"status": "reset"}
+
+    # ── EWDS gateway emulation (publish/poll request-response) ────────
+    # Mimics the EW CGW surface the GSY off-chain storage request handler
+    # sits behind: POST publishes a message; the sim handles request topics
+    # inline and publishes the response envelope onto the paired response
+    # topic; GET consumes messages per (topic, clientId).
+
+    REQUEST_TO_RESPONSE = {
+        "ordersQuery": "ordersQueryResponse",
+        "tradesQuery": "tradesQueryResponse",
+    }
+
+    def _handle_request(topic: str, envelope: dict) -> None:
+        request_id = envelope.get("requestId") or envelope.get("request_id")
+        payload = envelope.get("payload") or {}
+        response_topic = REQUEST_TO_RESPONSE[topic]
+
+        if topic == "ordersQuery":
+            market_id = payload.get("marketId") or payload.get("market_id")
+            start = payload.get("startTime", payload.get("start_time"))
+            end = payload.get("endTime", payload.get("end_time"))
+            results = []
+            for order in store.orders:
+                if market_id is not None and order["marketId"] != market_id:
+                    continue
+                ts = iso_to_unix(order["timeSlot"])
+                # Real handler semantics: inclusive on BOTH ends.
+                if start is not None and ts < start:
+                    continue
+                if end is not None and ts > end:
+                    continue
+                results.append(_int_order_to_current_dto(order))
+        else:  # tradesQuery — no server-side market filter, like the real handler
+            results = list(store.trades)
+
+        response = {
+            "requestId": request_id,
+            "success": True,
+            "data": results,
+            "error": None,
+        }
+        store.publish(response_topic, json.dumps(response))
+
+    @app.post("/api/v2/messages")
+    async def gateway_publish(message: dict = Body(...)):
+        topic = message.get("topicName", "")
+        try:
+            envelope = json.loads(message.get("payload", ""))
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise HTTPException(status_code=400, detail="payload must be a JSON string") from exc
+        if topic in REQUEST_TO_RESPONSE:
+            _handle_request(topic, envelope)
+        else:
+            # Unknown topic: store the raw message (lets tests seed noise).
+            store.publish(topic, message.get("payload", ""))
+        return {"status": "accepted"}
+
+    @app.get("/api/v2/messages")
+    async def gateway_consume(
+        topicName: str = "",
+        clientId: str = "",
+        amount: int = 100,
+        fqcn: str = "",
+        topicOwner: str = "",
+    ):
+        return store.consume(topicName, clientId, amount)
 
     return app
 

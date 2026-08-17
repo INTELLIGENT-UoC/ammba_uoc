@@ -28,18 +28,28 @@ actor UUID and deterministic pool standing orders (see `adapters.py`).
 src/
 ├── main.py            # FastAPI app, POST /trigger-clearing, GET /health
 ├── clearing.py        # ★ run_clearing() — the pipeline orchestrator
-├── adapters.py        # ★ int.* ↔ internal translation; int:Trade / int:ClearingResult builders
+├── adapters.py        # ★ int.* ↔ internal translation; EWDS DTO normalizer; trade builders
 ├── ontology.py        # loads schemas/intelligent/*, dependency-free validator
 ├── sigmoid.py         # sigmoid_price(), to_node_int(), from_node_int()
 ├── preferences.py     # mutual preferred-pair matching
-├── offchain_db.py     # async httpx client for the off-chain DB REST API
+├── offchain_db.py     # "rest" transport: httpx client for the off-chain DB API
+├── ewds_client.py     # "ewds" transport: publish/poll via the EW CGW gateway
 ├── contract.py        # web3.py wrapper for AMMContract (optional/deferred)
 └── config.py          # YAML + env-var settings, Pydantic models
 schemas/intelligent/   # vendored GSY DEX int.* JSON Schemas (the wire contract)
-sim/                   # local off-chain DB simulator for end-to-end tests (dev only)
+sim/                   # local off-chain DB + CGW gateway simulator (dev only)
 tests/
-└── test_*.py          # incl. conftest.py (schema-validating fake DB), 55 tests total
+└── test_*.py          # incl. conftest.py (schema-validating fake DB), 67 tests total
 ```
+
+Transport is selected by `OFFCHAIN_TRANSPORT` (`rest` default, `ewds` for the
+CGW gateway — the GSY-confirmed integration path). Both clients expose the same
+interface; on `ewds`, writes (trades / clearing results) are a logged no-op
+because settlement moves on-chain in v2. The EWDS order DTO is still being
+aligned with the ontology upstream — `adapters.ewds_order_to_int_order`
+normalizes all known dialects to canonical int:Order, and
+`OFFCHAIN_STRICT_VALIDATION=false` keeps (log-only) orders that still fail
+validation against staging.
 
 Start at `clearing.py` for an algorithmic change (numbered step sections) or
 `adapters.py` for anything touching the wire format.
@@ -57,7 +67,13 @@ Start at `clearing.py` for an algorithmic change (numbered step sections) or
 
 | Var | Required when | Default |
 |---|---|---|
-| `OFFCHAIN_DB_URL` | always | `http://offchain-db:8080` |
+| `OFFCHAIN_TRANSPORT` | always (`rest` or `ewds`) | `rest` |
+| `OFFCHAIN_DB_URL` | transport `rest` | `http://offchain-db:8080` |
+| `EWDS_GATEWAY_URL` | transport `ewds` | `http://ewds-gateway-api:3333` |
+| `EWDS_AMM_CLIENT_ID` | transport `ewds` | `ammclearingnode` |
+| `EWDS_TOPIC_OWNER` / `EWDS_TOPIC_VERSION` | transport `ewds` | GSY defaults |
+| `EWDS_RESPONSE_TIMEOUT_MS` / `EWDS_RESPONSE_POLL_INTERVAL_MS` | transport `ewds` | `60000` / `400` |
+| `OFFCHAIN_STRICT_VALIDATION` | lenient mode vs staging | `true` |
 | `RPC_URL` | submitting on-chain | `https://volta-rpc.energyweb.org` |
 | `CONTRACT_ADDRESS` | submitting on-chain | — |
 | `CLEARING_NODE_PRIVATE_KEY` | submitting on-chain | — |

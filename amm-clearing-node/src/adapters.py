@@ -22,9 +22,10 @@ from datetime import UTC, datetime
 CT_PER_EUR = 100.0
 
 # int:Order.orderStatus values that the AMM treats as open and eligible to
-# match. The ontology has no literal "Open"; provisional pending GSY's answer
-# on the matchable-status set (see ARCHITECTURE.md open items).
-MATCHABLE_ORDER_STATUSES = {"Submitted", "PartiallyFilled"}
+# match. GSY confirmed "Submitted" is the ontology's representation of the open
+# status. (PartiallyFilled is not expected in the batch-AMM flow — orders are
+# fresh each slot; revisit if partial fills ever reach the AMM.)
+MATCHABLE_ORDER_STATUSES = {"Submitted"}
 INTERNAL_OPEN = "Open"
 
 # Deterministic namespace for derived UUIDs (pool actor, pool orders, trade ids).
@@ -105,6 +106,96 @@ def int_order_to_internal(order: dict) -> dict:
         internal["attributes"] = {"energy_type": [order["energyType"]]}
 
     return internal
+
+
+# The EWDS handler's order DTO is still being aligned with the int.* ontology
+# upstream, so three dialects coexist on the wire: the current handler code
+# ("status": "open", lowercase types, nested requirements/attributes, unix
+# timestamps), the announced target DTO (flat "orderStatus": "submitted",
+# camelCase, unix timestamps), and the final int:Order ontology (PascalCase
+# enums, ISO-8601, flat preferences). ewds_order_to_int_order normalizes all
+# three into canonical int:Order shape so the rest of the pipeline stays on the
+# single ontology contract. See INTEGRATION_NOTES.md (transport / DTO drift).
+_EWDS_STATUS_TO_ONTOLOGY = {
+    "open": "Submitted",  # legacy DB status; GSY: Submitted represents "open"
+    "submitted": "Submitted",
+    "partially_filled": "PartiallyFilled",
+    "partiallyfilled": "PartiallyFilled",
+    "filled": "Filled",
+    "cancelled": "Cancelled",
+    "deleted": "Cancelled",  # legacy DB status with no ontology home
+    "expired": "Expired",
+    "rejected": "Rejected",
+    "executed": "Executed",
+}
+
+
+def _first(order: dict, *keys: str):
+    """First non-null value among aliases (camelCase and snake_case)."""
+    for key in keys:
+        if order.get(key) is not None:
+            return order[key]
+    return None
+
+
+def _to_iso(value) -> str | None:
+    """Normalize a unix int or ISO string timestamp to ISO-8601 ``Z`` form."""
+    if value is None:
+        return None
+    if isinstance(value, int | float):
+        return unix_to_iso(int(value))
+    return value
+
+
+def ewds_order_to_int_order(dto: dict) -> dict:
+    """Normalize an EWDS order DTO (any known dialect) to int:Order shape.
+
+    Tolerant on input, canonical on output. Unknown/extra DTO fields (areaUuid,
+    nonce, rejectReason, ...) are dropped — int:Order is additionalProperties:
+    false. Raises KeyError/TypeError on structurally unusable input; callers
+    skip-and-log per order.
+    """
+    order_type = str(_first(dto, "orderType", "order_type")).capitalize()
+
+    raw_status = _first(dto, "orderStatus", "order_status", "status") or "Submitted"
+    status = _EWDS_STATUS_TO_ONTOLOGY.get(str(raw_status).lower(), str(raw_status))
+
+    requirements = dto.get("requirements") or {}
+    attributes = dto.get("attributes") or {}
+
+    partner = _first(dto, "preferredTradingPartner", "preferred_trading_partner")
+    if partner is None:
+        partner = _first(requirements, "tradingPartnerId", "trading_partner_id")
+
+    source_pref = _first(dto, "energySourcePreference", "energy_source_preference")
+    if source_pref is None:
+        source_pref = _first(requirements, "energyType", "energy_type")
+
+    energy_type = _first(dto, "energyType", "energy_type")
+    if energy_type is None:
+        energy_type = _first(attributes, "energyType", "energy_type")
+
+    normalized = {
+        "orderId": _first(dto, "orderId", "order_id"),
+        "marketId": _first(dto, "marketId", "market_id"),
+        "orderType": order_type,
+        "orderStatus": status,
+        "timeSlot": _to_iso(_first(dto, "timeSlot", "time_slot")),
+        "quantity": _first(dto, "quantity", "energy_kWh", "energy"),
+        "priceLimit": _first(dto, "priceLimit", "price_limit", "energy_rate"),
+        "createdBy": _first(dto, "createdBy", "created_by"),
+        "createdAt": _to_iso(
+            _first(dto, "createdAt", "created_at", "creationTime", "creation_time")
+        ),
+    }
+    if partner is not None:
+        normalized["preferredTradingPartner"] = partner
+    if source_pref is not None:
+        normalized["energySourcePreference"] = source_pref
+    if energy_type is not None:
+        normalized["energyType"] = energy_type
+
+    return normalized
 
 
 def _int_trade(
