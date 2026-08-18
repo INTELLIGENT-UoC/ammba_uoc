@@ -5,6 +5,7 @@ Endpoints:
   GET  /health            — health check
 """
 
+import asyncio
 import logging
 
 from fastapi import FastAPI, HTTPException
@@ -15,6 +16,7 @@ from src.config import Settings, load_settings
 from src.contract import AMMContractClient
 from src.ewds_client import EwdsConfig, EwdsOffchainClient
 from src.offchain_db import OffchainDBClient
+from src.scheduler import run_scheduler_loop
 
 logging.basicConfig(
     level=logging.INFO,
@@ -79,6 +81,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             logger.info("Contract client initialized for %s", settings.contract_address)
         except Exception:
             logger.warning("Failed to initialize contract client", exc_info=True)
+
+    # Self-trigger scheduler (opt-in): discovers closed AMM markets and clears
+    # them without an external trigger. /trigger-clearing keeps working too.
+    app.state.scheduler_task = None
+    if settings.scheduler_enabled:
+
+        @app.on_event("startup")
+        async def start_scheduler():
+            app.state.scheduler_task = asyncio.create_task(
+                run_scheduler_loop(settings, app.state.db_client, app.state.contract_client)
+            )
+            logger.info("Self-trigger scheduler enabled")
+
+        @app.on_event("shutdown")
+        async def stop_scheduler():
+            task = app.state.scheduler_task
+            if task is not None:
+                task.cancel()
 
     @app.get("/health")
     async def health():

@@ -35,11 +35,13 @@ from src.ontology import (
 logger = logging.getLogger(__name__)
 
 SEED_PATH = Path(__file__).parent / "seed_orders.json"
+SEED_MARKETS_PATH = Path(__file__).parent / "seed_markets.json"
 
 
 class Store:
     def __init__(self) -> None:
         self.orders: list[dict] = []
+        self.markets: list[dict] = []
         self.trades: list[dict] = []
         self.clearing_results: list[dict] = []
         # EWDS gateway emulation: per-topic message queues and per-(topic,
@@ -66,6 +68,10 @@ class Store:
             validate_order(order)
         self.orders = orders
         logger.info("Seeded %d orders from %s", len(orders), path)
+        if SEED_MARKETS_PATH.exists():
+            with open(SEED_MARKETS_PATH) as f:
+                self.markets = json.load(f)
+            logger.info("Seeded %d markets", len(self.markets))
 
 
 def _int_order_to_current_dto(order: dict) -> dict:
@@ -129,6 +135,10 @@ def create_app(store: Store | None = None) -> FastAPI:
             results.append(order)
         return results
 
+    @app.get("/markets")
+    async def get_markets():
+        return list(store.markets)
+
     @app.get("/trades")
     async def get_trades(market_id: str):
         return [t for t in store.trades if t.get("marketId") == market_id]
@@ -174,6 +184,7 @@ def create_app(store: Store | None = None) -> FastAPI:
     REQUEST_TO_RESPONSE = {
         "ordersQuery": "ordersQueryResponse",
         "tradesQuery": "tradesQueryResponse",
+        "marketsQuery": "marketsQueryResponse",
     }
 
     def _handle_request(topic: str, envelope: dict) -> None:
@@ -196,6 +207,9 @@ def create_app(store: Store | None = None) -> FastAPI:
                 if end is not None and ts > end:
                     continue
                 results.append(_int_order_to_current_dto(order))
+        elif topic == "marketsQuery":
+            # MarketSchema dialect: snake_case keys, ISO times — served as-is.
+            results = list(store.markets)
         else:  # tradesQuery — no server-side market filter, like the real handler
             results = list(store.trades)
 
