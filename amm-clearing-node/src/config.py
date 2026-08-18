@@ -32,6 +32,12 @@ class Settings(BaseModel):
     # Off-chain transport: "rest" (direct off-chain DB API / local simulator)
     # or "ewds" (publish/poll via the EW CGW gateway).
     offchain_transport: str = "rest"
+
+    # Self-trigger scheduler: periodically discover closed AMM markets via the
+    # market list and clear them (GSY: no market-close event exists). Off by
+    # default; POST /trigger-clearing always works regardless.
+    scheduler_enabled: bool = False
+    scheduler_poll_interval_sec: int = 60
     # Strict: drop inbound orders failing int:Order validation. Lenient (False):
     # log the violation and still attempt conversion — needed against the GSY
     # staging gateway until their DTOs are aligned with the ontology.
@@ -112,12 +118,21 @@ def load_settings(config_path: Path | None = None) -> Settings:
                 data[field] = val
                 break
 
-    strict = os.environ.get("OFFCHAIN_STRICT_VALIDATION")
+    def _env_bool(key: str) -> bool | None:
+        raw = os.environ.get(key)
+        if raw is None:
+            return None
+        return raw.strip().lower() not in ("0", "false", "no")
+
+    strict = _env_bool("OFFCHAIN_STRICT_VALIDATION")
     if strict is not None:
-        data["strict_order_validation"] = strict.strip().lower() not in (
-            "0",
-            "false",
-            "no",
-        )
+        data["strict_order_validation"] = strict
+
+    sched = _env_bool("SCHEDULER_ENABLED")
+    if sched is not None:
+        data["scheduler_enabled"] = sched
+    interval = os.environ.get("SCHEDULER_POLL_INTERVAL_SEC")
+    if interval is not None:
+        data["scheduler_poll_interval_sec"] = int(interval)
 
     return Settings(**data)

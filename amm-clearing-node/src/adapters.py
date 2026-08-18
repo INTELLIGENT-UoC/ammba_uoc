@@ -316,3 +316,32 @@ def build_int_clearing_result(
         "txHash": tx_hash,
         "createdAt": created_at_iso,
     }
+
+
+def _to_unix(value) -> int | None:
+    """Normalize an ISO string or unix int timestamp to a unix second."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return iso_to_unix(value)
+    return int(value)
+
+
+def ewds_market_to_internal(dto: dict) -> dict:
+    """Normalize a market DTO (MarketSchema dialect or int:Market) to internal.
+
+    The GSY DB MarketSchema is snake_case with ISO-string times and a lowercase
+    ``matching_algorithm`` ("amm"); the int:Market ontology is camelCase with
+    "AMM". Tolerant on both; times become unix seconds internally.
+    """
+    return {
+        "market_id": _first(dto, "marketId", "market_id"),
+        "community_id": _first(dto, "communityId", "community_id"),
+        "opening_time": _to_unix(_first(dto, "openingTime", "opening_time")),
+        "closing_time": _to_unix(_first(dto, "closingTime", "closing_time")),
+        "delivery_start_time": _to_unix(_first(dto, "deliveryStartTime", "delivery_start_time")),
+        "delivery_end_time": _to_unix(_first(dto, "deliveryEndTime", "delivery_end_time")),
+        "matching_algorithm": str(
+            _first(dto, "matchingAlgorithm", "matching_algorithm") or ""
+        ).lower(),
+    }

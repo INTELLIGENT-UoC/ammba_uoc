@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from src.adapters import ewds_order_to_int_order
+from src.adapters import ewds_market_to_internal, ewds_order_to_int_order
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,9 @@ class EwdsConfig:
             "orders.query": ("ordersQuery", "ordersQueryResponse"),
             "trades.query": ("tradesQuery", "tradesQueryResponse"),
             "measurements.query": ("measurementsQuery", "measurementsQueryResponse"),
+            # Announced by GSY ("modeled on orders.query"); topic names follow
+            # the established convention and are configurable if they differ.
+            "markets.query": ("marketsQuery", "marketsQueryResponse"),
         }
     )
 
@@ -127,6 +130,25 @@ class EwdsOffchainClient:
         """
         data = await self._query("trades.query", {"marketId": market_id})
         return [t for t in data if (t.get("marketId") or t.get("market_id")) == market_id]
+
+    async def get_markets(self) -> list[dict]:
+        """Fetch all markets, normalized to the internal market dict.
+
+        Used by the self-trigger scheduler to discover market slots whose
+        window has closed (MarketSchema: closing_time, matching_algorithm).
+        """
+        data = await self._query("markets.query", {})
+        markets = []
+        for dto in data:
+            try:
+                markets.append(ewds_market_to_internal(dto))
+            except Exception:
+                logger.warning(
+                    "Skipping market DTO that failed normalization: %s",
+                    dto.get("marketId", dto.get("market_id", "<no id>")),
+                    exc_info=True,
+                )
+        return markets
 
     async def post_trades(self, trades: list[dict]) -> None:
         """No EWDS write path — matches are settled on-chain (v2). No-op."""

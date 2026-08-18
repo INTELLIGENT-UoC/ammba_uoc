@@ -34,6 +34,7 @@ src/
 ├── preferences.py     # mutual preferred-pair matching
 ├── offchain_db.py     # "rest" transport: httpx client for the off-chain DB API
 ├── ewds_client.py     # "ewds" transport: publish/poll via the EW CGW gateway
+├── scheduler.py       # self-trigger: discover closed AMM markets, clear them
 ├── contract.py        # web3.py wrapper for AMMContract (optional/deferred)
 └── config.py          # YAML + env-var settings, Pydantic models
 schemas/intelligent/   # vendored GSY DEX int.* JSON Schemas (the wire contract)
@@ -50,6 +51,12 @@ aligned with the ontology upstream — `adapters.ewds_order_to_int_order`
 normalizes all known dialects to canonical int:Order, and
 `OFFCHAIN_STRICT_VALIDATION=false` keeps (log-only) orders that still fail
 validation against staging.
+
+With `SCHEDULER_ENABLED=true` the node needs no external trigger: it
+periodically fetches the market list (`markets.query` / `GET /markets`),
+selects markets whose window closed with `matching_algorithm = amm` and a
+configured community, and clears them (`src/scheduler.py`). The DB idempotency
+check remains the re-clear guard; `POST /trigger-clearing` keeps working.
 
 Start at `clearing.py` for an algorithmic change (numbered step sections) or
 `adapters.py` for anything touching the wire format.
@@ -74,6 +81,8 @@ Start at `clearing.py` for an algorithmic change (numbered step sections) or
 | `EWDS_TOPIC_OWNER` / `EWDS_TOPIC_VERSION` | transport `ewds` | GSY defaults |
 | `EWDS_RESPONSE_TIMEOUT_MS` / `EWDS_RESPONSE_POLL_INTERVAL_MS` | transport `ewds` | `60000` / `400` |
 | `OFFCHAIN_STRICT_VALIDATION` | lenient mode vs staging | `true` |
+| `SCHEDULER_ENABLED` | self-trigger mode | `false` |
+| `SCHEDULER_POLL_INTERVAL_SEC` | self-trigger mode | `60` |
 | `RPC_URL` | submitting on-chain | `https://volta-rpc.energyweb.org` |
 | `CONTRACT_ADDRESS` | submitting on-chain | — |
 | `CLEARING_NODE_PRIVATE_KEY` | submitting on-chain | — |
