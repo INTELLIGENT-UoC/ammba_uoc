@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.2](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.1...v0.1.2) (2026-08-18)
+
+
+### Features
+
+* **clearing:** add market discovery and self-trigger scheduler ([#19](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/19)) ([78a5c98](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/78a5c987267bbf2b3445f3d3f74367d9e21c3bc5))
+
+
+### Build
+
+* **deps:** Bump actions/checkout from 6 to 7 ([#13](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/13)) ([4288e7e](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/4288e7ed52c2265de5c553424229bbd37f556440))
+
 ## [0.1.1](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.0...v0.1.1) (2026-08-17)
 
 
