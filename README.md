@@ -85,6 +85,9 @@ directory).
 
 ## Quick start
 
+> Want to run the whole stack for your own community, without any external
+> services? See [SELF_HOSTING.md](SELF_HOSTING.md).
+
 Requires Docker + Docker Compose. The real GSY DEX off-chain DB is **not**
 bundled. For local end-to-end testing, the `dev` compose profile starts a
 schema-validating off-chain DB simulator (`amm-clearing-node/sim/`):
