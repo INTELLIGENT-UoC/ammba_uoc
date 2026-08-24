@@ -22,3 +22,8 @@ communities:
     steepness: 2.5                # Sigmoid steepness (optimized offline)
     pool_id: "AMM_POOL_communityid_1"          # Human-readable pool label
     pool_actor_uuid: "22222222-2222-4222-8222-222222222222"  # Pool actor FK on int:Trade
+    # Seller-side differential pricing (0.0 = disabled). Zero-sum: green
+    # subsidies are funded by the grey levy; buyers keep the uniform price.
+    green_subsidy_rate: 0.0       # e.g. 0.10 = +10% target for green producers
+    grey_levy_rate: 0.0           # e.g. 0.05 = -5% levy on grey producers
+    levy_cap_ct_per_kwh: 5.0      # Max levy per kWh on grey producers

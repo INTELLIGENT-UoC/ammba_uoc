@@ -35,12 +35,14 @@ src/
 ├── offchain_db.py     # "rest" transport: httpx client for the off-chain DB API
 ├── ewds_client.py     # "ewds" transport: publish/poll via the EW CGW gateway
 ├── scheduler.py       # self-trigger: discover closed AMM markets, clear them
+├── retry.py           # bounded backoff for transient transport failures
+├── fetch_measurements.py  # CLI: pull int:Measurement history for calibration
 ├── contract.py        # web3.py wrapper for AMMContract (optional/deferred)
 └── config.py          # YAML + env-var settings, Pydantic models
 schemas/intelligent/   # vendored GSY DEX int.* JSON Schemas (the wire contract)
 sim/                   # local off-chain DB + CGW gateway simulator (dev only)
 tests/
-└── test_*.py          # incl. conftest.py (schema-validating fake DB), 67 tests total
+└── test_*.py          # incl. conftest.py (schema-validating fake DB), 88 tests total
 ```
 
 Transport is selected by `OFFCHAIN_TRANSPORT` (`rest` default, `ewds` for the
@@ -95,7 +97,7 @@ If `CONTRACT_ADDRESS` or `CLEARING_NODE_PRIVATE_KEY` is unset, clearing runs
 
 ```bash
 uv sync --extra dev                              # install (incl. pytest)
-uv run pytest -v                                 # 55 tests
+uv run pytest -v                                 # 88 tests
 uv run pytest tests/test_clearing.py -v          # subset
 uv run uvicorn src.main:app --port 8081 --reload # local server
 uv run uvicorn sim.offchain_sim:app --port 8080  # local off-chain DB simulator
@@ -107,9 +109,9 @@ See [`sim/README.md`](sim/README.md) for the full local end-to-end flow.
 
 - **Async everywhere.** `httpx.AsyncClient`, `async def` endpoints, `await`
   every I/O call. `pytest-asyncio` in `auto` mode handles tests.
-- **Pure functions for algorithms.** `sigmoid_price`, `pro_rata_allocate`,
-  `apply_priority_allocation`, `apply_energy_type_multipliers` all take data
-  in and return data out — no side effects, easy to test with concrete numbers.
+- **Pure functions for algorithms.** `sigmoid_price`, `apply_priority_allocation`,
+  `compute_seller_price_adjustments` all take data in and return data out — no
+  side effects, easy to test with concrete numbers.
 - **Side effects only in `clearing.py`.** It's the only module that does I/O
   (DB + chain). Keeps the rest unit-testable in isolation.
 - **Pydantic for boundaries**, dataclasses or plain dicts internally. Don't

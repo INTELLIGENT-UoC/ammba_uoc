@@ -14,12 +14,14 @@ AMMBA acts as an alternative matching engine for the
 produces the GSY DEX `int.*` ontology objects (orders in, trades and clearing
 results out), so it is interchangeable with the other matching engines.
 
-> Status: v1 MVP — the **clearing node** reads `int:Order`, clears, and emits
-> `int:Trade` + `int:ClearingResult`, validated against the vendored ontology
-> schemas and exercised end-to-end against a local off-chain DB simulator. The
-> execution node (penalties) is deferred. Transport is REST today; the EW Client
-> Gateway request/response channels will replace it once the channel conventions
-> are finalised upstream.
+> Status: v1 — the **clearing node** reads `int:Order`, discovers and clears
+> closed AMM markets on its own schedule, applies partner preferences and
+> optional green/grey differential pricing, and emits `int:Trade` +
+> `int:ClearingResult`, validated against the vendored ontology schemas and
+> exercised end-to-end against a local off-chain DB simulator. Transports:
+> direct REST (default, local) and EWDS Client Gateway publish/poll. On-chain
+> settlement of matches is v2 of the GSY DEX integration; the execution node
+> (penalties) is deferred.
 
 ---
 
@@ -63,6 +65,7 @@ Three components, each independently deployable:
 | Component | Stack | Purpose |
 |---|---|---|
 | [`amm-clearing-node/`](amm-clearing-node/) | Python 3.11+, FastAPI, web3.py | **(v1)** Runs the clearing pipeline: fetch `int:Order` → sigmoid price → pro-rata allocation → preference matching → build `int:Trade` → write trades + `int:ClearingResult` to the off-chain DB → optionally anchor on-chain. |
+| [`amm-calibration/`](amm-calibration/) | Python 3.11+, uv | Offline optimization of the per-community sigmoid parameters from historical measurements. |
 | [`amm-smart-contract/`](amm-smart-contract/) | Solidity 0.8.24, Hardhat | On-chain audit anchor. Stores cleared market results and emits `MarketCleared` events. Optional for v1. |
 | [`amm-execution-node/`](amm-execution-node/) | Python 3.11+, FastAPI | **(deferred)** Post-delivery penalties (shortfall, VCG). Kept for later work; not part of the v1 MVP and not yet migrated to the `int.*` ontology. |
 
@@ -74,9 +77,10 @@ Three components, each independently deployable:
   rationed in proportion to each participant's submitted quantity.
 - **Preference matching** — mutual preferred-partner pairs are settled directly
   (priority allocation) before the remaining volume clears against the pool.
-  (Energy-type differential pricing is implemented but not yet wired to the
-  `int.*` trade output; VCG-style deviation penalties live in the deferred
-  execution node.)
+- **Energy-type differential pricing** (opt-in, per community) — green sellers
+  receive a subsidy funded zero-sum by a levy on grey sellers (capped, with
+  dynamic scaling); buyers keep the uniform clearing price. (VCG-style
+  deviation penalties live in the deferred execution node.)
 
 Full details and formulas: see [ARCHITECTURE.md](ARCHITECTURE.md). For
 contributors and AI coding assistants, the canonical onboarding doc is
@@ -84,6 +88,9 @@ contributors and AI coding assistants, the canonical onboarding doc is
 directory).
 
 ## Quick start
+
+> Want to run the whole stack for your own community, without any external
+> services? See [SELF_HOSTING.md](SELF_HOSTING.md).
 
 Requires Docker + Docker Compose. The real GSY DEX off-chain DB is **not**
 bundled. For local end-to-end testing, the `dev` compose profile starts a
@@ -137,7 +144,11 @@ Each Python service uses [uv](https://docs.astral.sh/uv/):
 ```bash
 cd amm-clearing-node
 uv sync --extra dev
-uv run pytest -v                                   # 55 tests (incl. an end-to-end run against the simulator)
+uv run pytest -v                                   # 88 tests (incl. an end-to-end run against the simulator)
+
+cd ../amm-calibration
+uv sync --extra dev
+uv run pytest -v                                   # 8 tests
 ```
 
 The execution node is deferred (not part of the v1 MVP); its tests still live in

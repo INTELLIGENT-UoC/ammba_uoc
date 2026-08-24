@@ -7,10 +7,29 @@ the project map, conventions, "how to make changes safely" recipes, and what
 not to break. Everything below is Claude-Code-specific guidance only.
 
 **Before changing anything touching the GSY integration, read
-[INTEGRATION_NOTES.md](INTEGRATION_NOTES.md).** It lists every provisional
+`INTEGRATION_NOTES.md`** (a local, gitignored working file — present on the
+maintainer's checkout, not in the public tree). It lists every provisional
 decision (transport, pool representation, identifiers, units, calibration
 assumptions, proposed ontology extensions) and exactly where in the code to
 change each one when GSY / Energy Web answer.
+
+## Work tracking (ticket system)
+
+- **GitHub Issues is the ticket system for this repo.** All engineering TODOs,
+  blockers, and roadmap items live there — never in TODO comments or scratch
+  files.
+- **Milestones map the roadmap:** `v1.x staging integration` →
+  `v2.0 settlement` → `backlog`. The `blocked-external` label marks items
+  waiting on an upstream project (gateway fix, id-mapping, contract freeze);
+  everything else is actionable now.
+- **Claude session workflow:** run `gh issue list` when picking up work or
+  reporting status; open an issue for any new TODO you discover instead of
+  leaving it in prose; reference issues from commits/PRs (`Closes #N`); comment
+  and close when state changes (e.g. an external blocker lifts). Keep the board
+  truthful — it is the single source of "what is still to do".
+- **This is a public repository:** issue wording stays strictly technical.
+  Consortium-internal matters never go into issues; they belong in the local
+  notes file.
 
 ## Tool preferences in this repo
 

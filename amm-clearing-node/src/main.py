@@ -131,9 +131,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 time_slot_sec=settings.time_slot_sec,
                 strict_validation=settings.strict_order_validation,
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("Clearing failed for market_id=%s", req.market_id)
-            raise HTTPException(status_code=500, detail="Clearing failed")
+            raise HTTPException(status_code=500, detail="Clearing failed") from exc
 
         return ClearingResponse(status=result["status"], detail=result)
 

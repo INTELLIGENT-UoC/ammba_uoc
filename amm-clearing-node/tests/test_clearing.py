@@ -190,3 +190,45 @@ async def test_preference_matched_pair_trades_directly(community):
     assert direct[0]["buyerId"] == actor_uuid("B1")
     assert direct[0]["sellerId"] == actor_uuid("S1")
     assert abs(direct[0]["tradeQuantity"] - 5.0) < 1e-9
+
+
+@pytest.mark.asyncio
+async def test_differential_pricing_adjusts_seller_trades(community):
+    """Green sellers earn more, grey less; buyers keep the uniform price."""
+    community = community.model_copy(update={"green_subsidy_rate": 0.10, "grey_levy_rate": 0.10})
+    orders = [
+        make_int_order("B1", "Bid", 10.0),
+        make_int_order("GreenS", "Offer", 5.0, energy_type="PV"),
+        make_int_order("GreyS", "Offer", 5.0, energy_type="GREY"),
+    ]
+    result, db = await _clear(orders, community)
+
+    assert result["status"] == "cleared"
+    uniform_eur = result["clearing_price_eur_per_kwh"]
+    prov = result["price_adjustments"]
+    assert prov is not None
+    assert prov["scheme"] == "seller_side_zero_sum"
+    # Zero-sum: the subsidy never exceeds the collected levy revenue.
+    assert prov["subsidy_total_ct"] <= prov["levy_revenue_ct"] + 1e-9
+
+    green_trade = [t for t in db.posted_trades if t["sellerId"] == actor_uuid("GreenS")][0]
+    grey_trade = [t for t in db.posted_trades if t["sellerId"] == actor_uuid("GreyS")][0]
+    buyer_trade = [t for t in db.posted_trades if t["buyerId"] == actor_uuid("B1")][0]
+
+    assert green_trade["tradePrice"] > uniform_eur
+    assert grey_trade["tradePrice"] < uniform_eur
+    assert abs(buyer_trade["tradePrice"] - uniform_eur) < 1e-12
+
+
+@pytest.mark.asyncio
+async def test_differential_pricing_off_by_default(community):
+    """With zero rates, every trade settles at the uniform clearing price."""
+    orders = [
+        make_int_order("B1", "Bid", 5.0),
+        make_int_order("S1", "Offer", 5.0, energy_type="PV"),
+    ]
+    result, db = await _clear(orders, community)
+
+    assert result["price_adjustments"] is None
+    for trade in db.posted_trades:
+        assert abs(trade["tradePrice"] - result["clearing_price_eur_per_kwh"]) < 1e-12

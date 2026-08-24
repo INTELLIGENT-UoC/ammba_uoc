@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from src.adapters import ewds_market_to_internal, ewds_order_to_int_order
+from src.retry import request_with_retries
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +151,26 @@ class EwdsOffchainClient:
                 )
         return markets
 
+    async def get_measurements(
+        self,
+        start_time: int,
+        end_time: int,
+        community_uuid: str | None = None,
+        facility_id: str | None = None,
+    ) -> list[dict]:
+        """Fetch int:Measurement records for a time window (calibration input).
+
+        Returns the handler's DTOs as-is — the calibration job consumes the
+        int:Measurement shape (facilityId/communityUuid/timeSlot/energyKwh)
+        directly and stays dependency-free.
+        """
+        payload: dict = {"startTime": start_time, "endTime": end_time}
+        if community_uuid:
+            payload["communityUuid"] = community_uuid
+        if facility_id:
+            payload["facilityId"] = facility_id
+        return await self._query("measurements.query", payload)
+
     async def post_trades(self, trades: list[dict]) -> None:
         """No EWDS write path — matches are settled on-chain (v2). No-op."""
         logger.warning(
@@ -189,7 +210,9 @@ class EwdsOffchainClient:
             "anonymousRecipient": [],
         }
 
-        resp = await self._client.post(self._messages_url, json=transport_dto)
+        resp = await request_with_retries(
+            self._client, "POST", self._messages_url, json=transport_dto
+        )
         if resp.status_code >= 300:
             raise EwdsError(
                 f"EWDS publish failed for {operation}: "
@@ -208,7 +231,9 @@ class EwdsOffchainClient:
                     f"EWDS timeout waiting for {operation} response " f"(request_id={request_id})"
                 )
 
-            resp = await self._client.get(
+            resp = await request_with_retries(
+                self._client,
+                "GET",
                 self._messages_url,
                 params={
                     "fqcn": self.config.response_fqcn,
