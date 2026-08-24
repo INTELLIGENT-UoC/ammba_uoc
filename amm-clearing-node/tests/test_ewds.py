@@ -235,3 +235,53 @@ async def test_clearing_end_to_end_over_ewds(community):
     assert app.state.store.trades == []
     assert app.state.store.clearing_results == []
     await client.close()
+
+
+class TestEnergyTypeSentinel:
+    """GSY serializes an absent energy type as the string "None" (was GREY)."""
+
+    def _dto(self, **extra):
+        dto = {
+            "order_id": "aaaaaaaa-0001-4001-8001-000000000001",
+            "market_id": "33333333-3333-4333-8333-333333333333",
+            "order_type": "offer",
+            "order_status": "submitted",
+            "time_slot": 1782900000,
+            "creation_time": 1782899100,
+            "quantity": 5.0,
+            "price_limit": 0.12,
+            "created_by": "cccccccc-0001-4001-8001-000000000001",
+        }
+        dto.update(extra)
+        return dto
+
+    def test_none_sentinel_becomes_absent(self):
+        from src.adapters import ewds_order_to_int_order
+        from src.ontology import validate_order
+
+        for sentinel in ("None", "NONE", "null", ""):
+            order = ewds_order_to_int_order(self._dto(energy_type=sentinel))
+            assert "energyType" not in order
+            validate_order(order)  # must not fail the enum
+
+    def test_lowercase_enum_values_are_upcased(self):
+        from src.adapters import ewds_order_to_int_order
+        from src.ontology import validate_order
+
+        order = ewds_order_to_int_order(self._dto(energy_type="pv"))
+        assert order["energyType"] == "PV"
+        validate_order(order)
+
+    def test_unknown_value_passes_through_for_loud_validation(self):
+        from src.adapters import ewds_order_to_int_order
+
+        order = ewds_order_to_int_order(self._dto(energy_type="FUSION"))
+        assert order["energyType"] == "FUSION"  # validation will flag it
+
+    def test_source_preference_gets_same_treatment(self):
+        from src.adapters import ewds_order_to_int_order
+
+        order = ewds_order_to_int_order(
+            self._dto(order_type="bid", energy_source_preference="None")
+        )
+        assert "energySourcePreference" not in order

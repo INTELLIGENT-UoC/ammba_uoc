@@ -147,6 +147,25 @@ def _to_iso(value) -> str | None:
     return value
 
 
+_ENERGY_ENUM = {"GREEN", "PV", "HYDRO", "BIOMASS", "BATTERY", "GREY"}
+
+
+def _normalize_energy(value) -> str | None:
+    """Map DTO energy-type values onto the ontology enum casing.
+
+    The handler serializes an absent energy type as the sentinel string
+    "None"/"NONE" (GSY changed the old GREY default to None, 2026-08) — that
+    must become an *absent* field, not a literal enum value. Unknown non-empty
+    values pass through unchanged so ontology validation surfaces real drift.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.upper() in ("NONE", "NULL"):
+        return None
+    return text.upper() if text.upper() in _ENERGY_ENUM else text
+
+
 def ewds_order_to_int_order(dto: dict) -> dict:
     """Normalize an EWDS order DTO (any known dialect) to int:Order shape.
 
@@ -190,8 +209,10 @@ def ewds_order_to_int_order(dto: dict) -> dict:
     }
     if partner is not None:
         normalized["preferredTradingPartner"] = partner
+    source_pref = _normalize_energy(source_pref)
     if source_pref is not None:
         normalized["energySourcePreference"] = source_pref
+    energy_type = _normalize_energy(energy_type)
     if energy_type is not None:
         normalized["energyType"] = energy_type
 
