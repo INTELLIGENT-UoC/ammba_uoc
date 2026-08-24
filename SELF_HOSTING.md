@@ -78,9 +78,9 @@ over the gateway: `uv run python -m src.fetch_measurements` (see below).
 
 To participate in a shared data spine (EWDS) instead of the local REST store:
 
-1. Deploy your own DDHub Client Gateway instance (each participant runs its
-   own gateway with its own identity) and obtain onboarding — an identity
-   (DID) and namespace/topic access — from the spine operator.
+1. Obtain access to the deployment's Client Gateway from its operator (in
+   the INTELLIGENT project, GSY operates the gateway): the gateway URL, any
+   authentication requirements, and an authorized client id for the AMM.
 2. Switch the transport: `OFFCHAIN_TRANSPORT=ewds`,
    `EWDS_GATEWAY_URL=<your gateway>`, plus the topic settings in
    [.env.example](.env.example).
