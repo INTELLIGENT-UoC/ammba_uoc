@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 
-from web3 import AsyncWeb3, AsyncHTTPProvider
+from web3 import AsyncHTTPProvider, AsyncWeb3
 from web3.middleware import ExtraDataToPOAMiddleware
 
 from src.sigmoid import to_node_int

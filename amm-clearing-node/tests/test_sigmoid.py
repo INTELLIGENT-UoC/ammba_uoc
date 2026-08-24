@@ -3,7 +3,6 @@
 import math
 
 from src.sigmoid import (
-    NODE_FLOAT_SCALING_FACTOR,
     from_node_int,
     sigmoid_price,
     to_node_int,

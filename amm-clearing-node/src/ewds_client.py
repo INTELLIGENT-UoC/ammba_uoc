@@ -151,6 +151,26 @@ class EwdsOffchainClient:
                 )
         return markets
 
+    async def get_measurements(
+        self,
+        start_time: int,
+        end_time: int,
+        community_uuid: str | None = None,
+        facility_id: str | None = None,
+    ) -> list[dict]:
+        """Fetch int:Measurement records for a time window (calibration input).
+
+        Returns the handler's DTOs as-is — the calibration job consumes the
+        int:Measurement shape (facilityId/communityUuid/timeSlot/energyKwh)
+        directly and stays dependency-free.
+        """
+        payload: dict = {"startTime": start_time, "endTime": end_time}
+        if community_uuid:
+            payload["communityUuid"] = community_uuid
+        if facility_id:
+            payload["facilityId"] = facility_id
+        return await self._query("measurements.query", payload)
+
     async def post_trades(self, trades: list[dict]) -> None:
         """No EWDS write path — matches are settled on-chain (v2). No-op."""
         logger.warning(

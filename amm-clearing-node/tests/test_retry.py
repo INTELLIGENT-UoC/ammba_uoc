@@ -2,7 +2,6 @@
 
 import httpx
 import pytest
-
 from src.offchain_db import OffchainDBClient
 from src.retry import request_with_retries
 
