@@ -35,6 +35,8 @@ src/
 ├── offchain_db.py     # "rest" transport: httpx client for the off-chain DB API
 ├── ewds_client.py     # "ewds" transport: publish/poll via the EW CGW gateway
 ├── scheduler.py       # self-trigger: discover closed AMM markets, clear them
+├── retry.py           # bounded backoff for transient transport failures
+├── fetch_measurements.py  # CLI: pull int:Measurement history for calibration
 ├── contract.py        # web3.py wrapper for AMMContract (optional/deferred)
 └── config.py          # YAML + env-var settings, Pydantic models
 schemas/intelligent/   # vendored GSY DEX int.* JSON Schemas (the wire contract)
