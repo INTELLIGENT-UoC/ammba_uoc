@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.4...v0.1.5) (2026-08-24)
+
+
+### Features
+
+* **execution:** settlement engine skeleton (matches -&gt; settleBatch, option a) ([#42](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/42)) ([c7b9480](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/c7b94806a11fe3a969929dc2ba5b301f75962243))
+
 ## [0.1.4](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.3...v0.1.4) (2026-08-24)
 
 
