@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.3...v0.1.4) (2026-08-24)
+
+
+### Bug Fixes
+
+* **clearing:** treat the handler's 'None' energy-type sentinel as absent ([#40](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/40)) ([6bfd1e7](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/6bfd1e7eacbcd4213747a75d500851aea46c5f8f))
+
 ## [0.1.3](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.2...v0.1.3) (2026-08-24)
 
 
