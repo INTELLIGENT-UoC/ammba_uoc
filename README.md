@@ -67,7 +67,7 @@ Three components, each independently deployable:
 | [`amm-clearing-node/`](amm-clearing-node/) | Python 3.11+, FastAPI, web3.py | **(v1)** Runs the clearing pipeline: fetch `int:Order` → sigmoid price → pro-rata allocation → preference matching → build `int:Trade` → write trades + `int:ClearingResult` to the off-chain DB → optionally anchor on-chain. |
 | [`amm-calibration/`](amm-calibration/) | Python 3.11+, uv | Offline optimization of the per-community sigmoid parameters from historical measurements. |
 | [`amm-smart-contract/`](amm-smart-contract/) | Solidity 0.8.24, Hardhat | On-chain audit anchor. Stores cleared market results and emits `MarketCleared` events. Optional for v1. |
-| [`amm-execution-node/`](amm-execution-node/) | Python 3.11+, FastAPI | **(deferred)** Post-delivery penalties (shortfall, VCG). Kept for later work; not part of the v1 MVP and not yet migrated to the `int.*` ontology. |
+| [`amm-execution-node/`](amm-execution-node/) | Python 3.11+, web3.py | **(v2, skeleton)** Settlement engine: transforms AMM trades into on-chain `Match` structs, registers pool standing orders, submits `settleBatch`. Live execution pending the GSY contract freeze. Penalty math retained for the future `submitPenalties` path. |
 
 ## Core algorithms
 
@@ -151,8 +151,13 @@ uv sync --extra dev
 uv run pytest -v                                   # 8 tests
 ```
 
-The execution node is deferred (not part of the v1 MVP); its tests still live in
-`amm-execution-node/` for later work.
+The settlement engine (v2) lives in `amm-execution-node/`:
+
+```bash
+cd ../amm-execution-node
+uv sync --extra dev
+uv run pytest -v                                   # 31 tests (settlement skeleton + dormant penalty math)
+```
 
 ## Configuration
 

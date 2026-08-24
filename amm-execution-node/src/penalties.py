@@ -163,7 +163,6 @@ def compute_penalties_for_trades(
 
         if is_seller_trade:
             # This is a Pool→Seller trade
-            seller_id = trade.get("seller", "")
             area_uuid = trade.get("offer", {}).get("offer_component", {}).get("area_uuid", "")
             actual_delivered = measurements.get(area_uuid, selected_energy)
 
@@ -196,7 +195,6 @@ def compute_penalties_for_trades(
 
         elif is_buyer_trade:
             # This is a Buyer→Pool trade
-            buyer_id = trade.get("buyer", "")
             area_uuid = trade.get("bid", {}).get("bid_component", {}).get("area_uuid", "")
             actual_demand = measurements.get(area_uuid, selected_energy)
             reported_demand = selected_energy

@@ -1,139 +1,93 @@
-"""FastAPI application — AMM Execution Node.
+"""AMM settlement engine CLI (skeleton).
 
-Runs as a polling loop checking for completed delivery slots,
-or can be triggered via HTTP endpoint.
+Dry-run is the only mode until GSY provides the execution environment
+(frozen contracts + addresses, OPERATOR_ROLE grant, target chain, funded
+signer, id-mapping utilities). ``--execute`` exists but exits with a checklist
+of exactly what is still missing.
 
-Endpoints:
-  POST /trigger-execution  — manually trigger execution for a specific slot
-  GET  /health             — health check
+Usage:
+    uv run python -m src.main --trades trades.json --orders orders.json \
+        --pool-actor <uuid> --k-upper 0.285 --k-lower 0.08
+
+``trades.json``: int:Trade list (the clearing node's output).
+``orders.json``: int:Order list (the orders the trades reference).
 """
 
-import asyncio
-import logging
+import argparse
+import json
+import os
+import sys
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from src.match_builder import build_matches
+from src.validator import validate_batch
 
-from src.config import Settings, load_settings
-from src.execution import compute_previous_timeslot, run_execution_cycle
-from src.offchain_db import OffchainDBClient
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(name)s %(levelname)s %(message)s",
-)
-logger = logging.getLogger(__name__)
-
-
-class TriggerRequest(BaseModel):
-    market_id: str
-    community_uuid: str
-    time_slot: int
+EXECUTION_ENV = [
+    "SETTLEMENT_RPC_URL",
+    "ORDER_REGISTRY_ADDRESS",
+    "TRADE_SETTLEMENT_ADDRESS",
+    "SETTLEMENT_PRIVATE_KEY",
+]
 
 
-class ExecutionResponse(BaseModel):
-    status: str
-    detail: dict | None = None
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="AMM settlement engine (skeleton)")
+    parser.add_argument("--trades", help="int:Trade JSON list from the clearing node")
+    parser.add_argument("--orders", help="int:Order JSON list referenced by the trades")
+    parser.add_argument("--pool-actor", help="pool actor UUID")
+    parser.add_argument("--k-upper", type=float, help="community price ceiling")
+    parser.add_argument("--k-lower", type=float, help="community price floor")
+    parser.add_argument("--time-slot", type=int, default=0)
+    parser.add_argument("--execute", action="store_true", help="submit transactions (needs env)")
+    args = parser.parse_args(argv)
 
+    if not args.trades:
+        parser.print_help()
+        print(
+            "\nSkeleton status: dry-run planning works; --execute is blocked on "
+            "the GSY execution environment (contracts freeze, role grant, chain, "
+            "funded key, id-mapping).",
+            file=sys.stderr,
+        )
+        return 0
 
-def create_app(settings: Settings | None = None) -> FastAPI:
-    if settings is None:
-        settings = load_settings()
+    with open(args.trades) as f:
+        trades = json.load(f)
+    with open(args.orders) as f:
+        orders = json.load(f)
+    orders_by_id = {o["orderId"]: o for o in orders}
 
-    app = FastAPI(title="AMM Execution Node", version="0.1.0")
-    app.state.settings = settings
-    app.state.db_client = OffchainDBClient(settings.offchain_db_url)
+    build = build_matches(
+        trades,
+        orders_by_id,
+        pool_actor_uuid=args.pool_actor,
+        k_upper=args.k_upper,
+        k_lower=args.k_lower,
+        time_slot=args.time_slot,
+    )
+    violations = validate_batch(build.matches)
 
-    @app.get("/health")
-    async def health():
-        return {"status": "ok"}
+    plan = {
+        "matches": len(build.matches),
+        "pool_orders_to_place": [p.order.order_id for p in build.pool_orders],
+        "preflight_rejections": {
+            tid: [f"{v.code}: {v.detail}" for v in vs] for tid, vs in violations.items()
+        },
+        "settleable": [m.trade_id for m in build.matches if m.trade_id not in violations],
+    }
+    print(json.dumps(plan, indent=2))
 
-    @app.post("/trigger-execution", status_code=202)
-    async def trigger_execution(req: TriggerRequest) -> ExecutionResponse:
-        """Manually trigger execution for a specific market slot."""
-        community_config = settings.communities.get(req.community_uuid)
-        if community_config is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unknown community_uuid: {req.community_uuid}",
-            )
-
-        try:
-            result = await run_execution_cycle(
-                community_uuid=req.community_uuid,
-                market_id=req.market_id,
-                time_slot=req.time_slot,
-                community_config=community_config,
-                penalty_config=settings.penalties,
-                db_client=app.state.db_client,
-            )
-        except Exception:
-            logger.exception("Execution failed for market_id=%s", req.market_id)
-            raise HTTPException(status_code=500, detail="Execution failed")
-
-        return ExecutionResponse(status=result["status"], detail=result)
-
-    return app
-
-
-async def polling_loop(settings: Settings) -> None:
-    """Continuously poll for completed delivery slots and run execution.
-
-    Same pattern as the GSY DEX execution engine.
-    """
-    db_client = OffchainDBClient(settings.offchain_db_url)
-
-    while True:
-        try:
-            previous_slot = compute_previous_timeslot(
-                settings.time_slot_sec, settings.execution_offset_min
-            )
-
-            for community_uuid, community_config in settings.communities.items():
-                # Fetch markets for this community to find the market_id
-                try:
-                    markets = await db_client.get_community_markets(community_uuid)
-                    for market in markets:
-                        if market.get("time_slot") == previous_slot:
-                            await run_execution_cycle(
-                                community_uuid=community_uuid,
-                                market_id=market["market_id"],
-                                time_slot=previous_slot,
-                                community_config=community_config,
-                                penalty_config=settings.penalties,
-                                db_client=db_client,
-                            )
-                except Exception:
-                    logger.exception(
-                        "Execution cycle failed for community=%s slot=%d",
-                        community_uuid,
-                        previous_slot,
-                    )
-
-        except Exception:
-            logger.exception("Polling loop error")
-
-        await asyncio.sleep(settings.polling_interval_sec)
-
-
-# Default app instance for uvicorn
-app = create_app()
+    if args.execute:
+        missing = [key for key in EXECUTION_ENV if not os.environ.get(key)]
+        print(
+            "\n--execute unavailable: missing environment "
+            f"({', '.join(missing) if missing else 'none'}) and the GSY-side "
+            "prerequisites (OPERATOR_ROLE grant, ActorRegistry authorization for "
+            "the pool actor, market-open placement rule for pool orders).",
+            file=sys.stderr,
+        )
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
-    import sys
-    import uvicorn
-
-    settings = load_settings()
-
-    if "--poll" in sys.argv:
-        # Run as polling loop
-        asyncio.run(polling_loop(settings))
-    else:
-        # Run as HTTP server
-        uvicorn.run(
-            "src.main:app",
-            host=settings.host,
-            port=settings.port,
-            reload=True,
-        )
+    raise SystemExit(main())
