@@ -4,7 +4,6 @@ import json
 
 import httpx
 import pytest
-
 from src.ewds_client import EwdsConfig, EwdsOffchainClient
 
 MEASUREMENTS = [
