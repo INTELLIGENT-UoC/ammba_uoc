@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.2...v0.1.3) (2026-08-24)
+
+
+### Features
+
+* **clearing:** differential pricing, transport hardening, measurements fetch, self-hosting docs ([#38](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/38)) ([9c87053](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/9c87053d9c4ad7a87ace4587fe89de34d63ce6ba))
+
 ## [0.1.2](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.1...v0.1.2) (2026-08-18)
 
 
