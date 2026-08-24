@@ -10,9 +10,8 @@ COPY pyproject.toml uv.lock* ./
 RUN uv sync --no-dev --frozen 2>/dev/null || uv sync --no-dev
 
 # Application layer
-COPY configuration.yaml ./
 COPY src/ ./src/
 
-EXPOSE 8082
-
-CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8082"]
+# Settlement engine CLI (dry-run planner until the GSY execution environment
+# is available; see src/main.py --help).
+CMD ["uv", "run", "python", "-m", "src.main"]

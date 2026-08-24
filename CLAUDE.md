@@ -51,9 +51,10 @@ change each one when GSY / Energy Web answer.
 | Per-component dev guide | `<component>/AGENTS.md` |
 | Algorithmic / data-model reference | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 
-> The execution node (penalties) is **deferred** and not part of the v1 MVP.
-> `sigmoid.py` is still duplicated in both nodes; if you ever revive the
-> execution node, keep the two copies in sync.
+> `amm-execution-node` is the **v2 settlement engine** (skeleton; live
+> execution pending GSY's contract freeze). Its penalty mechanism stays
+> dormant inside it. `sigmoid.py` is still duplicated in both nodes — keep the
+> copies in sync.
 
 ## Verification before claiming a task is done
 

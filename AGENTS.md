@@ -27,7 +27,7 @@ VCG-style penalties) is **deferred** and not in the active stack.
 | `amm-clearing-node/`  | Python 3.12+, FastAPI, uv | **(v1)** The clearing pipeline; speaks the `int.*` ontology |
 | `amm-calibration/`    | Python 3.11+, uv (no heavy deps) | Offline optimization of per-community sigmoid params from history |
 | `amm-smart-contract/` | Solidity 0.8.24, Hardhat 2, Node 20 | On-chain audit anchor (optional for v1) |
-| `amm-execution-node/` | Python 3.12+, FastAPI, uv | **(deferred)** post-delivery penalties |
+| `amm-execution-node/` | Python 3.12+, web3.py, uv | **(v2 skeleton)** settlement engine: matches → `settleBatch`; penalties dormant |
 
 For the full system reference (algorithms, data flow, schemas, decision log),
 see [ARCHITECTURE.md](ARCHITECTURE.md). For every provisional integration
@@ -75,10 +75,10 @@ ammba_uoc/
 │
 ├── INTEGRATION_NOTES.md            # provisional decisions + where to change each (read before integration work)
 │
-└── amm-execution-node/             # ← deferred (not in v1 MVP)
+└── amm-execution-node/             # ← v2 settlement engine (skeleton)
     ├── AGENTS.md                    # component-specific onboarding
-    ├── src/                         # penalties.py (shortfall + VCG), execution.py, ...
-    └── tests/                       # pytest tests
+    ├── src/                         # engine.py, match_builder.py, validator.py, structs.py, chain.py
+    └── tests/                       # settlement skeleton + dormant penalty math
 ```
 
 The `★` files are the algorithmic heart of each service — start there when

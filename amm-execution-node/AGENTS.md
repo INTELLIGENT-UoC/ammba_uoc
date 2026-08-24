@@ -1,117 +1,88 @@
-# AGENTS.md — amm-execution-node
+# AGENTS.md — amm-execution-node (settlement engine)
 
 > Component-specific onboarding. See the [repo-root AGENTS.md](../AGENTS.md)
 > for the big picture first.
 
-> **Status: deferred — not part of the v1 MVP.** The v1 integration target is
-> the clearing node alone (orders in → trades out, via the GSY DEX `int.*`
-> ontology). This service and its penalty mechanism are kept for later work but
-> are not deployed in the active stack (removed from `docker-compose.yml`) and
-> have not yet been migrated to the `int.*` ontology. The measurement feed it
-> needs (`int:Measurement`) and a home for per-slot pricing parameters
-> (`theta`/`steepness`) are still open with GSY before this can be revived.
+## What this component is
 
-## What this service does
+The **AMM execution engine** for v2 of the GSY DEX integration: it takes the
+clearing node's output (int:Trade list + the int:Order objects they reference),
+transforms it into on-chain `Match` structs, registers the pool's standing
+orders, and submits `TradeSettlement.settleBatch` transactions. The off-chain
+storage then writes trades from the resulting on-chain events — the engine is
+how AMM matches become settled trades.
 
-Runs **after delivery**. Reads settled trades and metered measurements,
-computes three kinds of penalty, and returns the results.
+**Status: skeleton.** The full pipeline (build → validate → place pool orders
+→ settle, with idempotency and batching) is implemented and tested against a
+mocked chain. Live execution is blocked on the GSY-side environment: frozen
+contracts + deployed addresses, `OPERATOR_ROLE` grant, target chain + funded
+signer, canonical UUID↔bytes16 utilities, and the currency-unit decision.
 
-| Penalty | When it applies | Formula (informal) |
-|---|---|---|
-| **Seller shortfall** | Seller delivered less than traded | `γ · K_upper · max(0, traded − delivered − η)` |
-| **Seller VCG externality** | Supply-limited round, seller withheld supply | `max(0, (clearing_price − p_counterfactual) · traded)` |
-| **Buyer VCG externality** | Demand-limited round, buyer under-reported | `max(0, (p_counterfactual − clearing_price) · traded)` |
-
-Counterfactual prices come from the **same sigmoid** as the clearing node —
-that's why `sigmoid.py` is duplicated here.
+The former penalty mechanism (`penalties.py`, `sigmoid.py`) stays in this
+component: the contract's `submitPenalties` (`EXECUTION_ENGINE_ROLE`) is its
+future path. It is dormant, not wired.
 
 ## File map
 
 ```
 src/
-├── main.py         # FastAPI app + --poll autonomous mode
-├── execution.py    # run_execution_cycle() orchestration
-├── penalties.py    # ★ three penalty formulas
-├── sigmoid.py      # copy of clearing-node's sigmoid (intentional)
-├── offchain_db.py  # async httpx client (trades + measurements)
-└── config.py       # YAML + env-var settings, PenaltyConfig
+├── engine.py         # ★ orchestration: validate → pool orders → settleBatch; idempotent ledger
+├── match_builder.py  # ★ int:Trade + int:Order → Match structs; synthesizes pool orders (option a)
+├── validator.py      # pre-flight mirror of TradeSettlement._settleTrade revert conditions
+├── structs.py        # OrderData/Match/OrderParams mirrors, ×10000 scaling, energy-type u8 codes
+├── ids.py            # UUID ↔ bytes16 (provisional pending GSY utilities)
+├── chain.py          # async web3 client for placeOrder/settleBatch (hand-declared ABI fragments)
+├── main.py           # CLI: dry-run planner; --execute gated on the missing environment
+├── penalties.py      # dormant: shortfall + VCG penalty math (future submitPenalties path)
+└── sigmoid.py        # dormant: kept in sync with the clearing node's copy for counterfactuals
 tests/
-└── test_*.py       # 19 tests
+├── test_settlement.py  # ids, structs/ABI encoding, builder, validator, engine (mock chain)
+└── test_penalties.py   # dormant penalty math (still green)
 ```
 
-Start at `penalties.py` for any penalty-formula change.
+## Design decisions encoded here (with their sources)
 
-## Public API
+1. **Option (a) pool representation** (GSY, 2026-08-24): the engine registers
+   standing pool orders on-chain; the pool holds its own signer key; no
+   contract changes.
+2. **One pool order per pool match.** `_settleTrade` flips both orders to
+   `Executed`, so a pool order can settle exactly once → `match_builder`
+   synthesizes a deterministic pool order per trade
+   (`pool_settle_order_uuid(trade_id)`).
+3. **Pool orders can never cause `PriceMismatch`.** The contract requires
+   `bid.energyRate ≥ clearingPrice ≥ offer.energyRate`; pool bids are priced
+   at the community ceiling and pool offers at the floor.
+4. **Participant limit prices are surfaced, not silently fixed.** AMM clearing
+   does not condition on limits, but the contract enforces them at settlement.
+   The validator rejects such matches pre-flight with an explicit message —
+   resolving this mismatch is an open design point with GSY.
+5. **Idempotency by trade id.** The ledger (in-memory for the skeleton;
+   persist before production) prevents double-settling across re-runs.
 
-| Endpoint | Method | Body | Returns |
-|---|---|---|---|
-| `/trigger-execution` | POST | `{community_uuid, time_slot}` | penalty results |
-| `/health` | GET | — | `{status: "ok"}` |
+## ⚠ Open constraints (raised with GSY — do not silently "fix")
 
-Also runs in **polling mode**: `uv run python -m src.main --poll`. The loop
-checks for newly-completed delivery slots every `POLLING_INTERVAL_SEC` and
-runs penalties autonomously.
-
-## Configuration
-
-| Var | Default | Meaning |
-|---|---|---|
-| `OFFCHAIN_DB_URL` | `http://offchain-db:8080` | GSY DEX base URL |
-| `TIME_SLOT_SEC` | `900` | Market slot length |
-| `EXECUTION_OFFSET_MIN` | `-120` | Penalties run this many minutes after delivery |
-| `POLLING_INTERVAL_SEC` | `300` | Poll mode cadence |
-
-`PenaltyConfig` (from `configuration.yaml`):
-- `gamma` (default `1.1`): shortfall penalty multiplier on `K_upper`
-- `eta`   (default `0.0`): tolerance allowance for under-delivery
+- `OrderRegistry.placeOrder` requires the market to be **Open** and the actor
+  to be **authorized in ActorRegistry** for the sender. AMM matches are only
+  known after market close → pool standing orders cannot be placed
+  post-clearing under current rules. Needs a GSY-side resolution (settlement
+  role exemption or pool-aware path).
+- The on-chain energy-type coding **includes GREY (=6)** while the current
+  off-chain wire DTO rejects GREY — upstream drift, reported.
+- Currency unit for the scaled u64 price fields: consortium decision pending.
 
 ## Dev loop
 
 ```bash
 uv sync --extra dev
-uv run pytest -v                                        # 19 tests
-uv run uvicorn src.main:app --port 8082 --reload        # HTTP mode
-uv run python -m src.main --poll                        # polling mode
+uv run pytest -v                 # 31 tests
+uv run python -m src.main        # CLI status / dry-run planner
 ```
-
-## Patterns
-
-- **Pure functions for each penalty.** `seller_shortfall_penalty`,
-  `seller_externality_penalty`, `buyer_externality_penalty` all take numbers
-  in, return numbers out. Tests pass concrete values — no mocking needed.
-- **`execution.py` is the only place that does I/O.** Same convention as
-  the clearing node — keeps algorithms isolated.
-- **Round classification matters.** `compute_penalties_for_trades` decides
-  whether a slot was supply-limited or demand-limited and applies the right
-  externality. If you add a third regime, fork that decision deliberately.
-
-## Conventions to preserve
-
-1. **Sigmoid must match the clearing node.** Any change to `sigmoid.py` here
-   must be mirrored in `amm-clearing-node/src/sigmoid.py` and covered by a
-   regression test in both. (Yes, duplicated by design — see ARCHITECTURE.md
-   decision log.)
-2. Penalty result schema (current): per-trade dict with
-   `{trade_uuid, area_uuid, penalty_type, amount, components}`. Extending is
-   fine; renaming fields is breaking.
-3. `compute_previous_timeslot()` is the canonical "which slot do we process
-   right now?" function. Don't re-derive that math elsewhere.
-
-## Common change recipes
-
-- **Tweak a penalty formula**: edit `penalties.py`, add cases in
-  `tests/test_penalties.py` with hand-computed expected values.
-- **Add a new measurement source**: extend `offchain_db.py` with the new
-  async method; mock with `respx`.
-- **Change the polling interval default**: `config.py` + document in this
-  file and in the repo-root README.
 
 ## Don'ts
 
-- Don't persist penalty results yet — output schema and storage location are
-  still **open items** (see ARCHITECTURE.md §13). Returning them is enough
-  for now; an external settlement service will consume them.
-- Don't introduce a separate copy of the sigmoid for "execution-specific"
-  pricing — counterfactuals must be computed with the **exact** function the
-  clearing node used. If you need to vary parameters, pass them in, don't
-  fork the function.
+- Don't change `SCALING_FACTOR = 10000` (confirmed shared with GSY).
+- Don't replace `ids.py` conventions ad hoc — swap in GSY's canonical
+  utilities when published, in that one module only.
+- Don't wire `--execute` paths before the contract freeze; the hand-declared
+  ABI fragments in `chain.py` must be replaced by GSY's compiled artifacts.
+- `sigmoid.py` must stay in sync with `amm-clearing-node/src/sigmoid.py`.
