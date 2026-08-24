@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from src.adapters import ewds_market_to_internal, ewds_order_to_int_order
+from src.retry import request_with_retries
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +190,9 @@ class EwdsOffchainClient:
             "anonymousRecipient": [],
         }
 
-        resp = await self._client.post(self._messages_url, json=transport_dto)
+        resp = await request_with_retries(
+            self._client, "POST", self._messages_url, json=transport_dto
+        )
         if resp.status_code >= 300:
             raise EwdsError(
                 f"EWDS publish failed for {operation}: "
@@ -208,7 +211,9 @@ class EwdsOffchainClient:
                     f"EWDS timeout waiting for {operation} response " f"(request_id={request_id})"
                 )
 
-            resp = await self._client.get(
+            resp = await request_with_retries(
+                self._client,
+                "GET",
                 self._messages_url,
                 params={
                     "fqcn": self.config.response_fqcn,

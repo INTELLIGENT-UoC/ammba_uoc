@@ -5,6 +5,7 @@ import logging
 import httpx
 
 from src.adapters import ewds_market_to_internal
+from src.retry import request_with_retries
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,9 @@ class OffchainDBClient:
 
         GET /orders?market_id={id}&start_time={ts}&end_time={ts}
         """
-        resp = await self._client.get(
+        resp = await request_with_retries(
+            self._client,
+            "GET",
             "/orders",
             params={
                 "market_id": market_id,
@@ -44,7 +47,9 @@ class OffchainDBClient:
 
         GET /trades?market_id={id}
         """
-        resp = await self._client.get("/trades", params={"market_id": market_id})
+        resp = await request_with_retries(
+            self._client, "GET", "/trades", params={"market_id": market_id}
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -54,7 +59,7 @@ class OffchainDBClient:
         GET /markets — served by the local simulator; the real GSY path is
         markets.query over EWDS.
         """
-        resp = await self._client.get("/markets")
+        resp = await request_with_retries(self._client, "GET", "/markets")
         resp.raise_for_status()
         return [ewds_market_to_internal(m) for m in resp.json()]
 
@@ -63,7 +68,7 @@ class OffchainDBClient:
 
         POST /trades-normalized
         """
-        resp = await self._client.post("/trades-normalized", json=trades)
+        resp = await request_with_retries(self._client, "POST", "/trades-normalized", json=trades)
         resp.raise_for_status()
         logger.info("Posted %d trades to off-chain DB", len(trades))
 
@@ -72,7 +77,7 @@ class OffchainDBClient:
 
         POST /clearing-results
         """
-        resp = await self._client.post("/clearing-results", json=result)
+        resp = await request_with_retries(self._client, "POST", "/clearing-results", json=result)
         resp.raise_for_status()
         logger.info("Posted clearing result for market_id=%s", result.get("marketId"))
 
