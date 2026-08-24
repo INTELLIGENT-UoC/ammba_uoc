@@ -1,12 +1,10 @@
 """Tests for user preference matching."""
 
-import pytest
-
 from src.preferences import (
     EnergyTypeMultipliers,
-    apply_energy_type_multipliers,
     apply_preference_allocation,
     apply_priority_allocation,
+    compute_seller_price_adjustments,
     find_mutual_preferred_pairs,
 )
 
@@ -140,112 +138,93 @@ class TestApplyPriorityAllocation:
         assert offers[0]["allocated_energy"] == 5.0
 
 
-class TestApplyEnergyTypeMultipliers:
-    def _make_trade(self, buyer, seller, energy, clearing_price=50.0):
-        return {
-            "buyer": buyer,
-            "seller": seller,
-            "parameters": {
-                "selected_energy": energy,
-                "energy_rate": clearing_price,
-            },
+class TestSellerPriceAdjustments:
+    def _offer(self, account, allocated, energy_type=None):
+        offer = {
+            "order_id": f"offer_{account}",
+            "created_by": account,
+            "allocated_energy": allocated,
         }
+        if energy_type:
+            offer["attributes"] = {"energy_type": [energy_type]}
+        return offer
 
-    def test_green_subsidy_applied(self):
-        """Green sellers get higher price."""
-        trades = [
-            self._make_trade("AMM_POOL", "GreenSeller", 10.0),
-            self._make_trade("AMM_POOL", "GreySeller", 10.0),
-        ]
+    def test_green_subsidy_and_grey_levy(self):
+        """Equal volumes, 10%/10% at price 50 -> green +5, grey -5, zero-sum."""
         offers = [
-            make_offer("GreenSeller", 10.0, energy_type=["PV"]),
-            make_offer("GreySeller", 10.0, energy_type=["GREY"]),
+            self._offer("GreenSeller", 10.0, "PV"),
+            self._offer("GreySeller", 10.0, "GREY"),
         ]
-        bids = [make_bid("B1", 20.0)]
-        multipliers = EnergyTypeMultipliers(
-            green_subsidy_rate=0.10, grey_levy_rate=0.10, levy_cap_ct_per_kwh=10.0
-        )
+        m = EnergyTypeMultipliers(green_subsidy_rate=0.10, grey_levy_rate=0.10)
+        adjusted, prov = compute_seller_price_adjustments(offers, 50.0, m)
 
-        result = apply_energy_type_multipliers(
-            trades, bids, offers, 50.0, multipliers
-        )
+        assert adjusted["offer_GreenSeller"] == 55.0
+        assert adjusted["offer_GreySeller"] == 45.0
+        assert prov["scheme"] == "seller_side_zero_sum"
+        assert prov["subsidy_total_ct"] <= prov["levy_revenue_ct"] + 1e-9
+        assert abs(prov["pool_residual_ct"]) < 1e-9
 
-        green_trade = [t for t in result if t["seller"] == "GreenSeller"][0]
-        grey_trade = [t for t in result if t["seller"] == "GreySeller"][0]
-
-        # Green gets +5 ct/kWh (10% of 50)
-        assert green_trade["parameters"]["energy_rate"] == 55.0
-        # Grey gets -5 ct/kWh (10% of 50)
-        assert grey_trade["parameters"]["energy_rate"] == 45.0
-
-    def test_levy_cap_enforced(self):
-        """Grey levy doesn't exceed levy cap."""
-        trades = [
-            self._make_trade("AMM_POOL", "GreenSeller", 10.0, clearing_price=100.0),
-            self._make_trade("AMM_POOL", "GreySeller", 10.0, clearing_price=100.0),
-        ]
+    def test_levy_cap_enforced_and_subsidy_scaled_to_revenue(self):
+        """Cap bounds the levy; the subsidy shrinks to what the levy funds."""
         offers = [
-            make_offer("GreenSeller", 10.0, energy_type=["GREEN"]),
-            make_offer("GreySeller", 10.0, energy_type=["GREY"]),
+            self._offer("GreenSeller", 10.0, "GREEN"),
+            self._offer("GreySeller", 10.0, "GREY"),
         ]
-        bids = [make_bid("B1", 20.0)]
-        multipliers = EnergyTypeMultipliers(
-            green_subsidy_rate=0.20,  # Would be 20 ct/kWh
-            grey_levy_rate=0.20,      # Would be 20 ct/kWh
-            levy_cap_ct_per_kwh=5.0,  # Cap at 5 ct/kWh
+        m = EnergyTypeMultipliers(
+            green_subsidy_rate=0.20,  # target 20 ct/kWh at price 100
+            grey_levy_rate=0.20,  # would be 20 ct/kWh
+            levy_cap_ct_per_kwh=5.0,  # capped at 5
         )
+        adjusted, prov = compute_seller_price_adjustments(offers, 100.0, m)
 
-        result = apply_energy_type_multipliers(
-            trades, bids, offers, 100.0, multipliers
-        )
-
-        grey_trade = [t for t in result if t["seller"] == "GreySeller"][0]
-        # Levy capped at 5 ct/kWh despite rate suggesting 20
-        assert grey_trade["parameters"]["energy_rate"] == 95.0
+        assert adjusted["offer_GreySeller"] == 95.0  # levy capped
+        # Revenue 5*10=50 funds subsidy 50/10 = 5 ct/kWh (scaled from 20).
+        assert abs(adjusted["offer_GreenSeller"] - 105.0) < 1e-9
+        assert abs(prov["scaling_factor"] - 0.25) < 1e-9
+        assert prov["subsidy_total_ct"] <= prov["levy_revenue_ct"] + 1e-9
 
     def test_dynamic_subsidy_scaling(self):
-        """When grey revenue < target subsidy, green subsidy scales down."""
-        # Small grey volume (2 kWh) vs large green volume (10 kWh)
-        trades = [
-            self._make_trade("AMM_POOL", "GreenSeller", 10.0, clearing_price=50.0),
-            self._make_trade("AMM_POOL", "GreySeller", 2.0, clearing_price=50.0),
-        ]
+        """Small grey volume -> subsidy scales down to the levy revenue."""
         offers = [
-            make_offer("GreenSeller", 10.0, energy_type=["PV"]),
-            make_offer("GreySeller", 2.0, energy_type=["GREY"]),
+            self._offer("GreenSeller", 10.0, "PV"),
+            self._offer("GreySeller", 2.0, "GREY"),
         ]
-        bids = [make_bid("B1", 12.0)]
-        multipliers = EnergyTypeMultipliers(
-            green_subsidy_rate=0.10,    # Target: 5 ct/kWh * 10 kWh = 50 ct total
-            grey_levy_rate=0.10,        # Grey levy: 5 ct/kWh * 2 kWh = 10 ct total
-            levy_cap_ct_per_kwh=10.0,
+        m = EnergyTypeMultipliers(
+            green_subsidy_rate=0.10, grey_levy_rate=0.10, levy_cap_ct_per_kwh=10.0
         )
+        adjusted, prov = compute_seller_price_adjustments(offers, 50.0, m)
 
-        result = apply_energy_type_multipliers(
-            trades, bids, offers, 50.0, multipliers
-        )
+        # Revenue 5*2=10 vs target 5*10=50 -> scaling 0.2 -> subsidy 1 ct/kWh.
+        assert abs(adjusted["offer_GreenSeller"] - 51.0) < 1e-9
+        assert abs(prov["scaling_factor"] - 0.2) < 1e-9
 
-        green_trade = [t for t in result if t["seller"] == "GreenSeller"][0]
-        # Grey revenue = 5 * 2 = 10, target subsidy = 5 * 10 = 50
-        # Scaling factor = 10/50 = 0.2, actual subsidy = 5 * 0.2 = 1.0 ct/kWh
-        assert abs(green_trade["parameters"]["energy_rate"] - 51.0) < 0.01
+    def test_no_multipliers_or_zero_rates(self):
+        offers = [self._offer("S1", 5.0, "PV"), self._offer("S2", 5.0, "GREY")]
+        assert compute_seller_price_adjustments(offers, 50.0, None) == ({}, None)
+        zero = EnergyTypeMultipliers(green_subsidy_rate=0, grey_levy_rate=0)
+        assert compute_seller_price_adjustments(offers, 50.0, zero) == ({}, None)
 
-    def test_no_multipliers_returns_unchanged(self):
-        """None multipliers returns trades unchanged."""
-        trades = [self._make_trade("AMM_POOL", "S1", 5.0)]
-        result = apply_energy_type_multipliers(
-            trades, [], [], 50.0, None
-        )
-        assert result[0]["parameters"]["energy_rate"] == 50.0
+    def test_missing_side_disables_adjustment(self):
+        """Zero-sum needs both a funded and a funding side."""
+        m = EnergyTypeMultipliers(green_subsidy_rate=0.10, grey_levy_rate=0.10)
+        only_green = [self._offer("S1", 5.0, "PV")]
+        assert compute_seller_price_adjustments(only_green, 50.0, m) == ({}, None)
+        only_grey = [self._offer("S1", 5.0, "GREY")]
+        assert compute_seller_price_adjustments(only_grey, 50.0, m) == ({}, None)
 
-    def test_zero_rates_returns_unchanged(self):
-        """Zero rates returns trades unchanged."""
-        trades = [self._make_trade("AMM_POOL", "S1", 5.0)]
-        m = EnergyTypeMultipliers(green_subsidy_rate=0, grey_levy_rate=0)
-        result = apply_energy_type_multipliers(
-            trades, [], [], 50.0, m
-        )
-        assert result[0]["parameters"]["energy_rate"] == 50.0
+    def test_unallocated_and_neutral_offers_excluded(self):
+        offers = [
+            self._offer("GreenSeller", 10.0, "PV"),
+            self._offer("GreySeller", 10.0, "GREY"),
+            self._offer("SpentSeller", 0.0, "GREY"),  # fully preference-matched
+            self._offer("NeutralSeller", 10.0),  # no energy type
+        ]
+        m = EnergyTypeMultipliers(green_subsidy_rate=0.10, grey_levy_rate=0.10)
+        adjusted, prov = compute_seller_price_adjustments(offers, 50.0, m)
+
+        assert "offer_SpentSeller" not in adjusted
+        assert "offer_NeutralSeller" not in adjusted
+        assert prov["grey_volume_kwh"] == 10.0
 
 
 class TestPreferenceAllocationIntegration:

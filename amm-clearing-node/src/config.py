@@ -17,6 +17,12 @@ class CommunityConfig(BaseModel):
     # pool is a virtual counterparty; this is the FK used as buyerId/sellerId for
     # pool trades. Provisional pending GSY's pool-registration decision.
     pool_actor_uuid: str
+    # Seller-side energy-type differential pricing (zero-sum: green subsidy
+    # funded by the grey levy; disabled while both rates are 0). Buyers keep
+    # the uniform clearing price.
+    green_subsidy_rate: float = 0.0
+    grey_levy_rate: float = 0.0
+    levy_cap_ct_per_kwh: float = 5.0
 
 
 class Settings(BaseModel):

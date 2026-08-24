@@ -7,7 +7,8 @@ Steps:
 3. Compute the uniform clearing price via the sigmoid
 4. Record the result on-chain via clearMarket() (optional / deferred)
 5. Compute pro-rata quantity allocations
-6. Apply user preference allocation (mutual preferred pairs)
+6. Apply user preference allocation (mutual preferred pairs), then optional
+   seller-side energy-type differential pricing (6b, zero-sum vs the pool)
 7. Generate int:Trade objects (direct preference pairs, Buyer→Pool, Pool→Seller)
 8. Post int:Trade list and the int:ClearingResult back to the off-chain DB
 
@@ -40,7 +41,11 @@ from src.ontology import (
     validate_order,
     validate_trade,
 )
-from src.preferences import apply_preference_allocation
+from src.preferences import (
+    EnergyTypeMultipliers,
+    apply_preference_allocation,
+    compute_seller_price_adjustments,
+)
 from src.sigmoid import sigmoid_price
 
 logger = logging.getLogger(__name__)
@@ -93,8 +98,7 @@ async def run_clearing(
                 )
                 continue
             logger.warning(
-                "Order %s fails int:Order validation; keeping it "
-                "(strict_validation=False)",
+                "Order %s fails int:Order validation; keeping it " "(strict_validation=False)",
                 raw.get("orderId", "<no id>"),
                 exc_info=True,
             )
@@ -200,6 +204,22 @@ async def run_clearing(
     # ── Step 6: Preference allocation (mutual preferred pairs) ────────
     bids, offers = apply_preference_allocation(bids, offers, clearing_price_ct, traded_quantity)
 
+    # ── Step 6b: Seller-side differential pricing (optional) ──────────
+    # Green sellers receive clearing + subsidy, grey sellers clearing − levy
+    # (zero-sum against the pool). Buyers and direct preference trades keep
+    # the uniform clearing price. The adjusted price goes straight into the
+    # wire tradePrice; provenance is returned in the clearing summary.
+    multipliers = None
+    if community_config.green_subsidy_rate or community_config.grey_levy_rate:
+        multipliers = EnergyTypeMultipliers(
+            green_subsidy_rate=community_config.green_subsidy_rate,
+            grey_levy_rate=community_config.grey_levy_rate,
+            levy_cap_ct_per_kwh=community_config.levy_cap_ct_per_kwh,
+        )
+    adjusted_seller_ct, price_provenance = compute_seller_price_adjustments(
+        offers, clearing_price_ct, multipliers
+    )
+
     # ── Step 7: Generate int:Trade objects ───────────────────────────
     pool_bid_id = pool_order_uuid(market_id, "bid")
     pool_offer_id = pool_order_uuid(market_id, "offer")
@@ -224,16 +244,20 @@ async def run_clearing(
                 )
             )
 
-    # 7c: Pool → Seller for remaining allocated energy
+    # 7c: Pool → Seller for remaining allocated energy (price may carry the
+    # seller-side energy-type adjustment from step 6b)
     for offer in offers:
         if offer.get("allocated_energy", 0) > 1e-9:
+            seller_price_eur = ct_to_eur(
+                adjusted_seller_ct.get(offer["order_id"], clearing_price_ct)
+            )
             trades.append(
                 build_pool_seller_int_trade(
                     offer,
                     pool_actor,
                     pool_bid_id,
                     market_id,
-                    clearing_price_eur,
+                    seller_price_eur,
                     traded_at,
                 )
             )
@@ -276,6 +300,10 @@ async def run_clearing(
         "traded_quantity_kwh": traded_quantity,
         "num_trades": len(trades),
         "tx_hash": tx_hash,
+        # Differential-pricing provenance (None when not applied). Kept out of
+        # the int.* wire objects on purpose — internal fields over ontology
+        # changes; a dedicated AMM topic can carry this later if needed.
+        "price_adjustments": price_provenance,
     }
 
 
