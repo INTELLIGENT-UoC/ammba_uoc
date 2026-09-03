@@ -12,6 +12,6 @@
   "license": "GPL-3.0-or-later",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "hardhat": "^2.29.0"
+    "hardhat": "^2.29.1"
   }
 }
