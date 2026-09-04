@@ -261,3 +261,82 @@ class TestEngine:
         report = await engine.settle(merged)
         assert len(report.settled) == 3
         assert len(chain.batches) == 2  # 2 + 1
+
+
+class TestGsyIdConventions:
+    """Parity with primitives/src/utils/mod.rs (upstream commit 648b346)."""
+
+    def test_uuid_and_hex_forms_agree(self):
+        from src.ids import parse_uuid_or_hex_bytes16
+
+        value = u()
+        as_hex = "0x" + value.replace("-", "")
+        assert parse_uuid_or_hex_bytes16(value) == parse_uuid_or_hex_bytes16(as_hex)
+        assert parse_uuid_or_hex_bytes16(value) == uuid.UUID(value).bytes
+
+    def test_malformed_id_raises(self):
+        from src.ids import parse_uuid_or_hex_bytes16
+
+        with pytest.raises(ValueError):
+            parse_uuid_or_hex_bytes16("actor-17")
+
+    def test_actor_id_is_blake2b_128_of_the_string(self):
+        """Golden vectors: blake2b digest_size=16 over the exact off-chain string."""
+        from src.ids import actor_onchain_id, bytes16_to_hex
+
+        assert bytes16_to_hex(actor_onchain_id("actor-123")) == "0xcebf5331e6b4e617eb4e30298d890eec"
+        assert (
+            bytes16_to_hex(actor_onchain_id("11111111-1111-4111-8111-111111111111"))
+            == "0x36b3fc2cf928ee46278171375a2903b3"
+        )
+
+    def test_order_data_encodes_actor_via_mapping_not_uuid_bytes(self):
+        from src.ids import actor_onchain_id
+
+        actor = u()
+        order = OrderData(u(), actor, MARKET, SLOT, SLOT - 300, 5.0, 0.09)
+        encoded = order.to_tuple()
+        assert encoded[1] == actor_onchain_id(actor)
+        assert encoded[1] != uuid.UUID(actor).bytes
+        assert encoded[0] == uuid.UUID(order.order_id).bytes  # order id stays raw UUID bytes
+
+
+class RecordingRegistrar:
+    def __init__(self):
+        self.calls: list[list[str]] = []
+
+    async def ensure_mapped(self, offchain_ids):
+        self.calls.append(list(offchain_ids))
+
+
+class TestActorRegistration:
+    @pytest.mark.asyncio
+    async def test_all_actors_including_pool_are_registered_before_settling(self):
+        chain = FakeChain()
+        registrar = RecordingRegistrar()
+        engine = SettlementEngine(chain, registrar=registrar)
+        buyer, bid_id, trade_id = u(), u(), u()
+        orders = {bid_id: int_order(bid_id, buyer, "Bid", 6.0, 0.27)}
+        trades = [pool_trade(trade_id, bid_id, buyer, 5.4, 0.195)]
+        build = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08, time_slot=SLOT)
+
+        await engine.settle(build)
+
+        assert len(registrar.calls) == 1
+        assert set(registrar.calls[0]) == {buyer, POOL}
+
+    @pytest.mark.asyncio
+    async def test_nothing_registered_when_nothing_fresh(self):
+        chain = FakeChain()
+        registrar = RecordingRegistrar()
+        ledger = SettlementLedger()
+        engine = SettlementEngine(chain, ledger, registrar=registrar)
+        buyer, bid_id, trade_id = u(), u(), u()
+        orders = {bid_id: int_order(bid_id, buyer, "Bid", 6.0, 0.27)}
+        trades = [pool_trade(trade_id, bid_id, buyer, 5.4, 0.195)]
+        build = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08, time_slot=SLOT)
+
+        await engine.settle(build)
+        await engine.settle(build)  # everything already settled
+
+        assert len(registrar.calls) == 1

@@ -15,11 +15,14 @@ Unit conventions:
   the call site via ``rate_unit`` on the builder (see match_builder).
 - Energy types: the on-chain u8 coding INCLUDES GREY (=6), even though the
   current off-chain wire DTO rejects it — drift raised with GSY.
+- Identifiers: order/trade/market ids are the UUID's bytes; ACTOR ids
+  (``createdBy``) are blake2b-128 hashes of the off-chain id per GSY's
+  id-mapping convention (see ids.py) — never the UUID bytes.
 """
 
 from dataclasses import dataclass
 
-from src.ids import ZERO_BYTES16, uuid_to_bytes16
+from src.ids import ZERO_BYTES16, actor_onchain_id, uuid_to_bytes16
 
 SCALING_FACTOR = 10_000  # confirmed identical on the GSY side (2026-08-24)
 
@@ -72,7 +75,7 @@ class OrderData:
     def to_tuple(self) -> tuple:
         return (
             uuid_to_bytes16(self.order_id),
-            uuid_to_bytes16(self.created_by),
+            actor_onchain_id(self.created_by),
             uuid_to_bytes16(self.market_id),
             self.time_slot,
             self.creation_time,

@@ -80,6 +80,8 @@ class EwdsConfig:
             # Announced by GSY ("modeled on orders.query"); topic names follow
             # the established convention and are configurable if they differ.
             "markets.query": ("marketsQuery", "marketsQueryResponse"),
+            # Actor id mapping (GSY id-mapping, upstream commit 648b346).
+            "ids.query": ("idsQuery", "idsQueryResponse"),
         }
     )
 
@@ -185,6 +187,20 @@ class EwdsOffchainClient:
             "EWDS transport has no clearing-result write path " "(marketId=%s not persisted)",
             result.get("marketId"),
         )
+
+    async def get_or_create_onchain_id(self, offchain_id: str) -> dict:
+        """Resolve (and register) an actor's on-chain id mapping.
+
+        Returns the storage's mapping record ``{offchain_id, onchain_id,
+        creation_time}``; ``onchain_id`` is ``0x`` + hex of
+        blake2b-128(offchain_id) and the call is idempotent upstream. Only
+        actor ids (buyer/seller/facility/pool) are mapped — order, trade and
+        market ids convert directly to bytes16.
+        """
+        data = await self._query("ids.query", {"offchainId": offchain_id})
+        if not data:
+            raise EwdsError(f"ids.query returned no mapping for {offchain_id!r}")
+        return data[0]
 
     async def close(self) -> None:
         await self._client.aclose()

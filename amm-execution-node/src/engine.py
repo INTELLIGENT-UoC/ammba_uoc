@@ -1,4 +1,4 @@
-"""Settlement engine orchestration: validate → place pool orders → settleBatch.
+"""Settlement engine orchestration: validate → map actors → place pool orders → settleBatch.
 
 Idempotent by trade id: a ledger records settled trades so a crash or re-run
 cannot double-settle (the contract would also reject re-settling because the
@@ -29,6 +29,19 @@ class ChainClient(Protocol):
     async def place_order(self, params_tuple: tuple) -> str: ...
 
     async def settle_batch(self, match_tuples: list[tuple]) -> str: ...
+
+
+class IdRegistrar(Protocol):
+    """Registers actor off-chain→on-chain id mappings with the GSY storage.
+
+    The on-chain actor id is a deterministic hash we compute locally
+    (ids.actor_onchain_id), but the storage must hold the mapping so it can
+    attribute on-chain settlement events back to off-chain actors — the pool
+    actor in particular is known to nobody else. Wire to the storage's
+    ``ids.query`` (EWDS) or ``POST /ids`` (REST); idempotent upstream.
+    """
+
+    async def ensure_mapped(self, offchain_ids: list[str]) -> None: ...
 
 
 class SettlementLedger:
@@ -67,10 +80,12 @@ class SettlementEngine:
         chain: ChainClient,
         ledger: SettlementLedger | None = None,
         batch_size: int = DEFAULT_BATCH_SIZE,
+        registrar: IdRegistrar | None = None,
     ):
         self.chain = chain
         self.ledger = ledger or SettlementLedger()
         self.batch_size = batch_size
+        self.registrar = registrar
 
     async def settle(self, build: BuildResult) -> SettlementReport:
         report = SettlementReport()
@@ -95,7 +110,18 @@ class SettlementEngine:
         if not fresh:
             return report
 
-        # 3. Place the pool standing orders backing the fresh matches.
+        # 3. Register actor id mappings so on-chain events stay attributable.
+        actors = sorted({a for m in fresh for a in (m.bid.created_by, m.offer.created_by)})
+        if self.registrar is None:
+            logger.warning(
+                "No id registrar configured: %d actor mapping(s) not registered with "
+                "the storage; settlement events may not be attributable off-chain",
+                len(actors),
+            )
+        else:
+            await self.registrar.ensure_mapped(actors)
+
+        # 4. Place the pool standing orders backing the fresh matches.
         fresh_ids = {m.trade_id for m in fresh}
         needed_pool_orders = [
             p
@@ -108,7 +134,7 @@ class SettlementEngine:
             self.ledger.mark_placed(params.order.order_id)
             report.pool_orders_placed.append(params.order.order_id)
 
-        # 4. Settle in bounded batches.
+        # 5. Settle in bounded batches.
         for start in range(0, len(fresh), self.batch_size):
             chunk = fresh[start : start + self.batch_size]
             tx_hash = await self.chain.settle_batch([m.to_tuple() for m in chunk])

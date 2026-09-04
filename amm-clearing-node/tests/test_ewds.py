@@ -285,3 +285,29 @@ class TestEnergyTypeSentinel:
             self._dto(order_type="bid", energy_source_preference="None")
         )
         assert "energySourcePreference" not in order
+
+
+@pytest.mark.asyncio
+class TestIdsQuery:
+    """Actor id mapping (GSY id-mapping convention, upstream commit 648b346)."""
+
+    async def test_ids_query_roundtrip_matches_blake2b_128(self):
+        import hashlib
+
+        app = create_app()
+        client = _ewds_client(app)
+        actor = "11111111-1111-4111-8111-111111111111"
+        record = await client.get_or_create_onchain_id(actor)
+        await client.close()
+        assert record["offchain_id"] == actor
+        expected = "0x" + hashlib.blake2b(actor.encode(), digest_size=16).hexdigest()
+        assert record["onchain_id"] == expected == "0x36b3fc2cf928ee46278171375a2903b3"
+
+    async def test_rest_parity_route(self):
+        app = create_app()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://sim"
+        ) as c:
+            first = (await c.post("/ids", params={"offchain_id": "actor-123"})).json()
+            second = (await c.post("/ids", params={"offchain_id": "actor-123"})).json()
+        assert first["onchain_id"] == second["onchain_id"] == "0xcebf5331e6b4e617eb4e30298d890eec"

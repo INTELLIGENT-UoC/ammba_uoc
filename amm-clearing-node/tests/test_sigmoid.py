@@ -64,9 +64,7 @@ class TestSigmoidPrice:
     def test_clamping_bounds(self):
         """Price should always be within [K_lower, K_upper]."""
         for ratio in [0.001, 0.01, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 100.0]:
-            price = sigmoid_price(
-                ratio, self.K_UPPER, self.K_LOWER, self.THETA, self.STEEPNESS
-            )
+            price = sigmoid_price(ratio, self.K_UPPER, self.K_LOWER, self.THETA, self.STEEPNESS)
             assert self.K_LOWER <= price <= self.K_UPPER
 
     def test_k_upper_equals_k_lower(self):
@@ -82,20 +80,17 @@ class TestSigmoidPrice:
     def test_matches_reference_implementation(self):
         """Cross-validate against the simulation.py reference."""
         for ratio in [0.1, 0.5, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0]:
-            our_price = sigmoid_price(
-                ratio, self.K_UPPER, self.K_LOWER, self.THETA, self.STEEPNESS
-            )
+            our_price = sigmoid_price(ratio, self.K_UPPER, self.K_LOWER, self.THETA, self.STEEPNESS)
             ref_price = self._reference_sigmoid(ratio)
-            assert abs(our_price - ref_price) < 0.001, (
-                f"Mismatch at ratio={ratio}: ours={our_price}, ref={ref_price}"
-            )
+            assert (
+                abs(our_price - ref_price) < 0.001
+            ), f"Mismatch at ratio={ratio}: ours={our_price}, ref={ref_price}"
 
     def test_monotonically_decreasing(self):
         """Price should decrease as supply/demand ratio increases."""
         ratios = [0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0]
         prices = [
-            sigmoid_price(r, self.K_UPPER, self.K_LOWER, self.THETA, self.STEEPNESS)
-            for r in ratios
+            sigmoid_price(r, self.K_UPPER, self.K_LOWER, self.THETA, self.STEEPNESS) for r in ratios
         ]
         for i in range(len(prices) - 1):
             assert prices[i] >= prices[i + 1], (

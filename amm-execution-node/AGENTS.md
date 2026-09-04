@@ -30,7 +30,7 @@ src/
 ├── match_builder.py  # ★ int:Trade + int:Order → Match structs; synthesizes pool orders (option a)
 ├── validator.py      # pre-flight mirror of TradeSettlement._settleTrade revert conditions
 ├── structs.py        # OrderData/Match/OrderParams mirrors, ×10000 scaling, energy-type u8 codes
-├── ids.py            # UUID ↔ bytes16 (provisional pending GSY utilities)
+├── ids.py            # GSY id conventions: UUID bytes for order/trade/market, blake2b-128 for actors
 ├── chain.py          # async web3 client for placeOrder/settleBatch (hand-declared ABI fragments)
 ├── main.py           # CLI: dry-run planner; --execute gated on the missing environment
 ├── penalties.py      # dormant: shortfall + VCG penalty math (future submitPenalties path)
@@ -58,6 +58,12 @@ tests/
    resolving this mismatch is an open design point with GSY.
 5. **Idempotency by trade id.** The ledger (in-memory for the skeleton;
    persist before production) prevents double-settling across re-runs.
+6. **Two id conventions, per GSY (2026-09, upstream commit 648b346).**
+   Order/trade/market ids are the UUID's 16 bytes (`parse_uuid_or_hex_bytes16`
+   parity). Actor ids are *mapped*, not converted: `blake2b-128(offchain_id)`,
+   computed locally in `ids.actor_onchain_id` and registered with the storage
+   through the engine's `IdRegistrar` (`ids.query` / `POST /ids`) so
+   settlement events can be attributed back off-chain.
 
 ## ⚠ Open constraints (raised with GSY — do not silently "fix")
 
@@ -81,8 +87,8 @@ uv run python -m src.main        # CLI status / dry-run planner
 ## Don'ts
 
 - Don't change `SCALING_FACTOR = 10000` (confirmed shared with GSY).
-- Don't replace `ids.py` conventions ad hoc — swap in GSY's canonical
-  utilities when published, in that one module only.
+- Don't encode an actor id as UUID bytes — actors go through the blake2b
+  mapping in `ids.py`; only order/trade/market ids are raw UUID bytes.
 - Don't wire `--execute` paths before the contract freeze; the hand-declared
   ABI fragments in `chain.py` must be replaced by GSY's compiled artifacts.
 - `sigmoid.py` must stay in sync with `amm-clearing-node/src/sigmoid.py`.
