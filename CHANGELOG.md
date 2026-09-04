@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.6](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.5...v0.1.6) (2026-09-04)
+
+
+### Features
+
+* adopt GSY id-mapping conventions (UUID bytes for records, blake2b-128 for actors) ([#46](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/46)) ([d28b499](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/d28b4994d6223ac5dd1216d64da947c60636fc1d)), closes [#29](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/29)
+
+
+### Build
+
+* **deps-dev:** Bump hardhat ([#44](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/44)) ([580e2b8](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/580e2b8af1ed5106c0f70d9d2b0ba1680b83f052))
+
 ## [0.1.5](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.4...v0.1.5) (2026-08-24)
 
 
