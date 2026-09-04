@@ -12,7 +12,14 @@ from src.sigmoid import to_node_int
 logger = logging.getLogger(__name__)
 
 # ABI path — compiled by Hardhat, referenced from the smart contract project
-ABI_PATH = Path(__file__).parent.parent.parent / "amm-smart-contract" / "artifacts" / "contracts" / "AMMContract.sol" / "AMMContract.json"
+ABI_PATH = (
+    Path(__file__).parent.parent.parent
+    / "amm-smart-contract"
+    / "artifacts"
+    / "contracts"
+    / "AMMContract.sol"
+    / "AMMContract.json"
+)
 
 
 def _load_abi() -> list:
@@ -77,9 +84,7 @@ class AMMContractClient:
         ).build_transaction(
             {
                 "from": self.account.address,
-                "nonce": await self.w3.eth.get_transaction_count(
-                    self.account.address
-                ),
+                "nonce": await self.w3.eth.get_transaction_count(self.account.address),
                 "gas": 200000,
             }
         )

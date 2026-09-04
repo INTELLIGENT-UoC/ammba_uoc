@@ -19,8 +19,10 @@ are finalised, the same int.* payloads move to a publish/poll client behind the
 adapter; this simulator and its fixtures stay the validation reference.
 """
 
+import hashlib
 import json
 import logging
+import time
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException
@@ -185,7 +187,17 @@ def create_app(store: Store | None = None) -> FastAPI:
         "ordersQuery": "ordersQueryResponse",
         "tradesQuery": "tradesQueryResponse",
         "marketsQuery": "marketsQueryResponse",
+        "idsQuery": "idsQueryResponse",
     }
+
+    def _id_mapping(offchain_id: str) -> dict:
+        """GSY id-mapping record: onchain_id = 0x + blake2b-128(offchain_id)."""
+        digest = hashlib.blake2b(offchain_id.encode("utf-8"), digest_size=16).hexdigest()
+        return {
+            "offchain_id": offchain_id,
+            "onchain_id": "0x" + digest,
+            "creation_time": int(time.time()),
+        }
 
     def _handle_request(topic: str, envelope: dict) -> None:
         request_id = envelope.get("requestId") or envelope.get("request_id")
@@ -210,6 +222,9 @@ def create_app(store: Store | None = None) -> FastAPI:
         elif topic == "marketsQuery":
             # MarketSchema dialect: snake_case keys, ISO times — served as-is.
             results = list(store.markets)
+        elif topic == "idsQuery":
+            offchain_id = payload.get("offchainId") or payload.get("offchain_id")
+            results = [_id_mapping(offchain_id)]
         else:  # tradesQuery — no server-side market filter, like the real handler
             results = list(store.trades)
 
@@ -220,6 +235,11 @@ def create_app(store: Store | None = None) -> FastAPI:
             "error": None,
         }
         store.publish(response_topic, json.dumps(response))
+
+    @app.post("/ids")
+    async def get_or_create_ids(offchain_id: str):
+        """REST parity with the real storage: POST /ids?offchain_id=… (idempotent)."""
+        return _id_mapping(offchain_id)
 
     @app.post("/api/v2/messages")
     async def gateway_publish(message: dict = Body(...)):
