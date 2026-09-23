@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.6...v0.1.7) (2026-09-23)
+
+
+### Features
+
+* **clearing:** adaptive gateway polling and scheduler back-off ([#48](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/48)) ([659ea28](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/659ea2882b8e696f122aab36d31ec893f2265266)), closes [#47](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/47)
+
 ## [0.1.6](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.5...v0.1.6) (2026-09-04)
 
 
