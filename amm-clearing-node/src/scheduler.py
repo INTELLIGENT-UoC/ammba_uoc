@@ -92,18 +92,41 @@ async def run_scheduler_tick(
     return results
 
 
+TICK_BACKOFF_FACTOR = 2.0
+TICK_BACKOFF_MAX_MULTIPLE = 10  # never sleep longer than 10× the configured interval
+
+
+def next_tick_interval_sec(current_sec: float, base_sec: float, tick_failed: bool) -> float:
+    """Sleep before the next scheduler tick.
+
+    A failed tick (typically the storage behind the gateway not answering)
+    doubles the interval up to ``TICK_BACKOFF_MAX_MULTIPLE × base``; a
+    successful tick snaps back to ``base``. Keeps a dead upstream from being
+    hammered at full rate through a shared gateway.
+    """
+    if not tick_failed:
+        return base_sec
+    return min(current_sec * TICK_BACKOFF_FACTOR, base_sec * TICK_BACKOFF_MAX_MULTIPLE)
+
+
 async def run_scheduler_loop(settings: Settings, db_client, contract_client) -> None:
     """Poll forever; each tick discovers and clears due markets."""
     processed: set[str] = set()
+    base = float(settings.scheduler_poll_interval_sec)
+    interval = base
     logger.info(
-        "Self-trigger scheduler started (interval %ds)",
-        settings.scheduler_poll_interval_sec,
+        "Self-trigger scheduler started (interval %ds)", settings.scheduler_poll_interval_sec
     )
     while True:
+        failed = False
         try:
             await run_scheduler_tick(settings, db_client, contract_client, processed)
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.exception("Scheduler tick failed; retrying next interval")
-        await asyncio.sleep(settings.scheduler_poll_interval_sec)
+            failed = True
+            logger.exception("Scheduler tick failed; backing off")
+        interval = next_tick_interval_sec(interval, base, failed)
+        if failed:
+            logger.warning("Next scheduler tick in %.0fs", interval)
+        await asyncio.sleep(interval)

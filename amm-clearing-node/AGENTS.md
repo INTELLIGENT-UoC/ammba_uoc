@@ -60,6 +60,17 @@ selects markets whose window closed with `matching_algorithm = amm` and a
 configured community, and clears them (`src/scheduler.py`). The DB idempotency
 check remains the re-clear guard; `POST /trigger-clearing` keeps working.
 
+**Gateway request budget.** The gateway is shared with every other engine in
+the deployment, so the client is deliberately frugal: one query = 1 POST +
+polls that back off geometrically from `EWDS_RESPONSE_POLL_INTERVAL_MS` to
+`EWDS_RESPONSE_POLL_MAX_INTERVAL_MS` (≈16 GETs for a full 60 s wait; broker
+latency is 15–25 s, so a typical answered query costs ~7 GETs). A scheduler
+tick is one `markets.query` plus, per due market, `trades.query` +
+`orders.query`; a failed tick doubles the tick interval up to 10× the base
+(`scheduler.next_tick_interval_sec`). Ad-hoc probe scripts must use the single
+`DIAGNOSTIC_CLIENT_ID` (`ammclearingnodediag`) — every fresh clientId
+registers a new consumer cursor on the gateway.
+
 Start at `clearing.py` for an algorithmic change (numbered step sections) or
 `adapters.py` for anything touching the wire format.
 
@@ -81,7 +92,8 @@ Start at `clearing.py` for an algorithmic change (numbered step sections) or
 | `EWDS_GATEWAY_URL` | transport `ewds` | `http://ewds-gateway-api:3333` |
 | `EWDS_AMM_CLIENT_ID` | transport `ewds` | `ammclearingnode` |
 | `EWDS_TOPIC_OWNER` / `EWDS_TOPIC_VERSION` | transport `ewds` | GSY defaults |
-| `EWDS_RESPONSE_TIMEOUT_MS` / `EWDS_RESPONSE_POLL_INTERVAL_MS` | transport `ewds` | `60000` / `400` |
+| `EWDS_RESPONSE_TIMEOUT_MS` | transport `ewds` | `60000` |
+| `EWDS_RESPONSE_POLL_INTERVAL_MS` / `EWDS_RESPONSE_POLL_MAX_INTERVAL_MS` | transport `ewds` (initial poll delay / back-off ceiling) | `1000` / `5000` |
 | `OFFCHAIN_STRICT_VALIDATION` | lenient mode vs staging | `true` |
 | `SCHEDULER_ENABLED` | self-trigger mode | `false` |
 | `SCHEDULER_POLL_INTERVAL_SEC` | self-trigger mode | `60` |
