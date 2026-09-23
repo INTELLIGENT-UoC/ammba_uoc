@@ -43,7 +43,10 @@ DEFAULT_TOPIC_OWNER = "integration.apps.intelligent.auth.ewc"
 DEFAULT_TOPIC_VERSION = "1.0.0"
 DEFAULT_CLIENT_ID = "ammclearingnode"
 DEFAULT_TIMEOUT_MS = 60_000
-DEFAULT_POLL_INTERVAL_MS = 400
+DEFAULT_POLL_INTERVAL_MS = 1000  # first poll delay; grows geometrically
+DEFAULT_POLL_MAX_INTERVAL_MS = 5000  # ceiling of the back-off
+POLL_BACKOFF_FACTOR = 1.5
+DIAGNOSTIC_CLIENT_ID = "ammclearingnodediag"  # the ONE id for ad-hoc probe scripts
 
 
 class EwdsError(RuntimeError):
@@ -71,7 +74,8 @@ class EwdsConfig:
     topic_version: str = DEFAULT_TOPIC_VERSION
     client_id: str = DEFAULT_CLIENT_ID
     timeout_ms: int = DEFAULT_TIMEOUT_MS
-    poll_interval_ms: int = DEFAULT_POLL_INTERVAL_MS
+    poll_interval_ms: int = DEFAULT_POLL_INTERVAL_MS  # initial delay
+    poll_max_interval_ms: int = DEFAULT_POLL_MAX_INTERVAL_MS  # back-off ceiling
     topics: dict = field(
         default_factory=lambda: {
             "orders.query": ("ordersQuery", "ordersQueryResponse"),
@@ -84,6 +88,36 @@ class EwdsConfig:
             "ids.query": ("idsQuery", "idsQueryResponse"),
         }
     )
+
+
+def poll_delays_ms(
+    initial_ms: int,
+    max_ms: int,
+    timeout_ms: int,
+    factor: float = POLL_BACKOFF_FACTOR,
+) -> list[int]:
+    """The sequence of sleeps between response polls within one query.
+
+    Starts at ``initial_ms`` and grows by ``factor`` up to ``max_ms``; the
+    total never exceeds ``timeout_ms``. Shared gateways are polled by every
+    engine in the deployment and broker latency is 15–25 s, so hammering at a
+    fixed sub-second rate buys nothing — with the defaults a 60 s wait costs
+    ~16 GETs instead of 150.
+    """
+    if initial_ms <= 0 or timeout_ms <= 0:
+        return []
+    max_ms = max(max_ms, initial_ms)
+    delays: list[int] = []
+    current = float(initial_ms)
+    elapsed = 0
+    while True:
+        step = min(int(current), max_ms)
+        if elapsed + step > timeout_ms:
+            break
+        delays.append(step)
+        elapsed += step
+        current = min(current * factor, float(max_ms))
+    return delays
 
 
 class EwdsOffchainClient:
@@ -240,6 +274,8 @@ class EwdsOffchainClient:
     async def _poll(self, operation: str, request_id: str, response_topic: str) -> list[dict]:
         poll_client_id = client_id_for_suffix(self.config.client_id, response_topic)
         deadline = time.monotonic() + self.config.timeout_ms / 1000.0
+        delay_ms = float(self.config.poll_interval_ms)
+        max_delay_ms = float(max(self.config.poll_max_interval_ms, self.config.poll_interval_ms))
 
         while True:
             if time.monotonic() > deadline:
@@ -283,4 +319,7 @@ class EwdsOffchainClient:
                     )
                 return parsed.get("data") or []
 
-            await asyncio.sleep(self.config.poll_interval_ms / 1000.0)
+            # Geometric back-off between polls (see poll_delays_ms).
+            remaining_s = max(0.0, deadline - time.monotonic())
+            await asyncio.sleep(min(delay_ms / 1000.0, remaining_s))
+            delay_ms = min(delay_ms * POLL_BACKOFF_FACTOR, max_delay_ms)

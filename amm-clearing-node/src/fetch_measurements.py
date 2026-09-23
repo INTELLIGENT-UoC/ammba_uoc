@@ -42,6 +42,7 @@ async def fetch(args: argparse.Namespace) -> int:
         client_id=settings.ewds_client_id,
         timeout_ms=settings.ewds_response_timeout_ms,
         poll_interval_ms=settings.ewds_poll_interval_ms,
+        poll_max_interval_ms=settings.ewds_poll_max_interval_ms,
     )
     client = EwdsOffchainClient(config)
     try:

@@ -141,3 +141,22 @@ async def test_scheduler_tick_end_to_end_ewds(community):  # noqa: F811
     assert [r["market_id"] for r in results] == [SEED_MARKET]
     assert results[0]["status"] == "cleared"
     await client.close()
+
+
+class TestTickBackoff:
+    def test_success_snaps_back_to_base(self):
+        from src.scheduler import next_tick_interval_sec
+
+        assert next_tick_interval_sec(current_sec=480, base_sec=60, tick_failed=False) == 60
+
+    def test_failures_double_up_to_the_cap(self):
+        from src.scheduler import TICK_BACKOFF_MAX_MULTIPLE, next_tick_interval_sec
+
+        interval = 60.0
+        seen = []
+        for _ in range(6):
+            interval = next_tick_interval_sec(interval, 60, tick_failed=True)
+            seen.append(interval)
+        assert seen[:3] == [120, 240, 480]
+        assert max(seen) == 60 * TICK_BACKOFF_MAX_MULTIPLE
+        assert seen[-1] == seen[-2]  # held at the cap

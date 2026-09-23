@@ -311,3 +311,75 @@ class TestIdsQuery:
             first = (await c.post("/ids", params={"offchain_id": "actor-123"})).json()
             second = (await c.post("/ids", params={"offchain_id": "actor-123"})).json()
         assert first["onchain_id"] == second["onchain_id"] == "0xcebf5331e6b4e617eb4e30298d890eec"
+
+
+class TestAdaptivePolling:
+    """Response polling backs off geometrically instead of hammering the gateway."""
+
+    def test_delays_grow_and_cap(self):
+        from src.ewds_client import poll_delays_ms
+
+        delays = poll_delays_ms(initial_ms=1000, max_ms=5000, timeout_ms=60_000)
+        assert delays[0] == 1000
+        assert all(b >= a for a, b in zip(delays, delays[1:], strict=False))  # monotone
+        assert max(delays) == 5000  # ceiling reached and held
+        assert sum(delays) <= 60_000
+
+    def test_default_budget_is_an_order_of_magnitude_below_fixed_rate(self):
+        """A full 60 s wait costs ~16 GETs with the defaults (was 150 at 400 ms)."""
+        from src.ewds_client import (
+            DEFAULT_POLL_INTERVAL_MS,
+            DEFAULT_POLL_MAX_INTERVAL_MS,
+            DEFAULT_TIMEOUT_MS,
+            poll_delays_ms,
+        )
+
+        polls = (
+            len(
+                poll_delays_ms(
+                    DEFAULT_POLL_INTERVAL_MS, DEFAULT_POLL_MAX_INTERVAL_MS, DEFAULT_TIMEOUT_MS
+                )
+            )
+            + 1
+        )
+        assert polls <= 20
+        assert polls < (DEFAULT_TIMEOUT_MS // 400) / 5
+
+    def test_max_below_initial_is_clamped(self):
+        from src.ewds_client import poll_delays_ms
+
+        delays = poll_delays_ms(initial_ms=1000, max_ms=10, timeout_ms=3000)
+        assert delays == [1000, 1000, 1000]
+
+    def test_degenerate_inputs(self):
+        from src.ewds_client import poll_delays_ms
+
+        assert poll_delays_ms(0, 100, 1000) == []
+        assert poll_delays_ms(100, 100, 0) == []
+
+    @pytest.mark.asyncio
+    async def test_client_polls_fewer_times_than_fixed_rate_on_timeout(self):
+        """Against a silent topic the client must back off, not poll at the initial rate."""
+        app = create_app()
+        client = _ewds_client(
+            app,
+            timeout_ms=300,
+            poll_interval_ms=10,
+            poll_max_interval_ms=100,
+            topics={"orders.query": ("unhandledTopic", "unhandledResponse")},
+        )
+        gets = 0
+        original_request = client._client.request  # retry helper goes through .request
+
+        async def counting_request(method, *args, **kwargs):
+            nonlocal gets
+            if method.upper() == "GET":
+                gets += 1
+            return await original_request(method, *args, **kwargs)
+
+        client._client.request = counting_request
+        with pytest.raises(EwdsTimeout):
+            await client.get_orders(SEED_MARKET, 0, 900)
+        await client.close()
+        assert gets < 300 // 10  # a fixed 10 ms rate would be ~30 polls
+        assert gets >= 3  # ...but it did keep polling until the deadline

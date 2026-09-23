@@ -57,7 +57,8 @@ class Settings(BaseModel):
     ewds_topic_version: str = "1.0.0"
     ewds_client_id: str = "ammclearingnode"
     ewds_response_timeout_ms: int = 60000
-    ewds_poll_interval_ms: int = 400
+    ewds_poll_interval_ms: int = 1000  # initial response-poll delay
+    ewds_poll_max_interval_ms: int = 5000  # back-off ceiling
 
 
 def load_settings(config_path: Path | None = None) -> Settings:
@@ -104,8 +105,15 @@ def load_settings(config_path: Path | None = None) -> Settings:
         "EWDS_TOPIC_VERSION": "ewds_topic_version",
         "EWDS_RESPONSE_TIMEOUT_MS": "ewds_response_timeout_ms",
         "EWDS_RESPONSE_POLL_INTERVAL_MS": "ewds_poll_interval_ms",
+        "EWDS_RESPONSE_POLL_MAX_INTERVAL_MS": "ewds_poll_max_interval_ms",
     }
-    int_fields = {"time_slot_sec", "port", "ewds_response_timeout_ms", "ewds_poll_interval_ms"}
+    int_fields = {
+        "time_slot_sec",
+        "port",
+        "ewds_response_timeout_ms",
+        "ewds_poll_interval_ms",
+        "ewds_poll_max_interval_ms",
+    }
     for env_key, field in env_map.items():
         val = os.environ.get(env_key)
         if val is not None:
