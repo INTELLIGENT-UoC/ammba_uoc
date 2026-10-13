@@ -33,11 +33,11 @@ shape). The output is a `communities:` snippet you merge into
 `amm-clearing-node/configuration.yaml` (and/or anchor via
 `AMMContract.setCommunityParams`).
 
-## Inputs and assumptions (provisional — see ../INTEGRATION_NOTES.md)
+## Inputs and assumptions
 
 - **Measurement sign**: net-load convention — positive `energyKwh` is
-  consumption (demand), negative is injection (supply). Flip with
-  `--injection-positive` if GSY confirms the opposite.
+  consumption (demand), negative is injection (supply). Pass
+  `--injection-positive` for data with the opposite convention.
 - **Price bounds**: `k_upper`/`k_lower` are applied flat to every slot (passed
   in). A per-slot tariff series can replace this when one is available.
 - **Data needs ratio spread**: meaningful calibration requires history that
@@ -50,3 +50,7 @@ shape). The output is a `communities:` snippet you merge into
 clearing node's clamped `sigmoid.py`. Calibration needs the unclamped form so
 the range-usage penalty is meaningful; the clearing node clamps for runtime
 safety. Keep the core formula in sync across all three copies.
+
+Documentation: [calibration theory](../docs/model/calibration.md),
+[tool usage](../docs/implementation/calibration-tool.md), and the
+[parameter governance](../docs/model/governance.md) the tool supports.

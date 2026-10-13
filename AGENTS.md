@@ -19,19 +19,22 @@ Decentralized Exchange: every 15 minutes, buyers and sellers submit orders, a
 produces the GSY DEX `int.*` ontology objects (orders in, trades + clearing
 result out). Clearing results can be anchored on the **Energy Web Chain**.
 
-The **v1 MVP is the clearing node**. The execution node (post-delivery
-VCG-style penalties) is **deferred** and not in the active stack.
+The **clearing engine is the operational core** (v1). The settlement engine in
+`amm-execution-node` is the v2 skeleton for on-chain settlement; it also holds
+the dormant penalty formulas.
 
-| Path | Stack | Role |
-|---|---|---|
-| `amm-clearing-node/`  | Python 3.12+, FastAPI, uv | **(v1)** The clearing pipeline; speaks the `int.*` ontology |
-| `amm-calibration/`    | Python 3.11+, uv (no heavy deps) | Offline optimization of per-community sigmoid params from history |
-| `amm-smart-contract/` | Solidity 0.8.24, Hardhat 2, Node 20 | On-chain audit anchor (optional for v1) |
-| `amm-execution-node/` | Python 3.12+, web3.py, uv | **(v2 skeleton)** settlement engine: matches → `settleBatch`; penalties dormant |
+| Path                  | Stack                               | Role                                                                            |
+| --------------------- | ----------------------------------- | ------------------------------------------------------------------------------- |
+| `amm-clearing-node/`  | Python 3.11+, FastAPI, uv           | **(v1)** The clearing pipeline; speaks the `int.*` ontology                     |
+| `amm-calibration/`    | Python 3.11+, uv (no heavy deps)    | Offline optimization of per-community sigmoid params from history               |
+| `amm-smart-contract/` | Solidity 0.8.24, Hardhat 2, Node 20 | On-chain audit anchor (optional for v1)                                         |
+| `amm-execution-node/` | Python 3.11+, web3.py, uv           | **(v2 skeleton)** settlement engine: matches → `settleBatch`; penalties dormant |
 
-For the full system reference (algorithms, data flow, schemas, decision log),
-see [ARCHITECTURE.md](ARCHITECTURE.md). For every provisional integration
-decision and where to change it, see [INTEGRATION_NOTES.md](INTEGRATION_NOTES.md).
+The full documentation (theory, implementation, integration, configuration,
+decision log) lives in [`docs/`](docs/index.md) and is built with MkDocs;
+[ARCHITECTURE.md](ARCHITECTURE.md) is the one-page overview that links into
+it. **Keep the docs in sync with the code**: a change that alters documented
+behaviour updates the affected `docs/` pages in the same PR.
 
 ---
 
@@ -41,9 +44,12 @@ decision and where to change it, see [INTEGRATION_NOTES.md](INTEGRATION_NOTES.md
 ammba_uoc/
 ├── AGENTS.md                        # ← you are here
 ├── CLAUDE.md                        # thin shim → AGENTS.md
-├── ARCHITECTURE.md                  # full system reference
+├── ARCHITECTURE.md                  # one-page overview, links into docs/
 ├── README.md                        # user-facing intro
 ├── CONTRIBUTING.md                  # workflow, commit format
+├── CITATION.cff                     # software citation metadata
+├── docs/                            # documentation site (MkDocs), mirrors the T5.4 deliverable
+├── mkdocs.yml                       # site config + nav (strict build in CI)
 ├── docker-compose.yml               # clearing node + optional simulator (--profile dev)
 │
 ├── amm-smart-contract/
@@ -61,19 +67,19 @@ ammba_uoc/
 │   │   ├── ontology.py             # schema loader + dependency-free validator
 │   │   ├── sigmoid.py               # price function
 │   │   ├── preferences.py           # mutual preferred-pair matching
-│   │   ├── offchain_db.py           # httpx client for the off-chain DB
+│   │   ├── offchain_db.py           # "rest" transport: httpx client for the off-chain DB
+│   │   ├── ewds_client.py           # "ewds" transport: publish/poll via the EWDS gateway
+│   │   ├── scheduler.py             # self-trigger: discover closed AMM markets, clear them
 │   │   ├── contract.py              # web3.py client for AMMContract (optional)
 │   │   └── config.py                # YAML + env-var settings
 │   ├── schemas/intelligent/         # vendored GSY DEX int.* schemas (wire contract)
-│   ├── sim/                         # local off-chain DB simulator (dev only)
-│   └── tests/                       # 55 pytest tests (incl. conftest fake DB + e2e)
+│   ├── sim/                         # local off-chain DB + gateway simulator (dev only)
+│   └── tests/                       # 101 pytest tests (incl. conftest fake DB + e2e)
 │
 ├── amm-calibration/                # offline sigmoid-param optimization (a job, not a service)
 │   ├── AGENTS.md
 │   ├── src/                         # pricing.py, optimizer.py, measurements.py, calibrate.py
 │   └── tests/
-│
-├── INTEGRATION_NOTES.md            # provisional decisions + where to change each (read before integration work)
 │
 └── amm-execution-node/             # ← v2 settlement engine (skeleton)
     ├── AGENTS.md                    # component-specific onboarding
@@ -103,8 +109,11 @@ cd amm-clearing-node && uv run uvicorn sim.offchain_sim:app --port 8080
 # Local stack: clearing node + simulator, wired together
 docker compose --profile dev up --build
 
-# Execution node (deferred — kept for later work)
+# Settlement engine (v2 skeleton) + dormant penalty math
 cd amm-execution-node && uv sync --extra dev && uv run pytest -v
+
+# Documentation site (strict build = what CI runs)
+uvx --with-requirements docs/requirements.txt mkdocs build --strict
 ```
 
 Health check: `curl localhost:8081/health`. See
@@ -135,16 +144,15 @@ local end-to-end flow.
    each other. Two trades per allocation: Buyer→Pool and Pool→Seller. The **only
    exception** is preference-matched mutual pairs (direct buyer↔seller trade). On
    the wire, the pool is a configured actor (`pool_actor_uuid` per community) with
-   deterministic standing orders — provisional, tracked in ARCHITECTURE.md open
-   items.
+   deterministic standing orders; see `docs/integration/data-model.md`.
 
 5. **Price units**: internal computation is ct/kWh (the sigmoid bounds); the wire
    is EUR/kWh. The `CT_PER_EUR` conversion lives only in `adapters.py`.
 
 6. **Validation is dependency-free** (`ontology.py`). Don't add `jsonschema`;
    extend the small validator if a schema feature is missing. `sigmoid.py` is
-   still duplicated in the (deferred) execution node — keep them in sync if it is
-   revived.
+   duplicated in `amm-execution-node` (counterfactual pricing for penalties) —
+   keep the copies identical.
 
 7. **Async everywhere** in the Python services: `httpx.AsyncClient`, FastAPI
    async endpoints, pytest-asyncio in `auto` mode. Don't introduce blocking
@@ -159,6 +167,7 @@ local end-to-end flow.
 ## How to make changes safely
 
 ### Adding a feature to the clearing algorithm
+
 1. Read [`amm-clearing-node/src/clearing.py`](amm-clearing-node/src/clearing.py)
    end-to-end — it orchestrates the whole flow; each numbered step (0–8) is a
    clear seam.
@@ -172,6 +181,7 @@ local end-to-end flow.
    dependencies without updating `pyproject.toml` and re-running `uv sync`.
 
 ### Touching the smart contract
+
 1. Read [`amm-smart-contract/contracts/AMMContract.sol`](amm-smart-contract/contracts/AMMContract.sol)
    in full (205 lines, well-commented).
 2. **Never deploy to EWC mainnet** from CI or scripts. Volta testnet only.
@@ -184,6 +194,7 @@ local end-to-end flow.
    function or modifier.
 
 ### Touching the penalty logic
+
 1. Read [`amm-execution-node/src/penalties.py`](amm-execution-node/src/penalties.py).
 2. Three formulas live there: seller shortfall, seller VCG externality, buyer
    VCG externality. Each is a pure function — test with concrete numbers.
@@ -191,6 +202,7 @@ local end-to-end flow.
    `src/sigmoid.py` (the local copy, not the clearing node's).
 
 ### Adding a new HTTP endpoint
+
 1. Endpoint definition: `src/main.py`.
 2. Pydantic request/response models inline with the endpoint.
 3. Business logic in a dedicated module — keep `main.py` thin.
@@ -201,16 +213,17 @@ local end-to-end flow.
 
 ## How to verify your change
 
-| What you changed | Minimum verification |
-|---|---|
-| Sigmoid / pricing | `pytest tests/test_sigmoid.py` + property test with random ratios |
-| Wire format / adapter | `pytest tests/test_adapters.py tests/test_ontology.py` |
-| Trade construction | `pytest tests/test_adapters.py` — built trades must validate against `int:Trade` |
-| Preferences | `pytest tests/test_preferences.py` |
-| Clearing pipeline | `pytest tests/test_clearing.py` |
-| End-to-end (node ↔ off-chain DB) | `pytest tests/test_e2e.py` (runs against the simulator) |
-| Smart contract | `npx hardhat test` |
-| Anything in CI | Push to a branch and watch the GitHub Actions run |
+| What you changed                 | Minimum verification                                                             |
+| -------------------------------- | -------------------------------------------------------------------------------- |
+| Sigmoid / pricing                | `pytest tests/test_sigmoid.py` + property test with random ratios                |
+| Wire format / adapter            | `pytest tests/test_adapters.py tests/test_ontology.py`                           |
+| Trade construction               | `pytest tests/test_adapters.py` — built trades must validate against `int:Trade` |
+| Preferences                      | `pytest tests/test_preferences.py`                                               |
+| Clearing pipeline                | `pytest tests/test_clearing.py`                                                  |
+| End-to-end (node ↔ off-chain DB) | `pytest tests/test_e2e.py` (runs against the simulator)                          |
+| Smart contract                   | `npx hardhat test`                                                               |
+| Documentation                    | `uvx --with-requirements docs/requirements.txt mkdocs build --strict`            |
+| Anything in CI                   | Push to a branch and watch the GitHub Actions run                                |
 
 For manual smoke tests, `docker compose --profile dev up` then exercise the
 endpoints with the example payloads in [README.md](README.md) /
@@ -230,18 +243,21 @@ endpoints with the example payloads in [README.md](README.md) /
 - **Don't add blocking I/O in request paths** — the service is fully async.
 - **Don't merge if CI is red.** Branch protection enforces this on `main`.
 - **Don't write to `IMPLEMENTATION_GUIDE.md`** (if present locally) — it's the
-  immutable original spec. Update `ARCHITECTURE.md` instead.
+  immutable original spec. Update the pages in `docs/` instead.
+- **Don't link from `docs/` to repo files with relative paths** — the site
+  can't resolve them and the strict build fails. Use absolute GitHub URLs.
 
 ---
 
 ## When you're stuck
 
-- Algorithmic detail you can't infer from the code? → [ARCHITECTURE.md](ARCHITECTURE.md)
-  has formulas, decision log, glossary.
+- Algorithmic detail you can't infer from the code? → [`docs/model/`](docs/model/index.md)
+  has the formulas; [`docs/reference/`](docs/reference/decisions.md) the decision log and glossary.
 - "Where is X done?" → grep the relevant `src/` first; if it's a constant
   (e.g. `NODE_FLOAT_SCALING_FACTOR`), it's defined in `sigmoid.py`.
 - "What should this return?" → the existing tests are the most reliable spec.
-- Open question / external blocker? → see ARCHITECTURE.md §13 "Open Items".
+- Open question / external blocker? → the issue tracker (milestones + the
+  `blocked-external` label); see `docs/project/roadmap.md`.
 
 ---
 

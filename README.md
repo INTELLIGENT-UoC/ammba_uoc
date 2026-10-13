@@ -1,215 +1,135 @@
-# AMMBA — Automated Market Maker for Batch Auctions
+# AMMBA: Automated Market Maker for Batch Auctions
 
-**A peer-to-peer energy market mechanism for the Energy Web Chain.**
+[![CI](https://github.com/INTELLIGENT-UoC/ammba_uoc/actions/workflows/ci.yml/badge.svg)](https://github.com/INTELLIGENT-UoC/ammba_uoc/actions/workflows/ci.yml)
+[![License: GPL v3+](https://img.shields.io/badge/License-GPLv3%2B-blue.svg)](LICENSE)
 
-AMMBA runs periodic batch auctions for community energy markets. Prosumers submit
-buy/sell orders into an off-chain DB during a market window. When the window
-closes, a sigmoid-based **uniform clearing price** is computed from the
-supply/demand ratio, and all participants trade against a central AMM pool with
-quantities allocated **pro-rata**. Clearing results can be anchored on the Energy
-Web Chain for transparent audit.
+**An AMM-based trading mechanism for local energy communities.**
 
-AMMBA acts as an alternative matching engine for the
-[GSY Decentralized Exchange](https://github.com/gridsingularity): it consumes and
-produces the GSY DEX `int.*` ontology objects (orders in, trades and clearing
-results out), so it is interchangeable with the other matching engines.
+AMMBA clears local energy markets in periodic batches. Participants submit the
+quantities they want to buy or sell for a delivery slot. When the slot closes,
+all orders are cleared together against a community pool at one **uniform
+price**: a sigmoid function of the ratio between offered and requested energy,
+bounded by the feed-in remuneration and the retail price. The traded volume is
+the smaller of total supply and total demand, allocated **pro rata**.
 
-> Status: v1 — the **clearing node** reads `int:Order`, discovers and clears
-> closed AMM markets on its own schedule, applies partner preferences and
-> optional green/grey differential pricing, and emits `int:Trade` +
-> `int:ClearingResult`, validated against the vendored ontology schemas and
-> exercised end-to-end against a local off-chain DB simulator. Transports:
-> direct REST (default, local) and EWDS Client Gateway publish/poll. On-chain
-> settlement of matches is v2 of the GSY DEX integration; the execution node
-> (penalties) is deferred.
+AMMBA is developed by the University of Cologne in Task 5.4 of the Horizon
+Europe project [INTELLIGENT](https://intelligent-project.eu/) as an alternative
+matching mechanism for the
+[GSY Decentralised Energy Exchange](https://github.com/gridsingularity/gsy-decentralized-exchange).
+It consumes and produces the INTELLIGENT ontology objects, orders in and trades
+and clearing results out, so it is interchangeable with the exchange's
+order-book mechanisms.
 
----
+> **Status.** The clearing engine, the calibration tool and self-contained
+> operation for a single community are complete. Reading market data through
+> the Energy Web Digital Spine (EWDS) and autonomous market clearing have been
+> validated against the project staging environment. On-chain settlement of AMM
+> matches is in development (version 2).
+
+## Documentation
+
+The full documentation lives in [`docs/`](docs/index.md) and is built as a
+website with MkDocs. It follows the structure of the T5.4 deliverable:
+
+|                                                                  |                                                                    |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [Quick start](docs/getting-started/quickstart.md)                | Run AMMBA locally and clear a sample market                        |
+| [Self-hosting a community](docs/getting-started/self-hosting.md) | Operate AMMBA for one community, with or without external services |
+| [Market model](docs/model/index.md)                              | Pricing function, allocation, calibration, governance, incentives  |
+| [Implementation](docs/implementation/architecture.md)            | Components, clearing engine, calibration tool, settlement engine   |
+| [Integration](docs/integration/index.md)                         | GSY DEX and EWDS integration, data model, identifiers              |
+| [Reference](docs/reference/configuration.md)                     | Configuration, interfaces, decision log, glossary                  |
+
+Preview the site locally with
+`uvx --with-requirements docs/requirements.txt mkdocs serve`.
 
 ## Why AMMBA?
 
-Continuous order books are a poor fit for low-frequency, small-volume residential
-energy markets: they fragment liquidity, expose users to gaming, and make pricing
-opaque. AMMBA instead uses a **batch auction with a single clearing price per
-slot**, computed by a sigmoid function bounded by the community retail price
-(`K_upper`) and feed-in tariff (`K_lower`). This gives:
+Local energy communities are small, most participants are households, and
+trading happens in many short delivery slots. Order books fit this setting
+poorly: few resting orders per slot make prices volatile and matching
+uncertain, and every participant has to form price bids. AMMBA instead offers:
 
-- **One price per slot**, the same for every participant (before preference adjustments)
-- **Welfare-tunable** parameters (`θ`, steepness) that can be optimized from historical data
-- **Pool-mediated trades** so no participant needs to be matched 1:1 with another
-- **On-chain transparency** without putting the pricing computation on-chain
+- **One price per slot** for every participant, recomputable by anyone from two
+  aggregate quantities and the published parameters.
+- **Never worse than the grid**: the price stays between the feed-in
+  remuneration and the retail price.
+- **A budget-balanced pool** that needs no subsidy, no liquidity providers and
+  no operator margin.
+- **Community-governed distribution**: the pricing parameters decide how the
+  gains from local trade are split between buyers and sellers, and they are
+  calibrated from the community's own data.
+
+See [market design and positioning](docs/background/market-design.md) for the
+comparison with order-book mechanisms.
 
 ## Architecture
 
-```
-                Market Orchestrator
-                  (external trigger)
-                         |
-                         v
-+-----------------+   +---------------------+   +----------------------+
-|  Off-chain DB   |<->|  AMM Clearing Node  |-->|   AMM Smart Contract |
-|  (GSY DEX)      |   |   :8081  (Python)   |   |  (Energy Web Chain)  |
-|  :8080          |   +---------------------+   +----------------------+
-|                 |             |                          ^
-|  - orders       |       trades-normalized          clearMarket()
-|  - trades       |             |                          |
-|  - measurements |   +---------------------+              |
-|                 |<->|  AMM Execution Node |              |
-|                 |   |   :8082  (Python)   |              |
-+-----------------+   +---------------------+              |
-                                                           |
-                          (Phase 3) EW Digital Spine ------+
-```
+![AMMBA in the INTELLIGENT architecture](docs/assets/figures/context.png)
 
-Three components, each independently deployable:
+| Component                                    | Stack                    | Role                                                                                                                                                                                                                 |
+| -------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`amm-clearing-node/`](amm-clearing-node/)   | Python 3.11+, FastAPI    | Clearing engine: reads orders, computes price and allocation, applies preferences and optional differential pricing, writes trades and the clearing result. Optional self-trigger scheduler; REST or EWDS transport. |
+| [`amm-calibration/`](amm-calibration/)       | Python 3.11+             | Offline calibration of the pricing parameters from a community's metering history.                                                                                                                                   |
+| [`amm-execution-node/`](amm-execution-node/) | Python 3.11+, web3.py    | Settlement engine (version 2): turns AMM trades into on-chain matches for the GSY DEX settlement layer. Also holds the penalty formulas.                                                                             |
+| [`amm-smart-contract/`](amm-smart-contract/) | Solidity 0.8.24, Hardhat | Optional on-chain audit anchor for clearing results.                                                                                                                                                                 |
 
-| Component | Stack | Purpose |
-|---|---|---|
-| [`amm-clearing-node/`](amm-clearing-node/) | Python 3.11+, FastAPI, web3.py | **(v1)** Runs the clearing pipeline: fetch `int:Order` → sigmoid price → pro-rata allocation → preference matching → build `int:Trade` → write trades + `int:ClearingResult` to the off-chain DB → optionally anchor on-chain. |
-| [`amm-calibration/`](amm-calibration/) | Python 3.11+, uv | Offline optimization of the per-community sigmoid parameters from historical measurements. |
-| [`amm-smart-contract/`](amm-smart-contract/) | Solidity 0.8.24, Hardhat | On-chain audit anchor. Stores cleared market results and emits `MarketCleared` events. Optional for v1. |
-| [`amm-execution-node/`](amm-execution-node/) | Python 3.11+, web3.py | **(v2, skeleton)** Settlement engine: transforms AMM trades into on-chain `Match` structs, registers pool standing orders, submits `settleBatch`. Live execution pending the GSY contract freeze. Penalty math retained for the future `submitPenalties` path. |
-
-## Core algorithms
-
-- **Sigmoid pricing** — clearing price is a smooth function of the supply/demand
-  ratio, bounded between feed-in tariff and retail price.
-- **Pro-rata allocation** — the short side is fully served; the long side is
-  rationed in proportion to each participant's submitted quantity.
-- **Preference matching** — mutual preferred-partner pairs are settled directly
-  (priority allocation) before the remaining volume clears against the pool.
-- **Energy-type differential pricing** (opt-in, per community) — green sellers
-  receive a subsidy funded zero-sum by a levy on grey sellers (capped, with
-  dynamic scaling); buyers keep the uniform clearing price. (VCG-style
-  deviation penalties live in the deferred execution node.)
-
-Full details and formulas: see [ARCHITECTURE.md](ARCHITECTURE.md). For
-contributors and AI coding assistants, the canonical onboarding doc is
-[AGENTS.md](AGENTS.md) (with per-component `AGENTS.md` files in each service
-directory).
+See [architecture](docs/implementation/architecture.md) for design principles
+and data flows.
 
 ## Quick start
 
-> Want to run the whole stack for your own community, without any external
-> services? See [SELF_HOSTING.md](SELF_HOSTING.md).
-
-Requires Docker + Docker Compose. The real GSY DEX off-chain DB is **not**
-bundled. For local end-to-end testing, the `dev` compose profile starts a
-schema-validating off-chain DB simulator (`amm-clearing-node/sim/`):
+Requires Docker with Docker Compose. The `dev` profile starts the clearing
+engine and a schema-validating simulator of the off-chain store, seeded with a
+sample market:
 
 ```bash
 git clone https://github.com/INTELLIGENT-UoC/ammba_uoc.git
 cd ammba_uoc
-cp .env.example .env             # fill in RPC_URL / keys only if anchoring on-chain
+cp .env.example .env
 docker compose --profile dev up --build
-```
 
-This starts the clearing node on `:8081` and the off-chain DB simulator on
-`:8080` (seeded with a sample market). For a real deployment, drop `--profile dev`
-and set `OFFCHAIN_DB_URL` to the GSY DEX off-chain DB. Health check:
-
-```bash
-curl http://localhost:8081/health
-```
-
-### Triggering a clearing
-
-```bash
 curl -X POST http://localhost:8081/trigger-clearing \
   -H 'Content-Type: application/json' \
-  -d '{"market_id":"33333333-3333-4333-8333-333333333333",
-       "community_uuid":"11111111-1111-4111-8111-111111111111",
-       "time_slot":1782900000}'
-```
+  -d '{"market_id": "33333333-3333-4333-8333-333333333333",
+       "community_uuid": "11111111-1111-4111-8111-111111111111",
+       "time_slot": 1782900000}'
 
-Then inspect the trades the simulator received:
-
-```bash
 curl 'http://localhost:8080/trades?market_id=33333333-3333-4333-8333-333333333333'
 ```
 
-### Deploying the smart contract
-
-```bash
-cd amm-smart-contract
-npm install
-npx hardhat compile
-npx hardhat test                                   # 17 tests
-npx hardhat run scripts/deploy.js --network volta  # needs DEPLOYER_PRIVATE_KEY
-```
+The [quick start](docs/getting-started/quickstart.md) explains the output.
 
 ## Development
 
-Each Python service uses [uv](https://docs.astral.sh/uv/):
+Each Python component is an independent [uv](https://docs.astral.sh/uv/)
+project, and the contract uses Hardhat:
 
 ```bash
-cd amm-clearing-node
-uv sync --extra dev
-uv run pytest -v                                   # 88 tests (incl. an end-to-end run against the simulator)
-
-cd ../amm-calibration
-uv sync --extra dev
-uv run pytest -v                                   # 8 tests
+cd amm-clearing-node  && uv sync --extra dev && uv run pytest   # 101 tests
+cd amm-calibration    && uv sync --extra dev && uv run pytest   # 8 tests
+cd amm-execution-node && uv sync --extra dev && uv run pytest   # 37 tests
+cd amm-smart-contract && npm ci && npx hardhat test             # 17 tests
 ```
 
-The settlement engine (v2) lives in `amm-execution-node/`:
-
-```bash
-cd ../amm-execution-node
-uv sync --extra dev
-uv run pytest -v                                   # 31 tests (settlement skeleton + dormant penalty math)
-```
+Continuous integration runs the suites of the changed components and builds the
+documentation strictly. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+workflow and [AGENTS.md](AGENTS.md) for the contributor onboarding, which is
+also written for AI coding assistants.
 
 ## Configuration
 
-Each service reads `configuration.yaml` for static parameters and environment
-variables for secrets and deployment-specific values. See `.env.example` at the
-repo root and the `configuration.yaml` inside each service directory.
-
-| Variable | Used by | Notes |
-|---|---|---|
-| `RPC_URL` | clearing-node, contract | EWC mainnet or Volta testnet |
-| `CONTRACT_ADDRESS` | clearing-node | Address of the deployed `AMMContract` |
-| `CLEARING_NODE_PRIVATE_KEY` | clearing-node | Funded EOA that signs `clearMarket()` txs |
-| `DEPLOYER_PRIVATE_KEY` | hardhat | One-time, for contract deployment |
-| `OFFCHAIN_DB_URL` | clearing-node | GSY DEX off-chain DB endpoint (or the local simulator) |
-| `TIME_SLOT_SEC` | clearing-node | Market slot length in seconds (default `900`) |
-
-## Repository layout
-
-```
-ammba_uoc/
-├── amm-smart-contract/    # Solidity contract + Hardhat tests
-├── amm-clearing-node/     # FastAPI clearing service (v1)
-│   ├── schemas/intelligent/   # vendored GSY DEX int.* ontology schemas (wire contract)
-│   └── sim/                    # local off-chain DB simulator (dev only)
-├── amm-execution-node/    # FastAPI penalty service (deferred)
-├── docker-compose.yml     # Clearing node + optional simulator (--profile dev)
-├── ARCHITECTURE.md        # Full system reference (algorithms, schemas, decisions)
-├── AGENTS.md              # Canonical onboarding for contributors + AI assistants
-├── CLAUDE.md              # Claude-Code-specific shim → AGENTS.md
-├── CONTRIBUTING.md        # Workflow, commit format, branch protection
-├── SECURITY.md            # Private vulnerability reporting policy
-├── .env.example           # Required environment variables
-├── LICENSE                # GPLv3
-└── README.md
-```
-
-Each component directory also contains its own `AGENTS.md` with a tight,
-code-pointer-dense guide to that service.
-
-## Contributing
-
-Issues and pull requests are welcome. Please:
-
-1. Open an issue first to discuss non-trivial changes.
-2. Run the test suite for every component you touch.
-3. Keep PRs focused — one concern per PR.
-4. By submitting a contribution you agree to license it under GPL-3.0-or-later.
+Communities and their pricing parameters are configured in
+`amm-clearing-node/configuration.yaml`; deployment settings come from
+environment variables, listed with their defaults in [`.env.example`](.env.example).
+The [configuration reference](docs/reference/configuration.md) documents every
+option.
 
 ## Citation
 
-If you use AMMBA in academic work, please cite this repository. A `CITATION.cff`
-file will be added once a companion paper is available.
+If you use AMMBA in academic work, please cite it using the metadata in
+[`CITATION.cff`](CITATION.cff); GitHub offers it under "Cite this repository".
+The reference of the companion publication will be added once it is available.
 
 ## License
 
@@ -225,5 +145,14 @@ FOR A PARTICULAR PURPOSE.
 
 ## Acknowledgements
 
-AMMBA integrates with the [GSY Decentralized Exchange](https://github.com/gridsingularity)
-off-chain database and targets the [Energy Web Chain](https://www.energyweb.org/).
+AMMBA has received funding from the European Union's Horizon Europe research
+and innovation programme under Grant Agreement No. 101160678 (INTELLIGENT).
+Views and opinions expressed are those of the authors only and do not
+necessarily reflect those of the European Union or the European Climate,
+Infrastructure and Environment Executive Agency (CINEA); neither can be held
+responsible for them.
+
+AMMBA integrates with the
+[GSY Decentralised Energy Exchange](https://github.com/gridsingularity/gsy-decentralized-exchange)
+by Grid Singularity and the [Energy Web](https://www.energyweb.org/) Digital
+Spine and Chain.

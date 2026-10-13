@@ -23,22 +23,23 @@ PR titles (and commits on `main` after squash) **must** follow [Conventional Com
 
 Allowed types and where they show up in release notes:
 
-| Type        | Section in CHANGELOG  | Bumps version |
-|-------------|-----------------------|---------------|
-| `feat`      | Features              | minor         |
-| `fix`       | Bug Fixes             | patch         |
-| `perf`      | Performance           | patch         |
-| `deps`      | Dependencies          | patch         |
-| `refactor`  | Refactor              | patch         |
-| `docs`      | Documentation         | patch         |
-| `build`     | Build                 | patch         |
-| `ci`        | (hidden)              | none          |
-| `chore`     | (hidden)              | none          |
-| `test`      | (hidden)              | none          |
+| Type       | Section in CHANGELOG | Bumps version |
+| ---------- | -------------------- | ------------- |
+| `feat`     | Features             | minor         |
+| `fix`      | Bug Fixes            | patch         |
+| `perf`     | Performance          | patch         |
+| `deps`     | Dependencies         | patch         |
+| `refactor` | Refactor             | patch         |
+| `docs`     | Documentation        | patch         |
+| `build`    | Build                | patch         |
+| `ci`       | (hidden)             | none          |
+| `chore`    | (hidden)             | none          |
+| `test`     | (hidden)             | none          |
 
 Add `!` after the type, or `BREAKING CHANGE:` in the body, to trigger a major-version bump.
 
 Examples:
+
 ```
 feat(clearing): add steepness optimizer
 fix(execution): correct VCG counterfactual when supply == demand
@@ -46,7 +47,7 @@ deps: bump web3 from 7.4 to 7.6
 feat(contract)!: change clearMarket signature to take MarketResult struct
 ```
 
-Optional scopes: `clearing`, `execution`, `contract`, `compose`, `ci`, `docs`.
+Optional scopes: `clearing`, `calibration`, `execution`, `contract`, `compose`, `ci`, `docs`.
 
 ## Releases — managed by release-please
 
@@ -57,9 +58,13 @@ You don't tag or write changelog entries manually. [release-please](https://gith
 3. When you merge the Release PR, it tags `vX.Y.Z` and creates a GitHub Release.
 
 After tagging, manually bump matching versions in:
+
 - `amm-clearing-node/pyproject.toml`
+- `amm-calibration/pyproject.toml`
 - `amm-execution-node/pyproject.toml`
 - `amm-smart-contract/package.json`
+
+`CITATION.cff` is bumped automatically by release-please (generic updater).
 
 (A follow-up automation can sync these — see open issues.)
 
@@ -78,12 +83,32 @@ Run the test suite for whichever component you touched:
 # Clearing node
 cd amm-clearing-node && uv sync --extra dev && uv run pytest -v
 
-# Execution node
+# Calibration tool
+cd amm-calibration && uv sync --extra dev && uv run pytest -v
+
+# Settlement engine
 cd amm-execution-node && uv sync --extra dev && uv run pytest -v
 
 # Smart contract
 cd amm-smart-contract && npm ci && npx hardhat test
 ```
+
+## Documentation
+
+The documentation is a MkDocs site in `docs/`, structured like the T5.4
+deliverable. Preview it with live reload, and build it the way CI does:
+
+```bash
+uvx --with-requirements docs/requirements.txt mkdocs serve
+uvx --with-requirements docs/requirements.txt mkdocs build --strict
+```
+
+When a change alters documented behaviour, update the affected pages in the
+same pull request. Formulas use `$…$` and `$$…$$`, which render on the site
+and on GitHub; links from `docs/` to files elsewhere in the repository use
+absolute GitHub URLs. Regenerate the figures with
+`uv run --no-project --with matplotlib --with numpy python docs/assets/figures/make_figures.py`
+instead of editing the images.
 
 ## Branch protection (maintainers)
 

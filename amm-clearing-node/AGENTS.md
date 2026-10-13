@@ -2,6 +2,9 @@
 
 > Component-specific onboarding. See the [repo-root AGENTS.md](../AGENTS.md)
 > for the big picture first.
+>
+> Public documentation: `docs/implementation/clearing-engine.md` (pipeline, scheduler, transports), `docs/integration/ewds.md` and `docs/integration/data-model.md`. Update these pages
+> together with behaviour changes.
 
 ## What this service does
 
@@ -42,7 +45,7 @@ src/
 schemas/intelligent/   # vendored GSY DEX int.* JSON Schemas (the wire contract)
 sim/                   # local off-chain DB + CGW gateway simulator (dev only)
 tests/
-└── test_*.py          # incl. conftest.py (schema-validating fake DB), 88 tests total
+└── test_*.py          # incl. conftest.py (schema-validating fake DB), 101 tests total
 ```
 
 Transport is selected by `OFFCHAIN_TRANSPORT` (`rest` default, `ewds` for the
@@ -76,31 +79,31 @@ Start at `clearing.py` for an algorithmic change (numbered step sections) or
 
 ## Public API
 
-| Endpoint | Method | Body | Returns |
-|---|---|---|---|
-| `/trigger-clearing` | POST | `{market_id, community_uuid, time_slot}` | clearing summary |
-| `/health` | GET | — | `{status: "ok"}` |
+| Endpoint            | Method | Body                                     | Returns          |
+| ------------------- | ------ | ---------------------------------------- | ---------------- |
+| `/trigger-clearing` | POST   | `{market_id, community_uuid, time_slot}` | clearing summary |
+| `/health`           | GET    | —                                        | `{status: "ok"}` |
 
 ## Configuration
 
 `configuration.yaml` holds community params; env vars override. Required env:
 
-| Var | Required when | Default |
-|---|---|---|
-| `OFFCHAIN_TRANSPORT` | always (`rest` or `ewds`) | `rest` |
-| `OFFCHAIN_DB_URL` | transport `rest` | `http://offchain-db:8080` |
-| `EWDS_GATEWAY_URL` | transport `ewds` | `http://ewds-gateway-api:3333` |
-| `EWDS_AMM_CLIENT_ID` | transport `ewds` | `ammclearingnode` |
-| `EWDS_TOPIC_OWNER` / `EWDS_TOPIC_VERSION` | transport `ewds` | GSY defaults |
-| `EWDS_RESPONSE_TIMEOUT_MS` | transport `ewds` | `60000` |
-| `EWDS_RESPONSE_POLL_INTERVAL_MS` / `EWDS_RESPONSE_POLL_MAX_INTERVAL_MS` | transport `ewds` (initial poll delay / back-off ceiling) | `1000` / `5000` |
-| `OFFCHAIN_STRICT_VALIDATION` | lenient mode vs staging | `true` |
-| `SCHEDULER_ENABLED` | self-trigger mode | `false` |
-| `SCHEDULER_POLL_INTERVAL_SEC` | self-trigger mode | `60` |
-| `RPC_URL` | submitting on-chain | `https://volta-rpc.energyweb.org` |
-| `CONTRACT_ADDRESS` | submitting on-chain | — |
-| `CLEARING_NODE_PRIVATE_KEY` | submitting on-chain | — |
-| `TIME_SLOT_SEC` | always | `900` |
+| Var                                                                     | Required when                                            | Default                           |
+| ----------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------- |
+| `OFFCHAIN_TRANSPORT`                                                    | always (`rest` or `ewds`)                                | `rest`                            |
+| `OFFCHAIN_DB_URL`                                                       | transport `rest`                                         | `http://offchain-db:8080`         |
+| `EWDS_GATEWAY_URL`                                                      | transport `ewds`                                         | `http://ewds-gateway-api:3333`    |
+| `EWDS_AMM_CLIENT_ID`                                                    | transport `ewds`                                         | `ammclearingnode`                 |
+| `EWDS_TOPIC_OWNER` / `EWDS_TOPIC_VERSION`                               | transport `ewds`                                         | GSY defaults                      |
+| `EWDS_RESPONSE_TIMEOUT_MS`                                              | transport `ewds`                                         | `60000`                           |
+| `EWDS_RESPONSE_POLL_INTERVAL_MS` / `EWDS_RESPONSE_POLL_MAX_INTERVAL_MS` | transport `ewds` (initial poll delay / back-off ceiling) | `1000` / `5000`                   |
+| `OFFCHAIN_STRICT_VALIDATION`                                            | lenient mode vs staging                                  | `true`                            |
+| `SCHEDULER_ENABLED`                                                     | self-trigger mode                                        | `false`                           |
+| `SCHEDULER_POLL_INTERVAL_SEC`                                           | self-trigger mode                                        | `60`                              |
+| `RPC_URL`                                                               | submitting on-chain                                      | `https://volta-rpc.energyweb.org` |
+| `CONTRACT_ADDRESS`                                                      | submitting on-chain                                      | —                                 |
+| `CLEARING_NODE_PRIVATE_KEY`                                             | submitting on-chain                                      | —                                 |
+| `TIME_SLOT_SEC`                                                         | always                                                   | `900`                             |
 
 If `CONTRACT_ADDRESS` or `CLEARING_NODE_PRIVATE_KEY` is unset, clearing runs
 **off-chain only** (step 4 is skipped). Useful for local testing.
@@ -109,7 +112,7 @@ If `CONTRACT_ADDRESS` or `CLEARING_NODE_PRIVATE_KEY` is unset, clearing runs
 
 ```bash
 uv sync --extra dev                              # install (incl. pytest)
-uv run pytest -v                                 # 88 tests
+uv run pytest -v                                 # 101 tests
 uv run pytest tests/test_clearing.py -v          # subset
 uv run uvicorn src.main:app --port 8081 --reload # local server
 uv run uvicorn sim.offchain_sim:app --port 8080  # local off-chain DB simulator

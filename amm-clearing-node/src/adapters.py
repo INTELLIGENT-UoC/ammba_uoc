@@ -115,7 +115,7 @@ def int_order_to_internal(order: dict) -> dict:
 # camelCase, unix timestamps), and the final int:Order ontology (PascalCase
 # enums, ISO-8601, flat preferences). ewds_order_to_int_order normalizes all
 # three into canonical int:Order shape so the rest of the pipeline stays on the
-# single ontology contract. See INTEGRATION_NOTES.md (transport / DTO drift).
+# single ontology contract. See docs/integration/ewds.md (data normalisation).
 _EWDS_STATUS_TO_ONTOLOGY = {
     "open": "Submitted",  # legacy DB status; GSY: Submitted represents "open"
     "submitted": "Submitted",
