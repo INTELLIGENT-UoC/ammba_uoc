@@ -2,6 +2,9 @@
 
 > Component-specific onboarding. See the [repo-root AGENTS.md](../AGENTS.md)
 > for the big picture first.
+>
+> Public documentation: `docs/implementation/smart-contract.md`. Update these pages
+> together with behaviour changes.
 
 ## What this contract does
 
@@ -33,13 +36,13 @@ ignition/                     # Hardhat Ignition module (alternative deploy)
 
 ## Key functions
 
-| Function | Modifier | Purpose |
-|---|---|---|
-| `clearMarket(marketId, communityUuid, timeSlot, totalSupply, totalDemand, clearingPrice)` | `onlyClearingNode` | Records a clearing result. Idempotent on `marketId`. |
-| `setCommunityParams(communityUuid, kUpper, kLower, theta, steepness)` | `onlyOwner` | Configures price bounds + sigmoid params for verification. |
-| `setClearingNode(address)` | `onlyOwner` | Rotates the clearing node EOA. |
-| `getClearingResult(marketId)` | `view` | `(timeSlot, supply, demand, price)` |
-| `getCommunityParams(communityUuid)` | `view` | `(kUpper, kLower, theta, steepness)` |
+| Function                                                                                  | Modifier           | Purpose                                                    |
+| ----------------------------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------- |
+| `clearMarket(marketId, communityUuid, timeSlot, totalSupply, totalDemand, clearingPrice)` | `onlyClearingNode` | Records a clearing result. Idempotent on `marketId`.       |
+| `setCommunityParams(communityUuid, kUpper, kLower, theta, steepness)`                     | `onlyOwner`        | Configures price bounds + sigmoid params for verification. |
+| `setClearingNode(address)`                                                                | `onlyOwner`        | Rotates the clearing node EOA.                             |
+| `getClearingResult(marketId)`                                                             | `view`             | `(timeSlot, supply, demand, price)`                        |
+| `getCommunityParams(communityUuid)`                                                       | `view`             | `(kUpper, kLower, theta, steepness)`                       |
 
 ## Scaling convention
 
@@ -63,6 +66,7 @@ check storage, check events, and exercise access control.
 ## Deployment
 
 **Volta testnet (default for dev):**
+
 ```bash
 export DEPLOYER_PRIVATE_KEY=0x...   # account with VT tokens
 npx hardhat run scripts/deploy.js --network volta
@@ -72,6 +76,7 @@ npx hardhat run scripts/deploy.js --network volta
 network is defined but should never be triggered by CI or by an LLM.
 
 After deployment:
+
 1. Set `CONTRACT_ADDRESS` in the clearing node's env.
 2. Call `setClearingNode(<clearing node EOA>)` from the owner account.
 3. Call `setCommunityParams(...)` for each community before clearing.

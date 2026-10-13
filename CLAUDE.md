@@ -40,16 +40,17 @@ change each one when GSY / Energy Web answer.
 
 ## Where to look first for each kind of task
 
-| Task | Open this file |
-|---|---|
-| Change the clearing pipeline | [`amm-clearing-node/src/clearing.py`](amm-clearing-node/src/clearing.py) |
+| Task                                   | Open this file                                                                                                                             |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Change the clearing pipeline           | [`amm-clearing-node/src/clearing.py`](amm-clearing-node/src/clearing.py)                                                                   |
 | Change the wire format (orders/trades) | [`amm-clearing-node/src/adapters.py`](amm-clearing-node/src/adapters.py) + [`schemas/intelligent/`](amm-clearing-node/schemas/intelligent) |
-| Validate against the ontology | [`amm-clearing-node/src/ontology.py`](amm-clearing-node/src/ontology.py) |
-| Change the price function | [`amm-clearing-node/src/sigmoid.py`](amm-clearing-node/src/sigmoid.py) |
-| Test end-to-end locally | [`amm-clearing-node/sim/`](amm-clearing-node/sim) (off-chain DB simulator) |
-| Change the contract | [`amm-smart-contract/contracts/AMMContract.sol`](amm-smart-contract/contracts/AMMContract.sol) |
-| Per-component dev guide | `<component>/AGENTS.md` |
-| Algorithmic / data-model reference | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| Validate against the ontology          | [`amm-clearing-node/src/ontology.py`](amm-clearing-node/src/ontology.py)                                                                   |
+| Change the price function              | [`amm-clearing-node/src/sigmoid.py`](amm-clearing-node/src/sigmoid.py)                                                                     |
+| Test end-to-end locally                | [`amm-clearing-node/sim/`](amm-clearing-node/sim) (off-chain DB simulator)                                                                 |
+| Change the contract                    | [`amm-smart-contract/contracts/AMMContract.sol`](amm-smart-contract/contracts/AMMContract.sol)                                             |
+| Per-component dev guide                | `<component>/AGENTS.md`                                                                                                                    |
+| Algorithmic / data-model reference     | [`docs/model/`](docs/model/index.md), [`docs/integration/data-model.md`](docs/integration/data-model.md)                                   |
+| Documentation (MkDocs site)            | [`docs/`](docs/index.md) + [`mkdocs.yml`](mkdocs.yml); verify with `uvx --with-requirements docs/requirements.txt mkdocs build --strict`   |
 
 > `amm-execution-node` is the **v2 settlement engine** (skeleton; live
 > execution pending GSY's contract freeze). Its penalty mechanism stays

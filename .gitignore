@@ -41,3 +41,6 @@ amm-smart-contract/ignition/deployments/
 
 # Logs
 *.log
+
+# MkDocs build output
+/site/

@@ -19,7 +19,7 @@ there is no EWDS write path for trades or clearing results.
 Order DTOs are normalized to canonical int:Order shape via
 ``adapters.ewds_order_to_int_order`` before being returned, because the
 upstream DTOs are still being aligned with the ontology (three dialects
-coexist — see INTEGRATION_NOTES.md).
+coexist — see docs/integration/ewds.md).
 """
 
 import asyncio

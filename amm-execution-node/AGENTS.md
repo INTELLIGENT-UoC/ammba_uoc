@@ -2,6 +2,9 @@
 
 > Component-specific onboarding. See the [repo-root AGENTS.md](../AGENTS.md)
 > for the big picture first.
+>
+> Public documentation: `docs/implementation/settlement-engine.md` and `docs/model/incentives.md`. Update these pages
+> together with behaviour changes.
 
 ## What this component is
 
@@ -16,7 +19,8 @@ how AMM matches become settled trades.
 → settle, with idempotency and batching) is implemented and tested against a
 mocked chain. Live execution is blocked on the GSY-side environment: frozen
 contracts + deployed addresses, `OPERATOR_ROLE` grant, target chain + funded
-signer, canonical UUID↔bytes16 utilities, and the currency-unit decision.
+signer, and the currency-unit decision. The identifier conventions are adopted
+(`ids.py`).
 
 The former penalty mechanism (`penalties.py`, `sigmoid.py`) stays in this
 component: the contract's `submitPenalties` (`EXECUTION_ENGINE_ROLE`) is its
@@ -60,7 +64,7 @@ tests/
    persist before production) prevents double-settling across re-runs.
 6. **Two id conventions, per GSY (2026-09, upstream commit 648b346).**
    Order/trade/market ids are the UUID's 16 bytes (`parse_uuid_or_hex_bytes16`
-   parity). Actor ids are *mapped*, not converted: `blake2b-128(offchain_id)`,
+   parity). Actor ids are _mapped_, not converted: `blake2b-128(offchain_id)`,
    computed locally in `ids.actor_onchain_id` and registered with the storage
    through the engine's `IdRegistrar` (`ids.query` / `POST /ids`) so
    settlement events can be attributed back off-chain.
@@ -80,7 +84,7 @@ tests/
 
 ```bash
 uv sync --extra dev
-uv run pytest -v                 # 31 tests
+uv run pytest -v                 # 37 tests
 uv run python -m src.main        # CLI status / dry-run planner
 ```
 

@@ -21,7 +21,8 @@
   ],
   "packages": {
     ".": {
-      "package-name": "ammba"
+      "package-name": "ammba",
+      "extra-files": [{ "type": "generic", "path": "CITATION.cff" }]
     }
   }
 }

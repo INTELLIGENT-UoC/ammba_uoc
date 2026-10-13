@@ -41,12 +41,18 @@ defaults), which is the regression anchor.
    `K_upper - (K_upper-K_lower)/(1+exp(...))` formula must match across both.
 3. **Output is the clearing node's config shape** (`communities:` block). The
    publish path (config merge vs on-chain `setCommunityParams` vs a future
-   `int:AmmParameters` write) is provisional — see ../INTEGRATION_NOTES.md.
+   `int:AmmParameters` write) is open — tracked in issue #35; see
+   `docs/project/roadmap.md`.
 
-## Provisional assumptions (revisit with GSY)
+## Assumptions
 
-- Measurement sign convention (net-load: positive = consumption). Configurable.
+- Measurement sign convention: net load, positive = consumption (the GSY DEX
+  convention). `--injection-positive` flips it for other data sources.
 - Flat per-community price bounds (no per-slot tariff series yet).
+
+Documentation: `docs/model/calibration.md` (objective and method),
+`docs/implementation/calibration-tool.md` (usage), `docs/model/governance.md`
+(who runs it and how). Update them together with behaviour changes.
 
 ## Dev loop
 

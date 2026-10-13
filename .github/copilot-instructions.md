@@ -13,10 +13,12 @@ It consumes and produces the GSY DEX `int.*` ontology objects.
 
 ## Components
 
-- `amm-clearing-node/` — **(v1)** Python 3.12+, FastAPI, `uv`. Clearing pipeline
+- `amm-clearing-node/` — **(v1)** Python 3.11+, FastAPI, `uv`. Clearing pipeline
   in `src/clearing.py`; `int.*` ↔ internal translation in `src/adapters.py`.
-- `amm-smart-contract/` — Solidity 0.8.24, Hardhat 2. On-chain audit anchor.
-- `amm-execution-node/` — **(deferred)** Penalties; not part of the v1 MVP.
+- `amm-calibration/` — offline calibration of the pricing parameters.
+- `amm-execution-node/` — **(v2 skeleton)** settlement engine; dormant penalty formulas.
+- `amm-smart-contract/` — Solidity 0.8.24, Hardhat 2. Optional on-chain audit anchor.
+- `docs/` — MkDocs documentation site; keep it in sync with behaviour changes.
 
 Each component has a more detailed `AGENTS.md` in its directory.
 

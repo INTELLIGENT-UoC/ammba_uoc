@@ -9,7 +9,7 @@ clearing node's ``communities:`` block. For now you merge it into
 ``amm-clearing-node/configuration.yaml`` (and/or call
 ``AMMContract.setCommunityParams`` to anchor it on-chain). When an
 ``int:AmmParameters`` ontology object exists, this becomes a write to the
-off-chain DB that the clearing node fetches live — see INTEGRATION_NOTES.md.
+off-chain DB that the clearing node fetches live — tracked in issue #35.
 
 Usage:
     uv run python -m src.calibrate \
