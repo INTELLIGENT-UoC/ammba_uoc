@@ -31,7 +31,9 @@ settled on-chain. Because verification does not depend on the internal logic
 of a particular algorithm, several matching mechanisms can coexist and a
 community can choose the one that suits it. The exchange implements a
 two-sided pay-as-bid mechanism and foresees pay-as-clear and an automated
-market maker as alternatives [FEDECOM D6.1].
+market maker as alternatives [GSY wiki, GSY DEX Matching Engine]. In
+INTELLIGENT, pay-as-bid and pay-as-clear matching are complemented by the
+AMM-based trading mechanism of Task 5.4 [INTELLIGENT D3.2].
 
 AMMBA is a peer-to-pool mechanism, but not a coefficient-based sharing scheme.
 Participants submit orders ex ante for every delivery slot, the pool price is

@@ -11,12 +11,12 @@
   sector. Funding & Tenders Portal.
 - INTELLIGENT, Deliverable D3.2: GSY DEX API Off-Chain Storage (GitHub with
   docs). Grid Singularity, 2026.
-- FEDECOM, Deliverable D6.1: Open energy and flexibility inter-community
-  trading. Grid Singularity, Grant Agreement No. 101075660, 2025.
 - Grid Singularity, GSY Decentralised Energy Exchange, version 2.
   <https://github.com/gridsingularity/gsy-decentralized-exchange/tree/GSYDEXv2>
 - Grid Singularity Wiki, _Grid Singularity Exchange Market Types_.
   <https://gridsingularity.github.io/gsy-e/market-types/>
+- Grid Singularity Wiki, _GSY DEX Matching Engine_.
+  <https://gridsingularity.github.io/gsy-e/blockchain-matching-engine/>
 
 ## Literature
 
