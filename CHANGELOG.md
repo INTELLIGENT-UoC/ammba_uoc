@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.7](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.6...v0.1.7) (2026-10-14)
+
+
+### Features
+
+* **clearing:** adaptive gateway polling and scheduler back-off ([#48](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/48)) ([659ea28](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/659ea2882b8e696f122aab36d31ec893f2265266)), closes [#47](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/47)
+
+
+### Documentation
+
+* cite only INTELLIGENT deliverables and public sources ([#57](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/57)) ([ab524f0](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/ab524f00dcca6a31eb1432658a570683b5035a99))
+* restructure as standard public documentation and cite the publication ([#59](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/59)) ([2f99aa0](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/2f99aa0ac322c3dbc189dce73c5a95bbf5340973)), closes [#58](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/58)
+* restructure documentation as an MkDocs site mirroring the T5.4 deliverable ([#52](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/52)) ([b27a1a7](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/b27a1a78177079accca62bec9fdc275ae8b4fa48)), closes [#50](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/50)
+
 ## [0.1.6](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.5...v0.1.6) (2026-09-04)
 
 
