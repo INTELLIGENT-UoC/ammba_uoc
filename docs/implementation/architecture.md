@@ -11,8 +11,8 @@ build, tests and onboarding guide (`AGENTS.md`) in its directory.
 | ----------------- | -------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Clearing engine   | `amm-clearing-node`  | Python 3.11+, FastAPI                     | Clears a market slot: reads the orders, computes price and allocation, generates the trades and the clearing result. Optional self-trigger scheduler. |
 | Calibration tool  | `amm-calibration`    | Python 3.11+, standard library and PyYAML | Offline job that calibrates the pricing parameters from metering history and outputs a configuration snippet.                                         |
-| Settlement engine | `amm-execution-node` | Python 3.11+, web3.py                     | Version 2: turns AMM trades into on-chain matches and submits them for settlement. Also holds the penalty formulas.                                   |
-| Audit anchor      | `amm-smart-contract` | Solidity 0.8.24, Hardhat                  | Optional: records clearing results on-chain. Its role next to the GSY DEX settlement layer is under review.                                           |
+| Settlement engine | `amm-execution-node` | Python 3.11+, web3.py                     | In development: turns AMM trades into on-chain matches and submits them for settlement. Also holds the penalty formulas.                              |
+| Audit anchor      | `amm-smart-contract` | Solidity 0.8.24, Hardhat                  | Optional: records clearing results on-chain as an additional transparency record.                                                                     |
 
 The clearing engine reaches market data through one of two transports with an
 identical interface: direct REST access to an off-chain store (the default, also
@@ -51,7 +51,7 @@ ammba_uoc/
 │   ├── sim/                 # schema-validating off-chain store and gateway simulator
 │   └── tests/
 ├── amm-calibration/         # calibration tool (offline job)
-├── amm-execution-node/      # settlement engine (v2) and penalty formulas
+├── amm-execution-node/      # settlement engine (in development) and penalty formulas
 ├── amm-smart-contract/      # optional audit-anchor contract (Hardhat)
 ├── docs/                    # this documentation (MkDocs)
 ├── docker-compose.yml       # clearing engine + simulator (profile "dev")

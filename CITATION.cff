@@ -1,16 +1,16 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it using the metadata from this file."
+message: "If you use AMMBA, please cite the publication given as preferred citation."
 type: software
 title: "AMMBA: Automated Market Maker for Batch Auctions"
 abstract: >-
   AMMBA is an AMM-based trading mechanism for local energy communities. It
   clears each delivery slot against a community pool at one uniform price,
   given by a sigmoid function of the ratio between local supply and demand and
-  bounded by the retail price and the feed-in remuneration. The repository
-  contains the clearing engine, an offline calibration tool for the pricing
-  parameters, a settlement engine for the GSY Decentralised Energy Exchange,
-  and an optional on-chain audit anchor. Developed in Task 5.4 of the Horizon
-  Europe project INTELLIGENT (Grant Agreement No. 101160678).
+  bounded by the retail price and the feed-in tariff. The repository contains
+  the clearing engine, an offline calibration tool for the pricing parameters,
+  a settlement engine for the GSY Decentralised Energy Exchange, and an
+  optional on-chain audit anchor. Developed in the Horizon Europe project
+  INTELLIGENT (Grant Agreement No. 101160678).
 authors:
   - name: "University of Cologne, INTELLIGENT project team"
 version: 0.1.6 # x-release-please-version
@@ -23,3 +23,25 @@ keywords:
   - batch auction
   - peer-to-pool trading
   - mechanism design
+preferred-citation:
+  type: article
+  title: >-
+    An incentivized automated market maker-based batch auction mechanism for
+    network-aware local energy markets with loss allocation
+  authors:
+    - family-names: Saber
+      given-names: Hossein
+    - family-names: Celig
+      given-names: Tom
+    - family-names: Talari
+      given-names: Saber
+    - family-names: Ketter
+      given-names: Wolfgang
+    - family-names: Schoder
+      given-names: Detlef
+  journal: Applied Energy
+  volume: 416
+  start: "127957"
+  year: 2026
+  doi: 10.1016/j.apenergy.2026.127957
+  license: CC-BY-4.0

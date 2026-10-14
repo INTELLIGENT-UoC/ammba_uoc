@@ -1,7 +1,8 @@
 """Penalty calculation module.
 
-Implements the three penalty types from IMPLEMENTATION_GUIDE.md Section 5.3,
-matching the reference implementation in simulation.py.
+Implements the three penalty types of Saber et al., Applied Energy 416 (2026)
+127957, Section 2.4, in the order-based form. Reference implementation:
+simulation.py in https://github.com/INTELLIGENT-UoC/ammba_simulation.
 
 Penalty types:
 1. Seller Shortfall Penalty — seller delivered less than traded

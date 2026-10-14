@@ -26,7 +26,7 @@ class TestScaling:
 
 
 class TestSigmoidPrice:
-    """Test the sigmoid function against known values from simulation.py."""
+    """Test the sigmoid function against the reference implementation (ammba_simulation)."""
 
     K_UPPER = 28.5
     K_LOWER = 8.0
@@ -34,7 +34,7 @@ class TestSigmoidPrice:
     STEEPNESS = 2.5
 
     def _reference_sigmoid(self, ratio):
-        """Reference implementation matching simulation.py _price_function."""
+        """Reference implementation: _price_function in ammba_simulation/simulation.py."""
         if self.K_UPPER <= self.K_LOWER:
             return self.K_LOWER
         denominator = 1 + math.exp(-self.STEEPNESS * (ratio - self.THETA))
@@ -78,7 +78,7 @@ class TestSigmoidPrice:
         assert price == 10.0
 
     def test_matches_reference_implementation(self):
-        """Cross-validate against the simulation.py reference."""
+        """Cross-validate against the ammba_simulation reference."""
         for ratio in [0.1, 0.5, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0]:
             our_price = sigmoid_price(ratio, self.K_UPPER, self.K_LOWER, self.THETA, self.STEEPNESS)
             ref_price = self._reference_sigmoid(ratio)

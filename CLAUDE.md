@@ -1,68 +1,58 @@
 # CLAUDE.md
 
-This file is read by Claude Code at the start of every session in this repo.
+@AGENTS.md
 
-**Primary onboarding document: [AGENTS.md](AGENTS.md).** Read it first — it has
-the project map, conventions, "how to make changes safely" recipes, and what
-not to break. Everything below is Claude-Code-specific guidance only.
-
-**Before changing anything touching the GSY integration, read
-`INTEGRATION_NOTES.md`** (a local, gitignored working file — present on the
-maintainer's checkout, not in the public tree). It lists every provisional
-decision (transport, pool representation, identifiers, units, calibration
-assumptions, proposed ontology extensions) and exactly where in the code to
-change each one when GSY / Energy Web answer.
+AGENTS.md, imported above, is the canonical onboarding document: project map,
+conventions, recipes and what not to break. This file adds Claude-Code-specific
+guidance only. Maintainer-specific, git-ignored instructions live in
+`CLAUDE.local.md` when present.
 
 ## Work tracking (ticket system)
 
 - **GitHub Issues is the ticket system for this repo.** All engineering TODOs,
-  blockers, and roadmap items live there — never in TODO comments or scratch
-  files.
-- **Milestones map the roadmap:** `v1.x staging integration` →
-  `v2.0 settlement` → `backlog`. The `blocked-external` label marks items
-  waiting on an upstream project (gateway fix, id-mapping, contract freeze);
-  everything else is actionable now.
+  blockers and roadmap items live there, never in TODO comments or scratch
+  files. Milestones group the issues; the `blocked-external` label marks items
+  waiting on an upstream project.
 - **Claude session workflow:** run `gh issue list` when picking up work or
   reporting status; open an issue for any new TODO you discover instead of
-  leaving it in prose; reference issues from commits/PRs (`Closes #N`); comment
-  and close when state changes (e.g. an external blocker lifts). Keep the board
-  truthful — it is the single source of "what is still to do".
-- **This is a public repository:** issue wording stays strictly technical.
-  Consortium-internal matters never go into issues; they belong in the local
-  notes file.
+  leaving it in prose; reference issues from commits and PRs (`Closes #N`);
+  comment and close when state changes. Keep the board truthful.
+- **This is a public repository:** issue, commit and PR wording stays strictly
+  technical.
 
 ## Tool preferences in this repo
 
-- Use **`uv run`** to invoke Python tools — both services are uv-managed.
-  `uv run pytest`, `uv run uvicorn`, etc. Don't activate `.venv` manually.
-- Use **`npx hardhat`** for contract work — don't install Hardhat globally.
+- Use **`uv run`** to invoke Python tools; all Python components are
+  uv-managed. `uv run pytest`, `uv run uvicorn`, etc. Don't activate `.venv`
+  manually.
+- Use **`npx hardhat`** for contract work; don't install Hardhat globally.
 - Use **`docker compose`** (v2 syntax, not `docker-compose`).
 
 ## Where to look first for each kind of task
 
-| Task                                   | Open this file                                                                                                                             |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Change the clearing pipeline           | [`amm-clearing-node/src/clearing.py`](amm-clearing-node/src/clearing.py)                                                                   |
-| Change the wire format (orders/trades) | [`amm-clearing-node/src/adapters.py`](amm-clearing-node/src/adapters.py) + [`schemas/intelligent/`](amm-clearing-node/schemas/intelligent) |
-| Validate against the ontology          | [`amm-clearing-node/src/ontology.py`](amm-clearing-node/src/ontology.py)                                                                   |
-| Change the price function              | [`amm-clearing-node/src/sigmoid.py`](amm-clearing-node/src/sigmoid.py)                                                                     |
-| Test end-to-end locally                | [`amm-clearing-node/sim/`](amm-clearing-node/sim) (off-chain DB simulator)                                                                 |
-| Change the contract                    | [`amm-smart-contract/contracts/AMMContract.sol`](amm-smart-contract/contracts/AMMContract.sol)                                             |
-| Per-component dev guide                | `<component>/AGENTS.md`                                                                                                                    |
-| Algorithmic / data-model reference     | [`docs/model/`](docs/model/index.md), [`docs/integration/data-model.md`](docs/integration/data-model.md)                                   |
-| Documentation (MkDocs site)            | [`docs/`](docs/index.md) + [`mkdocs.yml`](mkdocs.yml); verify with `uvx --with-requirements docs/requirements.txt mkdocs build --strict`   |
+| Task                                    | Open this file                                                                                                                             |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Change the clearing pipeline            | [`amm-clearing-node/src/clearing.py`](amm-clearing-node/src/clearing.py)                                                                   |
+| Change the wire format (orders/trades)  | [`amm-clearing-node/src/adapters.py`](amm-clearing-node/src/adapters.py) + [`schemas/intelligent/`](amm-clearing-node/schemas/intelligent) |
+| Validate against the ontology           | [`amm-clearing-node/src/ontology.py`](amm-clearing-node/src/ontology.py)                                                                   |
+| Change the price function               | [`amm-clearing-node/src/sigmoid.py`](amm-clearing-node/src/sigmoid.py)                                                                     |
+| Test end-to-end locally                 | [`amm-clearing-node/sim/`](amm-clearing-node/sim) (off-chain DB simulator)                                                                 |
+| Change the contract                     | [`amm-smart-contract/contracts/AMMContract.sol`](amm-smart-contract/contracts/AMMContract.sol)                                             |
+| Per-component dev guide                 | `<component>/AGENTS.md`                                                                                                                    |
+| Mechanism, data model and configuration | [`docs/`](docs/index.md) (MkDocs site)                                                                                                     |
 
-> `amm-execution-node` is the **v2 settlement engine** (skeleton; live
-> execution pending GSY's contract freeze). Its penalty mechanism stays
-> dormant inside it. `sigmoid.py` is still duplicated in both nodes — keep the
-> copies in sync.
+> `amm-execution-node` is the settlement engine (in development; live
+> execution not yet enabled). Its penalty formulas are not yet wired into a
+> data flow. `sigmoid.py` is duplicated in both nodes: keep the formula in
+> sync.
 
 ## Verification before claiming a task is done
 
 For every change, run the relevant test command (see AGENTS.md "How to verify
-your change" table). If you change something that crosses components (e.g.
-both clearing and execution sigmoid), run **both** test suites. Don't claim
-"done" without a green test run.
+your change"). If you change something that crosses components (e.g. both
+clearing and execution sigmoid), run **both** test suites. Documentation
+changes need a green `mkdocs build --strict`. Don't claim "done" without a
+green run.
 
 ## Things Claude often gets wrong here
 
@@ -77,9 +67,12 @@ both clearing and execution sigmoid), run **both** test suites. Don't claim
 - **Validation is dependency-free on purpose** (`src/ontology.py`). Don't pull in
   `jsonschema`; extend the small validator if a schema feature is missing.
 - **Prices cross the boundary in EUR/kWh; the sigmoid runs in ct/kWh.** The
-  `CT_PER_EUR` conversion lives only in `adapters.py` — keep it there.
+  `CT_PER_EUR` conversion lives only in `adapters.py`; keep it there.
 - **`marketId`/IDs are UUIDs on the `int.*` wire.** The `0x`-prefixed bytes32
   form is only the on-chain settlement / CGW query-payload path; don't conflate
   the two.
-- **Don't add new top-level dependencies casually** — uv.lock changes require
+- **Docs notation follows the publication** ($\pi_t$, $K_{\mathrm{up}}$,
+  $K_{\mathrm{lo}}$, $\Theta$, $B$); don't reintroduce $p_t$, $K_u$, $K_l$,
+  $\theta$, $\beta$ in `docs/`.
+- **Don't add new top-level dependencies casually**: uv.lock changes require
   thought and a regenerated lockfile.

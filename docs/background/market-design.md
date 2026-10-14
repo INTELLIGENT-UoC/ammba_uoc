@@ -31,9 +31,8 @@ settled on-chain. Because verification does not depend on the internal logic
 of a particular algorithm, several matching mechanisms can coexist and a
 community can choose the one that suits it. The exchange implements a
 two-sided pay-as-bid mechanism and foresees pay-as-clear and an automated
-market maker as alternatives [GSY wiki, GSY DEX Matching Engine]. In
-INTELLIGENT, pay-as-bid and pay-as-clear matching are complemented by the
-AMM-based trading mechanism of Task 5.4 [INTELLIGENT D3.2].
+market maker as alternatives [GSY wiki, GSY DEX Matching Engine]. AMMBA
+provides this AMM-based mechanism.
 
 AMMBA is a peer-to-pool mechanism, but not a coefficient-based sharing scheme.
 Participants submit orders ex ante for every delivery slot, the pool price is
@@ -46,10 +45,10 @@ mechanism.
 
 ## Order books and liquidity-pool market makers
 
-The call behind INTELLIGENT (HORIZON-CL5-2023-D3-03-05) asks projects to
-explore and compare order-book-based systems and liquidity-pool-based
-automated market makers. A meaningful comparison needs more than a binary
-contrast, because the mechanisms differ along several independent dimensions:
+A central design question for local energy markets is whether to clear them
+with order books or with liquidity-pool-based automated market makers. A
+meaningful comparison needs more than a binary contrast, because the
+mechanisms differ along several independent dimensions:
 
 - **Timing of matching.** In continuous mechanisms, each incoming order is
   matched immediately against the resting orders. In periodic (batch)
@@ -67,28 +66,32 @@ contrast, because the mechanisms differ along several independent dimensions:
 - **Counterparty.** Participants are either matched with each other, as in an
   order book, or trade with a common pool.
 
-| Mechanism                                     | Matching                           | Price formation                                                                 | Counterparty                            | Order content                               | Remarks                                                  |
-| --------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------- | -------------------------------------------------------- |
-| Two-sided pay-as-bid (GSY DEX)                | Continuous within each slot        | Discriminatory: prices of the matched orders                                    | Bilateral                               | Quantity and limit price                    | Partial matches; residual orders stay in the market      |
-| Two-sided pay-as-clear                        | Periodic: cleared at set intervals | Uniform: intersection of bid and offer curves                                   | Bilateral, derived from the cleared set | Quantity and limit price                    | No trade if bids and offers do not cross                 |
-| Coefficient-based sharing                     | Ex post                            | Administrative: tariff or allocation keys                                       | Pool                                    | None: metered quantities                    | No price discovery                                       |
-| Constant-function AMM (decentralised finance) | Continuous: per swap               | Pricing function of the pool reserves                                           | Pool funded by liquidity providers      | Swap amount                                 | Needs pool inventory from liquidity providers            |
-| **AMMBA**                                     | Periodic: one clearing per slot    | Uniform: pricing function of the supply-to-demand ratio, bounded by grid prices | Virtual pool without inventory          | Quantity; limit prices not used for pricing | Always clears min(S, D); residuals settled with the grid |
+| Mechanism                                     | Matching                           | Price formation                                                                 | Counterparty                                     | Order content                                                                      | Remarks                                                                          |
+| --------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Two-sided pay-as-bid (GSY DEX)                | Continuous within each slot        | Discriminatory: prices of the matched orders                                    | Bilateral                                        | Quantity and limit price                                                           | Partial matches; residual orders stay in the market                              |
+| Two-sided pay-as-clear                        | Periodic: cleared at set intervals | Uniform: intersection of bid and offer curves                                   | Bilateral, derived from the cleared set          | Quantity and limit price                                                           | No trade if bids and offers do not cross                                         |
+| Coefficient-based sharing                     | Ex post                            | Administrative: tariff or allocation keys                                       | Pool                                             | None: metered quantities                                                           | No price discovery                                                               |
+| Constant-function AMM (decentralised finance) | Continuous: per swap               | Pricing function of the pool reserves                                           | Pool funded by liquidity providers               | Swap amount                                                                        | Needs pool inventory from liquidity providers                                    |
+| **AMMBA**                                     | Periodic: one clearing per slot    | Uniform: pricing function of the supply-to-demand ratio, bounded by grid prices | Pool without inventory, emptied after every slot | Energy offered or requested, or money deposited; limit prices not used for pricing | Always clears the largest feasible local volume; residuals settled with the grid |
 
 AMMBA combines two established ideas. From periodic auctions it takes the
 uniform treatment of all orders of a period, which removes any advantage of
 submitting earlier or faster within the period (Budish et al., 2015). From
 automated market makers it takes a deterministic, publicly known pricing
 function in place of price formation from the order stack (Angeris and Chitra,
-2020). Unlike constant-function market makers in decentralised finance, the
-AMMBA pool holds no inventory and needs no liquidity providers: the external
-grid acts as the residual counterparty at the two ends of the price band, so
-any imbalance between local supply and demand is absorbed at the feed-in or
-retail price.
+2020). The combination of batching and AMM pricing has also been studied for
+decentralised finance (Canidio and Fritsch, 2023; Ramseyer et al., 2024), and
+AMMs have been proposed for continuous trading in local electricity markets
+(Bevin and Verma, 2023). Unlike constant-function market makers, the AMMBA pool
+holds no inventory and needs no liquidity providers: it collects the
+contributions of one slot, clears them and is emptied. The external grid acts
+as the residual counterparty at the two ends of the price band, so any
+imbalance between local supply and demand is absorbed at the feed-in or retail
+price. The mechanism was introduced by Celig et al. (2024) and developed into
+its current form by Saber et al. (2026).
 
-The comparison the call requests is operationalised in the
-[evaluation](../model/evaluation.md), which benchmarks AMMBA against an
-order-book market on the same data.
+The [evaluation](../model/evaluation.md) compares AMMBA with a continuous
+double auction and a uniform-price auction on the same data.
 
 ## Why a batch AMM for community energy
 
@@ -110,15 +113,16 @@ features motivate the design of AMMBA:
   submitting earlier or faster within the slot confers no benefit.
 - **Protection against unfavourable outcomes.** The price band guarantees that
   nobody pays more than the retail price or receives less than the feed-in
-  remuneration for traded energy.
+  tariff for traded energy.
 - **Community-governed distribution.** The pricing parameters determine how
   the gains from local trade are shared between buyers and sellers, and the
   community sets them through a [transparent process](../model/governance.md).
 
 These advantages come with limitations that the design addresses explicitly.
-Because the price depends only on quantities, participants could try to
-influence it by misreporting quantities; [penalties](../model/incentives.md)
-counter this. Participants cannot express a willingness to pay through limit
-prices; [preferences](../model/extensions.md) for specific partners and energy
-types partly restore this expressiveness. Network constraints are outside the
-scope of the current model.
+Because the price depends only on aggregate quantities, participants could try
+to influence it by misreporting them; [penalties](../model/incentives.md) make
+truthful reporting a dominant strategy. Participants cannot express a
+willingness to pay through limit prices; [preferences](../model/extensions.md)
+for specific partners and energy types partly restore this expressiveness.
+Network limits are not part of the clearing itself; the
+[network-aware extension](../model/network.md) enforces them after clearing.

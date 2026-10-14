@@ -1,26 +1,30 @@
 # Notation
 
-| Symbol                                     | Meaning                                                         | Unit         |
-| ------------------------------------------ | --------------------------------------------------------------- | ------------ |
-| $t$, $T$                                   | Delivery slot; set of delivery slots                            | –            |
-| $d_{j,t}$, $s_{i,t}$                       | Quantity bid by buyer $j$; quantity offered by seller $i$       | kWh          |
-| $D_t$, $S_t$                               | Aggregate demand and supply of slot $t$                         | kWh          |
-| $r_t$                                      | Supply-to-demand ratio $S_t / D_t$                              | –            |
-| $K_{u,t}$, $K_{l,t}$                       | Retail price and feed-in remuneration (price band)              | ct/kWh       |
-| $\theta$, $\beta$                          | Midpoint and steepness of the pricing function                  | –            |
-| $p_t$                                      | Uniform clearing price                                          | ct/kWh       |
-| $Q_t$                                      | Traded volume, $\min(S_t, D_t)$                                 | kWh          |
-| $x_{i,t}$, $y_{j,t}$                       | Energy sold by seller $i$; energy bought by buyer $j$           | kWh          |
-| $G_t$                                      | Gains from local trade relative to the grid                     | ct           |
-| $\sigma(z)$                                | Logistic function $1/(1 + e^{-z})$                              | –            |
-| $F$, $R$, $J$                              | Fairness term, range-usage term and calibration objective       | ct/kWh       |
-| $\alpha$                                   | Weight of the range-usage term                                  | –            |
-| $T'$, $N$                                  | Historical slots with positive supply and demand; their number  | –            |
-| $r_{\max}$, $r_{\min}$                     | Largest and smallest observed ratio                             | –            |
-| $K_{u,\min}$, $K_{l,\min}$                 | Band of the slot with the smallest ratio                        | ct/kWh       |
-| $\gamma$, $\eta$                           | Shortfall penalty factor; tolerance                             | –; kWh       |
-| $A_{i,t}$                                  | Energy delivered by seller $i$                                  | kWh          |
-| $W_{i,t}$, $W_{j,t}$                       | Supply withheld by seller $i$; demand not reported by buyer $j$ | kWh          |
-| $\Phi_{i,t}$, $E^{s}_{i,t}$, $E^{b}_{j,t}$ | Shortfall penalty; seller and buyer externality penalties       | ct           |
-| $g$, $l$, $c$                              | Green subsidy rate, grey levy rate, levy cap                    | –; –; ct/kWh |
-| $\ell_t$, $V^{\text{grey}}_t$              | Levy per kWh; grey pool volume                                  | ct/kWh; kWh  |
+The notation follows Saber et al. (2026). The last column gives the
+corresponding name in the software where one exists.
+
+| Symbol                                                                        | Meaning                                                                                      | Unit         | Name in the software                                          |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------- |
+| $t$                                                                           | Market cycle (delivery slot)                                                                 | –            | `time_slot`                                                   |
+| $i$, $j$                                                                      | Buyer; seller                                                                                | –            | –                                                             |
+| $M_{t,i}$, $M_t$                                                              | Money deposited by buyer $i$; total (token-based formulation)                                | EUR          | –                                                             |
+| $D_{t,i}$, $D_t$                                                              | Demand of buyer $i$; total                                                                   | kWh          | `total_demand_kwh` (total)                                    |
+| $E_{t,j}$, $E_t$                                                              | Energy offered by seller $j$; total                                                          | kWh          | `total_supply_kwh` (total)                                    |
+| $r_t$                                                                         | Supply-to-demand ratio: $E_t / M_t$ (token-based) or $E_t / D_t$ (order-based)               | kWh/EUR; –   | `ratio`                                                       |
+| $K_{\mathrm{up},t}$, $K_{\mathrm{lo}}$                                        | Retail price and feed-in tariff (price band)                                                 | ct/kWh       | `k_upper_ct_per_kwh`, `k_lower_ct_per_kwh`                    |
+| $\Theta$, $B$                                                                 | Midpoint and steepness of the pricing function                                               | –            | `theta`, `steepness`                                          |
+| $f$, $\pi_t$                                                                  | Pricing function; uniform clearing price                                                     | ct/kWh       | `sigmoid_price`                                               |
+| $Q_t$                                                                         | Traded energy                                                                                | kWh          | `traded_quantity`                                             |
+| $q_{t,i}$, $s_{t,j}$                                                          | Energy bought by buyer $i$; energy sold by seller $j$                                        | kWh          | `allocated_energy`                                            |
+| $G_t$                                                                         | Gains from local trade relative to the grid                                                  | ct           | –                                                             |
+| $\sigma(z)$                                                                   | Logistic function $1/(1 + e^{-z})$                                                           | –            | –                                                             |
+| $U_{t,i}$, $P_{t,j}$                                                          | Per-kWh utility of buyer $i$; per-kWh profit of seller $j$                                   | ct/kWh       | –                                                             |
+| $U_t$, $P_t$, $I_t$, $J_t$                                                    | Sums of the per-kWh returns of buyers and sellers; number of buyers and sellers in cycle $t$ | –            | –                                                             |
+| $r_{\max}$, $r_{\min}$                                                        | Largest and smallest observed ratio                                                          | –            | –                                                             |
+| $\alpha$                                                                      | Weight of the range term in the calibration objective                                        | –            | `alpha`                                                       |
+| $A_{t,j}$                                                                     | Deliverable surplus of seller $j$, as metered                                                | kWh          | `actual_delivered`                                            |
+| $\gamma$, $\eta_t$                                                            | Shortfall penalty factor; deadband                                                           | –; kWh       | `gamma`, `eta`                                                |
+| $W^{\mathrm{sell}}_{t,j}$, $W^{\mathrm{buy}}_{t,i}$                           | Surplus withheld by seller $j$; demand not funded by buyer $i$                               | kWh          | –                                                             |
+| $\Phi_{t,j}$, $\varphi^{\mathrm{sell}}_{t,j}$, $\varphi^{\mathrm{buy}}_{t,i}$ | Shortfall penalty; seller and buyer externality penalties                                    | ct           | –                                                             |
+| $g$, $l$, $c$                                                                 | Green subsidy rate, grey levy rate, levy cap                                                 | –; –; ct/kWh | `green_subsidy_rate`, `grey_levy_rate`, `levy_cap_ct_per_kwh` |
+| $\ell_t$, $V^{\text{grey}}_t$                                                 | Levy per kWh; grey pool volume                                                               | ct/kWh; kWh  | –                                                             |

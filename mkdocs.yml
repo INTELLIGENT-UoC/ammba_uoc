@@ -2,7 +2,7 @@ site_name: AMMBA
 site_description: >-
   Documentation of AMMBA, the Automated Market Maker for Batch Auctions: an
   AMM-based trading mechanism for local energy communities, developed in the
-  INTELLIGENT project (Horizon Europe, Task 5.4).
+  Horizon Europe project INTELLIGENT.
 site_url: https://intelligent-uoc.github.io/ammba_uoc/
 repo_url: https://github.com/INTELLIGENT-UoC/ammba_uoc
 repo_name: INTELLIGENT-UoC/ammba_uoc
@@ -70,18 +70,17 @@ nav:
   - Getting started:
       - Quick start: getting-started/quickstart.md
       - Self-hosting a community: getting-started/self-hosting.md
-  - Background:
-      - Market design and positioning: background/market-design.md
-  - Market model:
+  - Market mechanism:
       - model/index.md
+      - Market design and positioning: background/market-design.md
       - Pricing function: model/pricing.md
       - Allocation and gains from trade: model/allocation.md
       - Parameter calibration: model/calibration.md
       - Parameter governance: model/governance.md
       - Incentives and penalties: model/incentives.md
+      - Network-aware extension: model/network.md
       - Preferences and differential pricing: model/extensions.md
-      - Evaluation design: model/evaluation.md
-      - Notation: model/notation.md
+  - Evaluation: model/evaluation.md
   - Implementation:
       - Architecture: implementation/architecture.md
       - Clearing engine: implementation/clearing-engine.md
@@ -96,10 +95,7 @@ nav:
   - Reference:
       - Configuration: reference/configuration.md
       - Interfaces and tools: reference/interfaces.md
-      - Decision log: reference/decisions.md
+      - Notation: model/notation.md
       - Glossary: reference/glossary.md
-      - Bibliography: reference/bibliography.md
-  - Project:
-      - Deliverable mapping: project/deliverable.md
-      - Roadmap: project/roadmap.md
-      - Contributing: project/contributing.md
+      - Publications and references: reference/bibliography.md
+  - Contributing: project/contributing.md

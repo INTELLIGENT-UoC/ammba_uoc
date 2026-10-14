@@ -14,7 +14,7 @@ Each community is an entry under `communities`, keyed by its UUID:
 communities:
   11111111-1111-4111-8111-111111111111:
     k_upper_ct_per_kwh: 28.5 # retail price (upper end of the band)
-    k_lower_ct_per_kwh: 8.0 # feed-in remuneration (lower end of the band)
+    k_lower_ct_per_kwh: 8.0 # feed-in tariff (lower end of the band)
     theta: 1.0 # midpoint of the pricing function
     steepness: 2.5 # steepness of the pricing function
     pool_id: "AMM_POOL_communityid_1"
@@ -26,10 +26,10 @@ communities:
 
 | Parameter             | Type   | Default  | Meaning                                                       |
 | --------------------- | ------ | -------- | ------------------------------------------------------------- |
-| `k_upper_ct_per_kwh`  | number | required | Retail price $K_u$, ct/kWh                                    |
-| `k_lower_ct_per_kwh`  | number | required | Feed-in remuneration $K_l$, ct/kWh                            |
-| `theta`               | number | required | Midpoint $\theta$; see [calibration](../model/calibration.md) |
-| `steepness`           | number | required | Steepness $\beta$                                             |
+| `k_upper_ct_per_kwh`  | number | required | Retail price $K_{\mathrm{up}}$, ct/kWh                        |
+| `k_lower_ct_per_kwh`  | number | required | Feed-in tariff $K_{\mathrm{lo}}$, ct/kWh                      |
+| `theta`               | number | required | Midpoint $\Theta$; see [calibration](../model/calibration.md) |
+| `steepness`           | number | required | Steepness $B$                                                 |
 | `pool_id`             | string | required | Human-readable pool label                                     |
 | `pool_actor_uuid`     | UUID   | required | The pool's actor identity on the exchange                     |
 | `green_subsidy_rate`  | number | 0.0      | Target subsidy for green sellers, as a fraction of the price  |

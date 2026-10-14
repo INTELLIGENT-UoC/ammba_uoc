@@ -13,10 +13,10 @@ It consumes and produces the GSY DEX `int.*` ontology objects.
 
 ## Components
 
-- `amm-clearing-node/` — **(v1)** Python 3.11+, FastAPI, `uv`. Clearing pipeline
+- `amm-clearing-node/` — Python 3.11+, FastAPI, `uv`. Clearing pipeline
   in `src/clearing.py`; `int.*` ↔ internal translation in `src/adapters.py`.
 - `amm-calibration/` — offline calibration of the pricing parameters.
-- `amm-execution-node/` — **(v2 skeleton)** settlement engine; dormant penalty formulas.
+- `amm-execution-node/` — settlement engine (in development); penalty formulas.
 - `amm-smart-contract/` — Solidity 0.8.24, Hardhat 2. Optional on-chain audit anchor.
 - `docs/` — MkDocs documentation site; keep it in sync with behaviour changes.
 

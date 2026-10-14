@@ -10,7 +10,7 @@ Unit conventions:
 - Energy: kWh scaled by ``SCALING_FACTOR`` (×10000) into u64 — confirmed to
   match GSY's convention (2026-08-24).
 - Price: rate per kWh scaled by ``SCALING_FACTOR`` into u64. ⚠ The CURRENCY
-  UNIT (EUR vs ct) is not yet decided at consortium level — this module takes
+  UNIT (EUR vs ct) is not yet fixed (issue #30) — this module takes
   already-chosen-unit floats and only scales them; the decision plugs in at
   the call site via ``rate_unit`` on the builder (see match_builder).
 - Energy types: the on-chain u8 coding INCLUDES GREY (=6), even though the

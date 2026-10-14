@@ -9,36 +9,40 @@ AMMBA clears local energy markets in periodic batches. Participants submit the
 quantities they want to buy or sell for a delivery slot. When the slot closes,
 all orders are cleared together against a community pool at one **uniform
 price**: a sigmoid function of the ratio between offered and requested energy,
-bounded by the feed-in remuneration and the retail price. The traded volume is
-the smaller of total supply and total demand, allocated **pro rata**.
+bounded by the feed-in tariff and the retail price. The traded volume is the
+smaller of total supply and total demand, allocated **pro rata**, and ex-post
+penalties make truthful reporting a dominant strategy. The mechanism is
+published in [Applied Energy](https://doi.org/10.1016/j.apenergy.2026.127957)
+(see [Citation](#citation)).
 
-AMMBA is developed by the University of Cologne in Task 5.4 of the Horizon
-Europe project [INTELLIGENT](https://intelligent-project.eu/) as an alternative
-matching mechanism for the
+AMMBA is developed by the University of Cologne in the Horizon Europe project
+[INTELLIGENT](https://intelligent-project.eu/) as an alternative matching
+mechanism for the
 [GSY Decentralised Energy Exchange](https://github.com/gridsingularity/gsy-decentralized-exchange).
 It consumes and produces the INTELLIGENT ontology objects, orders in and trades
 and clearing results out, so it is interchangeable with the exchange's
 order-book mechanisms.
 
-> **Status.** The clearing engine, the calibration tool and self-contained
-> operation for a single community are complete. Reading market data through
-> the Energy Web Digital Spine (EWDS) and autonomous market clearing have been
-> validated against the project staging environment. On-chain settlement of AMM
-> matches is in development (version 2).
+> **Status.** The clearing engine, the calibration tool and local operation
+> for a single community are complete and tested. The clearing engine reads
+> market data from the GSY DEX through the Energy Web Digital Spine (EWDS) and
+> can clear markets autonomously. Settlement of AMM matches on the GSY DEX is in
+> development.
 
 ## Documentation
 
 The full documentation lives in [`docs/`](docs/index.md) and is built as a
-website with MkDocs. It follows the structure of the T5.4 deliverable:
+website with MkDocs:
 
 |                                                                  |                                                                    |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
 | [Quick start](docs/getting-started/quickstart.md)                | Run AMMBA locally and clear a sample market                        |
 | [Self-hosting a community](docs/getting-started/self-hosting.md) | Operate AMMBA for one community, with or without external services |
-| [Market model](docs/model/index.md)                              | Pricing function, allocation, calibration, governance, incentives  |
+| [Market mechanism](docs/model/index.md)                          | Pricing function, allocation, calibration, governance, incentives  |
+| [Evaluation](docs/model/evaluation.md)                           | Simulation results against two order-book mechanisms               |
 | [Implementation](docs/implementation/architecture.md)            | Components, clearing engine, calibration tool, settlement engine   |
 | [Integration](docs/integration/index.md)                         | GSY DEX and EWDS integration, data model, identifiers              |
-| [Reference](docs/reference/configuration.md)                     | Configuration, interfaces, decision log, glossary                  |
+| [Reference](docs/reference/configuration.md)                     | Configuration, interfaces, notation, glossary, publications        |
 
 Preview the site locally with
 `uvx --with-requirements docs/requirements.txt mkdocs serve`.
@@ -53,7 +57,7 @@ uncertain, and every participant has to form price bids. AMMBA instead offers:
 - **One price per slot** for every participant, recomputable by anyone from two
   aggregate quantities and the published parameters.
 - **Never worse than the grid**: the price stays between the feed-in
-  remuneration and the retail price.
+  tariff and the retail price.
 - **A budget-balanced pool** that needs no subsidy, no liquidity providers and
   no operator margin.
 - **Community-governed distribution**: the pricing parameters decide how the
@@ -71,7 +75,7 @@ comparison with order-book mechanisms.
 | -------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`amm-clearing-node/`](amm-clearing-node/)   | Python 3.11+, FastAPI    | Clearing engine: reads orders, computes price and allocation, applies preferences and optional differential pricing, writes trades and the clearing result. Optional self-trigger scheduler; REST or EWDS transport. |
 | [`amm-calibration/`](amm-calibration/)       | Python 3.11+             | Offline calibration of the pricing parameters from a community's metering history.                                                                                                                                   |
-| [`amm-execution-node/`](amm-execution-node/) | Python 3.11+, web3.py    | Settlement engine (version 2): turns AMM trades into on-chain matches for the GSY DEX settlement layer. Also holds the penalty formulas.                                                                             |
+| [`amm-execution-node/`](amm-execution-node/) | Python 3.11+, web3.py    | Settlement engine (in development): turns AMM trades into on-chain matches for the GSY DEX settlement layer. Also holds the penalty formulas.                                                                        |
 | [`amm-smart-contract/`](amm-smart-contract/) | Solidity 0.8.24, Hardhat | Optional on-chain audit anchor for clearing results.                                                                                                                                                                 |
 
 See [architecture](docs/implementation/architecture.md) for design principles
@@ -127,9 +131,32 @@ option.
 
 ## Citation
 
-If you use AMMBA in academic work, please cite it using the metadata in
-[`CITATION.cff`](CITATION.cff); GitHub offers it under "Cite this repository".
-The reference of the companion publication will be added once it is available.
+If you use AMMBA in academic work, please cite the publication that introduces
+the mechanism and reports its evaluation:
+
+> H. Saber, T. Celig, S. Talari, W. Ketter, D. Schoder. An incentivized
+> automated market maker-based batch auction mechanism for network-aware local
+> energy markets with loss allocation. _Applied Energy_, 416, 127957, 2026.
+> https://doi.org/10.1016/j.apenergy.2026.127957
+
+```bibtex
+@article{saber2026ammba,
+  title   = {An incentivized automated market maker-based batch auction mechanism
+             for network-aware local energy markets with loss allocation},
+  author  = {Saber, Hossein and Celig, Tom and Talari, Saber and Ketter, Wolfgang
+             and Schoder, Detlef},
+  journal = {Applied Energy},
+  volume  = {416},
+  pages   = {127957},
+  year    = {2026},
+  doi     = {10.1016/j.apenergy.2026.127957}
+}
+```
+
+GitHub's "Cite this repository" button offers the same reference, generated from
+[`CITATION.cff`](CITATION.cff), which also describes the software release. The
+code and data of the simulation study are in
+[INTELLIGENT-UoC/ammba_simulation](https://github.com/INTELLIGENT-UoC/ammba_simulation).
 
 ## License
 

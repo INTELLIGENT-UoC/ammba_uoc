@@ -19,22 +19,21 @@ Decentralized Exchange: every 15 minutes, buyers and sellers submit orders, a
 produces the GSY DEX `int.*` ontology objects (orders in, trades + clearing
 result out). Clearing results can be anchored on the **Energy Web Chain**.
 
-The **clearing engine is the operational core** (v1). The settlement engine in
-`amm-execution-node` is the v2 skeleton for on-chain settlement; it also holds
-the dormant penalty formulas.
+The **clearing engine is the operational core**. The settlement engine in
+`amm-execution-node` is a skeleton for on-chain settlement (in development); it
+also holds the penalty formulas, which are not yet wired into a data flow.
 
-| Path                  | Stack                               | Role                                                                            |
-| --------------------- | ----------------------------------- | ------------------------------------------------------------------------------- |
-| `amm-clearing-node/`  | Python 3.11+, FastAPI, uv           | **(v1)** The clearing pipeline; speaks the `int.*` ontology                     |
-| `amm-calibration/`    | Python 3.11+, uv (no heavy deps)    | Offline optimization of per-community sigmoid params from history               |
-| `amm-smart-contract/` | Solidity 0.8.24, Hardhat 2, Node 20 | On-chain audit anchor (optional for v1)                                         |
-| `amm-execution-node/` | Python 3.11+, web3.py, uv           | **(v2 skeleton)** settlement engine: matches → `settleBatch`; penalties dormant |
+| Path                  | Stack                               | Role                                                                          |
+| --------------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
+| `amm-clearing-node/`  | Python 3.11+, FastAPI, uv           | The clearing pipeline; speaks the `int.*` ontology                            |
+| `amm-calibration/`    | Python 3.11+, uv (no heavy deps)    | Offline optimization of per-community sigmoid params from history             |
+| `amm-smart-contract/` | Solidity 0.8.24, Hardhat 2, Node 20 | Optional on-chain audit anchor                                                |
+| `amm-execution-node/` | Python 3.11+, web3.py, uv           | Settlement engine (in development): matches → `settleBatch`; penalty formulas |
 
-The full documentation (theory, implementation, integration, configuration,
-decision log) lives in [`docs/`](docs/index.md) and is built with MkDocs;
-[ARCHITECTURE.md](ARCHITECTURE.md) is the one-page overview that links into
-it. **Keep the docs in sync with the code**: a change that alters documented
-behaviour updates the affected `docs/` pages in the same PR.
+The full documentation (mechanism, evaluation, implementation, integration,
+configuration) lives in [`docs/`](docs/index.md) and is built with MkDocs. The
+mechanism and its notation follow Saber et al., _Applied Energy_ 416 (2026) 127957. **Keep the docs in sync with the code**: a change that alters
+documented behaviour updates the affected `docs/` pages in the same PR.
 
 ---
 
@@ -44,11 +43,10 @@ behaviour updates the affected `docs/` pages in the same PR.
 ammba_uoc/
 ├── AGENTS.md                        # ← you are here
 ├── CLAUDE.md                        # thin shim → AGENTS.md
-├── ARCHITECTURE.md                  # one-page overview, links into docs/
 ├── README.md                        # user-facing intro
 ├── CONTRIBUTING.md                  # workflow, commit format
 ├── CITATION.cff                     # software citation metadata
-├── docs/                            # documentation site (MkDocs), mirrors the T5.4 deliverable
+├── docs/                            # documentation site (MkDocs)
 ├── mkdocs.yml                       # site config + nav (strict build in CI)
 ├── docker-compose.yml               # clearing node + optional simulator (--profile dev)
 │
@@ -58,7 +56,7 @@ ammba_uoc/
 │   ├── test/AMMContract.test.js     # 17 hardhat tests
 │   └── scripts/deploy.js
 │
-├── amm-clearing-node/              # ← v1 MVP
+├── amm-clearing-node/              # clearing engine
 │   ├── AGENTS.md                    # component-specific onboarding
 │   ├── src/
 │   │   ├── main.py                  # FastAPI app + routes
@@ -81,10 +79,10 @@ ammba_uoc/
 │   ├── src/                         # pricing.py, optimizer.py, measurements.py, calibrate.py
 │   └── tests/
 │
-└── amm-execution-node/             # ← v2 settlement engine (skeleton)
+└── amm-execution-node/             # settlement engine (in development)
     ├── AGENTS.md                    # component-specific onboarding
     ├── src/                         # engine.py, match_builder.py, validator.py, structs.py, chain.py
-    └── tests/                       # settlement skeleton + dormant penalty math
+    └── tests/                       # settlement skeleton + penalty formulas
 ```
 
 The `★` files are the algorithmic heart of each service — start there when
@@ -99,7 +97,7 @@ investigating any clearing/penalty behaviour.
 cd amm-smart-contract && npm ci && npx hardhat test           # 17 tests
 cd amm-smart-contract && npx hardhat compile
 
-# Clearing node (v1)
+# Clearing node
 cd amm-clearing-node && uv sync --extra dev && uv run pytest -v
 cd amm-clearing-node && uv run uvicorn src.main:app --port 8081
 
@@ -109,7 +107,7 @@ cd amm-clearing-node && uv run uvicorn sim.offchain_sim:app --port 8080
 # Local stack: clearing node + simulator, wired together
 docker compose --profile dev up --build
 
-# Settlement engine (v2 skeleton) + dormant penalty math
+# Settlement engine (in development) + penalty formulas
 cd amm-execution-node && uv sync --extra dev && uv run pytest -v
 
 # Documentation site (strict build = what CI runs)
@@ -161,6 +159,12 @@ local end-to-end flow.
 8. **Configuration**: each service has `configuration.yaml` for static
    parameters and reads env vars for secrets / per-environment overrides.
    Env vars **always win** over YAML. See `src/config.py` in each service.
+
+9. **Notation**: the docs use the notation of the publication: price
+   $\pi_t$, band $K_{\mathrm{up}}$ / $K_{\mathrm{lo}}$, midpoint $\Theta$,
+   steepness $B$, order-based ratio $E_t / D_t$. The code names are
+   `k_upper_ct_per_kwh`, `k_lower_ct_per_kwh`, `theta` and `steepness`; see
+   `docs/model/notation.md`.
 
 ---
 
@@ -242,8 +246,6 @@ endpoints with the example payloads in [README.md](README.md) /
   Build wire objects only via `adapters.py`.
 - **Don't add blocking I/O in request paths** — the service is fully async.
 - **Don't merge if CI is red.** Branch protection enforces this on `main`.
-- **Don't write to `IMPLEMENTATION_GUIDE.md`** (if present locally) — it's the
-  immutable original spec. Update the pages in `docs/` instead.
 - **Don't link from `docs/` to repo files with relative paths** — the site
   can't resolve them and the strict build fails. Use absolute GitHub URLs.
 
@@ -252,12 +254,12 @@ endpoints with the example payloads in [README.md](README.md) /
 ## When you're stuck
 
 - Algorithmic detail you can't infer from the code? → [`docs/model/`](docs/model/index.md)
-  has the formulas; [`docs/reference/`](docs/reference/decisions.md) the decision log and glossary.
+  has the formulas and the notation; [`docs/reference/`](docs/reference/glossary.md) the glossary.
 - "Where is X done?" → grep the relevant `src/` first; if it's a constant
   (e.g. `NODE_FLOAT_SCALING_FACTOR`), it's defined in `sigmoid.py`.
 - "What should this return?" → the existing tests are the most reliable spec.
-- Open question / external blocker? → the issue tracker (milestones + the
-  `blocked-external` label); see `docs/project/roadmap.md`.
+- Open question / external blocker? → the issue tracker (milestones and the
+  `blocked-external` label).
 
 ---
 
