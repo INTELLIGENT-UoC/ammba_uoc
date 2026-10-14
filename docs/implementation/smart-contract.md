@@ -6,13 +6,12 @@ off-chain; the contract receives the result of each clearing, checks that the
 price lies inside the community's band when the band is registered, stores the
 result immutably, and emits an event. It does not move energy or money.
 
-> **Role under review.** In the integrated platform, trades are settled through the GSY DEX
-> settlement layer (see the [settlement engine](settlement-engine.md)).
-> Whether the audit anchor is kept as an additional transparency record or
-> retired is an open decision, tracked in [issue
-> #36](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/36). The clearing
-> engine's contract client currently expects hexadecimal market identifiers
-> and needs aligning with UUID identifiers if the anchor is kept.
+> **Optional.** In the integrated platform, trades are settled through the
+> GSY DEX settlement layer (see the [settlement engine](settlement-engine.md)).
+> The audit anchor is an additional transparency record and is not needed for
+> settlement. The clearing engine's contract client currently expects
+> hexadecimal market identifiers, while the exchange uses UUIDs; see
+> [issue #36](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/36).
 
 ## Interface
 

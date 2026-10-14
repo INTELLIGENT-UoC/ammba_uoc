@@ -43,7 +43,7 @@ Each community is one entry in
 keyed by the community's UUID. An entry sets:
 
 - the price band: `k_upper_ct_per_kwh` (retail price) and `k_lower_ct_per_kwh`
-  (feed-in remuneration), in ct/kWh;
+  (feed-in tariff), in ct/kWh;
 - the shape of the pricing function: `theta` and `steepness`;
 - the identity of the pool on the exchange: `pool_id` and `pool_actor_uuid`;
 - optionally, seller-side differential pricing: `green_subsidy_rate`,
@@ -99,7 +99,7 @@ To take part in a shared data spine (EWDS) instead of using the local store:
    `EWDS_GATEWAY_URL=<gateway URL>`, plus the topic settings listed in the
    [configuration reference](../reference/configuration.md#environment-variables).
 3. Orders, markets and measurements are then read through the gateway.
-   Settlement of matches moves on-chain with version 2 of the integration; see
+   Settlement of AMM matches on the exchange is in development; see
    [the settlement engine](../implementation/settlement-engine.md).
 
 The clearing algorithm, the calibration and the configuration are identical in

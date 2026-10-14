@@ -1,9 +1,9 @@
 # Settlement engine
 
-> **Version 2, in development.** The settlement engine is a complete skeleton: its full pipeline is
-> implemented and tested against a mocked chain. Live execution waits for the
-> production environment of the GSY DEX settlement layer: deployed contracts,
-> role grants for the engine's signer, and the target chain.
+> **In development.** The full pipeline of the settlement engine is implemented
+> and tested against a mocked chain. Live execution is not yet enabled; it
+> needs deployed settlement contracts, the required roles for the engine's
+> signer, and the target chain.
 
 In the integrated platform, matching engines do not write trades themselves.
 They produce _matches_, pairings of a bid with an offer, which are settled
@@ -45,7 +45,7 @@ engine therefore registers standing orders for the pool:
 - **Priced at the band.** The contract requires the bid's limit to be at least
   the clearing price and the offer's limit at most the clearing price. Pool
   bids are priced at the community's retail price and pool offers at its
-  feed-in remuneration, so the pool side can never violate this check.
+  feed-in tariff, so the pool side can never violate this check.
 
 ## Identifiers and units
 
@@ -59,14 +59,14 @@ engine therefore registers standing orders for the pool:
 These conventions follow the GSY DEX; see the
 [data model](../integration/data-model.md#on-chain-identifiers).
 
-## Open constraints
+## Known limitations
 
 - **Placement timing.** The order registry accepts new orders only while a
-  market is open, but AMM matches are known only after the market closes. How
-  pool orders are placed in time is an open integration question.
+  market is open, but AMM matches are known only after the market closes.
+  Placing pool orders after clearing is therefore not yet supported.
 - **Actor authorisation.** Placing orders for the pool requires the engine's
-  signer to be authorised for the pool's actor identifier by the registry
-  administrator.
+  signer to be authorised for the pool's actor identifier in the actor
+  registry.
 - **Limit prices.** AMMBA clearing does not use participants' limit prices,
   but the contract enforces them at settlement. The validator flags such
   matches explicitly instead of letting them fail on-chain.
@@ -92,4 +92,5 @@ The component also contains the formulas of the
 [penalty mechanism](../model/incentives.md) in `penalties.py`, together with the
 copy of the pricing function they need for counterfactual prices. They are
 tested but not yet connected to an operational data flow; the settlement
-layer's penalty submission interface is their planned path.
+layer's penalty submission interface is their planned path. See
+[incentives and penalties](../model/incentives.md#implementation-status).

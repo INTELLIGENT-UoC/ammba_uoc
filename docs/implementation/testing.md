@@ -33,9 +33,9 @@ suites run, and a final job reports a single status for the whole pipeline.
 The documentation is built with `mkdocs build --strict` whenever it changes, so
 broken links and missing pages fail the build.
 
-## Integration testing
+## Testing against a deployment
 
-Beyond the local environment, the read path through the EWDS gateway and the
-autonomous discovery and clearing of markets have been validated against the
-INTELLIGENT staging environment. These runs depend on project infrastructure
-and are therefore not part of the automated suites.
+Runs against a GSY DEX deployment, through its EWDS gateway, need access to
+that infrastructure and are therefore not part of the automated suites. The
+[self-hosting guide](../getting-started/self-hosting.md#joining-a-shared-deployment)
+describes the configuration.

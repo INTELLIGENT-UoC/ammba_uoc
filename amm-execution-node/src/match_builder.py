@@ -80,8 +80,8 @@ def build_matches(
     """Transform int:Trade records into settleable matches + pool orders.
 
     ``k_upper``/``k_lower`` are the community price bounds in the same
-    currency unit as the trades' ``tradePrice`` (unit decision pending at
-    consortium level; this function is unit-agnostic).
+    currency unit as the trades' ``tradePrice`` (the unit is not yet fixed,
+    see issue #30; this function is unit-agnostic).
     """
     matches: list[Match] = []
     pool_orders: list[OrderParams] = []

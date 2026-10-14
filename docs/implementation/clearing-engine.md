@@ -1,7 +1,7 @@
 # Clearing engine
 
-The clearing engine (`amm-clearing-node`) implements the
-[market model](../model/index.md) for operation. It clears one market slot at a
+The clearing engine (`amm-clearing-node`) implements the order-based form of
+the [market mechanism](../model/index.md) for operation. It clears one market slot at a
 time, either on request or autonomously.
 
 ## Clearing procedure
@@ -9,17 +9,17 @@ time, either on request or autonomously.
 `run_clearing()` in `src/clearing.py` executes the following steps for one
 market slot.
 
-| Step | Function                                                                                                                                       |
-| ---: | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-|    0 | Idempotency check: skip the slot if trades already exist for the market.                                                                       |
-|    1 | Read the open orders of the market and validate them against the ontology schemas. Orders in status `Submitted` are matchable.                 |
-|    2 | Aggregate the supply $S_t$ and the demand $D_t$.                                                                                               |
-|    3 | Compute the clearing price with [Eq. (1)](../model/pricing.md#the-pricing-function). If one side of the market is empty, finish without trade. |
-|    4 | Optionally record the result with the [audit anchor](smart-contract.md). Skipped when no contract is configured.                               |
-|    5 | Allocate the quantities pro rata with [Eqs. (2) and (3)](../model/allocation.md#allocation).                                                   |
-|    6 | Serve mutual preferred partners first, then apply the optional [differential pricing](../model/extensions.md).                                 |
-|    7 | Generate the trades: buyer–pool and pool–seller trades for pool allocations, direct trades for preference pairs.                               |
-|    8 | Publish the trades and the clearing result to the off-chain store.                                                                             |
+| Step | Function                                                                                                                                                                |
+| ---: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|    0 | Idempotency check: skip the slot if trades already exist for the market.                                                                                                |
+|    1 | Read the open orders of the market and validate them against the ontology schemas. Orders in status `Submitted` are matchable.                                          |
+|    2 | Aggregate the supply $E_t$ and the demand $D_t$.                                                                                                                        |
+|    3 | Compute the clearing price with [Eq. (1)](../model/pricing.md#the-pricing-function) on the ratio $E_t / D_t$. If one side of the market is empty, finish without trade. |
+|    4 | Optionally record the result with the [audit anchor](smart-contract.md). Skipped when no contract is configured.                                                        |
+|    5 | Allocate the quantities pro rata with [Eq. (4)](../model/allocation.md#order-based-allocation).                                                                         |
+|    6 | Serve mutual preferred partners first, then apply the optional [differential pricing](../model/extensions.md).                                                          |
+|    7 | Generate the trades: buyer–pool and pool–seller trades for pool allocations, direct trades for preference pairs.                                                        |
+|    8 | Publish the trades and the clearing result to the off-chain store.                                                                                                      |
 
 Each pool allocation becomes two trades so that the bilateral trade object of
 the ontology can describe pool-mediated exchanges; the pool appears as a
@@ -39,8 +39,8 @@ and clamps its result to the band.
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `status`                                                  | `cleared`; `no_trade` if one side of the market is empty; `skipped` if the slot was already cleared; `error` if the audit-anchor transaction failed |
 | `market_id`                                               | The cleared market                                                                                                                                  |
-| `total_supply_kwh`, `total_demand_kwh`                    | $S_t$ and $D_t$                                                                                                                                     |
-| `clearing_price_ct_per_kwh`, `clearing_price_eur_per_kwh` | $p_t$ in both units                                                                                                                                 |
+| `total_supply_kwh`, `total_demand_kwh`                    | $E_t$ and $D_t$                                                                                                                                     |
+| `clearing_price_ct_per_kwh`, `clearing_price_eur_per_kwh` | $\pi_t$ in both units                                                                                                                               |
 | `traded_quantity_kwh`                                     | $Q_t$                                                                                                                                               |
 | `num_trades`                                              | Number of trades generated                                                                                                                          |
 | `tx_hash`                                                 | Transaction of the audit anchor, or `0x0` without one                                                                                               |

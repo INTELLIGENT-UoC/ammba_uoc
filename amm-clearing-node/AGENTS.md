@@ -49,9 +49,9 @@ tests/
 ```
 
 Transport is selected by `OFFCHAIN_TRANSPORT` (`rest` default, `ewds` for the
-CGW gateway — the GSY-confirmed integration path). Both clients expose the same
-interface; on `ewds`, writes (trades / clearing results) are a logged no-op
-because settlement moves on-chain in v2. The EWDS order DTO is still being
+CGW gateway of the GSY DEX). Both clients expose the same interface; on
+`ewds`, writes (trades / clearing results) are a logged no-op because
+settlement happens on-chain. The EWDS order DTO is still being
 aligned with the ontology upstream — `adapters.ewds_order_to_int_order`
 normalizes all known dialects to canonical int:Order, and
 `OFFCHAIN_STRICT_VALIDATION=false` keeps (log-only) orders that still fail
@@ -151,7 +151,7 @@ See [`sim/README.md`](sim/README.md) for the full local end-to-end flow.
    Convert only via `CT_PER_EUR` in `adapters.py`.
 5. **`pool_actor_uuid`** (per community in `config.py`) is the pool's identity on
    the wire. The `int:Trade` representation of pool half-trades is provisional
-   pending GSY's pool-registration decision.
+   until the on-chain pool representation is final (see the settlement engine).
 
 ## Common change recipes
 

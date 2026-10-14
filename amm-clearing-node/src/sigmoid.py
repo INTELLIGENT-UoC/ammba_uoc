@@ -1,7 +1,8 @@
 """Sigmoid price function and scaling utilities.
 
-Matches the formula from IMPLEMENTATION_GUIDE.md Section 3.3 and
-the reference implementation in simulation.py.
+Implements Eq. (1) of Saber et al., Applied Energy 416 (2026) 127957, on the
+supply-to-demand energy ratio. Reference implementation:
+simulation.py in https://github.com/INTELLIGENT-UoC/ammba_simulation.
 """
 
 import math

@@ -19,7 +19,7 @@ uv run python -m src.calibrate --measurements history.json \
 | `--measurements`                 | JSON list of measurement records (required)               |
 | `--community`                    | Only use records of this community                        |
 | `--k-upper`, `--k-lower`         | Price band in ct/kWh (required)                           |
-| `--alpha`                        | Weight of the range-usage term; default 0.5               |
+| `--alpha`                        | Weight of the range term; default 0.5                     |
 | `--pool-id`, `--pool-actor-uuid` | Copied into the configuration snippet                     |
 | `--injection-positive`           | Treat positive energy as injection instead of consumption |
 | `--out`                          | Write the configuration snippet to this YAML file         |

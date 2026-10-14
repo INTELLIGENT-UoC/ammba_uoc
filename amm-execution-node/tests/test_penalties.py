@@ -1,6 +1,7 @@
 """Tests for penalty calculation functions.
 
-Cross-validates against the reference implementation in simulation.py.
+Cross-validates against the reference implementation in
+simulation.py in https://github.com/INTELLIGENT-UoC/ammba_simulation.
 """
 
 from src.penalties import (

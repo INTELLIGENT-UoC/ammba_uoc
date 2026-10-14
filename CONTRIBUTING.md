@@ -95,8 +95,8 @@ cd amm-smart-contract && npm ci && npx hardhat test
 
 ## Documentation
 
-The documentation is a MkDocs site in `docs/`, structured like the T5.4
-deliverable. Preview it with live reload, and build it the way CI does:
+The documentation is a MkDocs site in `docs/`. Preview it with live reload,
+and build it the way CI does:
 
 ```bash
 uvx --with-requirements docs/requirements.txt mkdocs serve
@@ -108,20 +108,8 @@ same pull request. Formulas use `$…$` and `$$…$$`, which render on the site
 and on GitHub; links from `docs/` to files elsewhere in the repository use
 absolute GitHub URLs. Regenerate the figures with
 `uv run --no-project --with matplotlib --with numpy python docs/assets/figures/make_figures.py`
-instead of editing the images.
-
-## Branch protection (maintainers)
-
-The `main` branch should be protected via **Settings → Branches → Add rule**:
-
-- Require a pull request before merging
-- Require approvals: at least 1
-- Dismiss stale reviews when new commits are pushed
-- Require status checks to pass: select **CI** (the aggregate job from `ci.yml`)
-- Require branches to be up to date before merging
-- Require linear history
-- Do not allow bypassing the above (off for admins as well, ideally)
-- Block force pushes and deletions
+instead of editing the images; the script fails if a label overflows its box or
+covers another element.
 
 ## Security
 

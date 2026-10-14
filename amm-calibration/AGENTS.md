@@ -41,8 +41,7 @@ defaults), which is the regression anchor.
    `K_upper - (K_upper-K_lower)/(1+exp(...))` formula must match across both.
 3. **Output is the clearing node's config shape** (`communities:` block). The
    publish path (config merge vs on-chain `setCommunityParams` vs a future
-   `int:AmmParameters` write) is open — tracked in issue #35; see
-   `docs/project/roadmap.md`.
+   `int:AmmParameters` write) is open — tracked in issue #35.
 
 ## Assumptions
 
