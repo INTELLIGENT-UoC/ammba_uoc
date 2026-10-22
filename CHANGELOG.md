@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.7](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.6...v0.1.7) (2026-10-21)
+
+
+### Features
+
+* **clearing:** adaptive gateway polling and scheduler back-off ([#48](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/48)) ([659ea28](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/659ea2882b8e696f122aab36d31ec893f2265266)), closes [#47](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/47)
+
+
+### Documentation
+
+* cite only INTELLIGENT deliverables and public sources ([#57](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/57)) ([ab524f0](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/ab524f00dcca6a31eb1432658a570683b5035a99))
+* restructure as standard public documentation and cite the publication ([#59](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/59)) ([2f99aa0](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/2f99aa0ac322c3dbc189dce73c5a95bbf5340973)), closes [#58](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/58)
+* restructure documentation as an MkDocs site mirroring the T5.4 deliverable ([#52](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/52)) ([b27a1a7](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/b27a1a78177079accca62bec9fdc275ae8b4fa48)), closes [#50](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/50)
+
+
+### Build
+
+* **deps:** Bump actions/deploy-pages from 4 to 5 ([#53](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/53)) ([a927967](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/a92796730cef20fd4b33be83d89fec405e1668fe))
+* **deps:** Bump actions/upload-pages-artifact from 3 to 5 ([#54](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/54)) ([cf3d30a](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/cf3d30a824f93b237a4ccc4fa1fc478ffe0bfa3d))
+* **deps:** Update mkdocs requirement in /docs ([#56](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/56)) ([de5b2ef](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/de5b2ef2e1206ac3b21fbb0298363505a719d286))
+* **deps:** Update mkdocs-material requirement in /docs ([#55](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/55)) ([adad6b9](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/adad6b9010ecaea6983c5cd415dcbb29fcff77c4))
+
 ## [0.1.6](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.5...v0.1.6) (2026-09-04)
 
 
