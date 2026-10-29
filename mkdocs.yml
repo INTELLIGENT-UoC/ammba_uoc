@@ -59,6 +59,11 @@ extra_javascript:
   - javascripts/mathjax.js
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
+# Sources that live next to the pages but are not part of the site.
+exclude_docs: |
+  assets/figures/make_figures.py
+  requirements.txt
+
 validation:
   omitted_files: warn
   absolute_links: warn
@@ -78,7 +83,6 @@ nav:
       - Parameter calibration: model/calibration.md
       - Parameter governance: model/governance.md
       - Incentives and penalties: model/incentives.md
-      - Network-aware extension: model/network.md
       - Preferences and differential pricing: model/extensions.md
   - Evaluation: model/evaluation.md
   - Implementation:

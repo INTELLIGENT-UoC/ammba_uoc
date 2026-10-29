@@ -17,24 +17,16 @@ $\pi_t$. It holds no inventory and makes no profit.
 ## The pricing function
 
 The clearing price is a sigmoid function $f$ of the supply-to-demand ratio
-$r_t$ of the batch:
+$r_t = E_t / D_t$ of the batch, where $E_t = \sum_j E_{t,j}$ is the energy
+offered by the sellers and $D_t = \sum_i D_{t,i}$ the demand stated by the
+buyers, both in kWh:
 
 $$
 \pi_t = f(r_t) = K_{\mathrm{up},t} - \frac{K_{\mathrm{up},t} - K_{\mathrm{lo}}}{1 + e^{-B (r_t - \Theta)}} \tag{1}
 $$
 
-How demand enters the ratio depends on the form of the mechanism. With
-$E_t = \sum_j E_{t,j}$ the energy offered by the sellers:
-
-- In the **token-based formulation**, buyers deposit money $M_{t,i}$, and the
-  ratio is the energy-to-money ratio $r_t = E_t / M_t$ with
-  $M_t = \sum_i M_{t,i}$.
-- In the **order-based form** used by the clearing engine, buyers state their
-  demand $D_{t,i}$ in kWh, and the ratio is $r_t = E_t / D_t$ with
-  $D_t = \sum_i D_{t,i}$.
-
-The midpoint $\Theta$ and the steepness $B \ge 0$ set the shape of the curve.
-Both are expressed on the scale of the chosen ratio and are calibrated for it.
+The midpoint $\Theta$ and the steepness $B \ge 0$ set the shape of the curve
+and are [calibrated](calibration.md) from the community's data.
 The figure shows the function for the default band of the implementation,
 $K_{\mathrm{up}} = 28.5$ ct/kWh and $K_{\mathrm{lo}} = 8.0$ ct/kWh, with
 $\Theta = 1$ and three values of $B$.
@@ -57,8 +49,8 @@ The following properties follow directly from Eq. (1).
   more local supply means a lower price, relatively more demand a higher one.
   For $B = 0$ the price is constant at the midpoint of the band.
 - **Anchored at $\Theta$.** At $r_t = \Theta$ the price equals the midpoint
-  $(K_{\mathrm{up},t} + K_{\mathrm{lo}})/2$ of the band. In the order-based form
-  with $\Theta = 1$, a balanced slot with $E_t = D_t$ is priced at the midpoint.
+  $(K_{\mathrm{up},t} + K_{\mathrm{lo}})/2$ of the band. With $\Theta = 1$, a
+  balanced slot with $E_t = D_t$ is priced at the midpoint.
 - **Tunable sensitivity.** The slope at the midpoint is
   $-B (K_{\mathrm{up},t} - K_{\mathrm{lo}})/4$, so $B$ scales how strongly the
   price reacts to scarcity or abundance.
@@ -81,7 +73,9 @@ evaluates it on the energy ratio $E_t / D_t$. The configuration names the
 parameters `k_upper_ct_per_kwh` ($K_{\mathrm{up}}$), `k_lower_ct_per_kwh`
 ($K_{\mathrm{lo}}$), `theta` ($\Theta$) and `steepness` ($B$). The exponent is
 limited to $[-500, 500]$ to prevent overflow, and the result is clamped to the
-band. A copy in `amm-execution-node/src/sigmoid.py` serves counterfactual
-pricing for the penalty mechanism and must be kept identical. The calibration
-tool uses the unclamped function; see
-[calibration](calibration.md#solution-method).
+band. Two further copies implement the same formula: one in
+`amm-execution-node/src/sigmoid.py` serves counterfactual pricing for the
+penalty mechanism, and the calibration tool uses an unclamped one in
+`amm-calibration/src/pricing.py`; see
+[calibration](calibration.md#solution-method). The formula must stay identical
+in all three.

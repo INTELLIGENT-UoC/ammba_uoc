@@ -1,34 +1,13 @@
 # Allocation and gains from trade
 
-## Token-based allocation
+## Pro-rata allocation
 
-Once the price is known, each buyer receives energy in proportion to its share
-of the deposited money, limited to the amount its deposit can pay for at the
-clearing price:
-
-$$
-q_{t,i} = \min\left( \frac{M_{t,i}}{\pi_t},\; E_t \frac{M_{t,i}}{M_t} \right) \tag{2}
-$$
-
-The total energy sold is the smaller of the energy that all deposits can pay
-for and the energy available, and each seller sells in proportion to its
-offer:
+Once the price is known, the traded volume is the largest volume that can be
+matched locally. The short side of the market is served completely, and the
+long side is rationed in proportion to the submitted quantities:
 
 $$
-Q_t = \min\left( \frac{M_t}{\pi_t},\; E_t \right), \qquad s_{t,j} = Q_t \frac{E_{t,j}}{E_t} \tag{3}
-$$
-
-Unspent money and unsold energy tokens are returned to their owners.
-
-## Order-based allocation
-
-In the order-based form used by the clearing engine, the traded volume is the
-largest volume that can be matched locally. The short side of the market is
-served completely, and the long side is rationed in proportion to the submitted
-quantities:
-
-$$
-Q_t = \min(E_t, D_t), \qquad q_{t,i} = D_{t,i} \frac{Q_t}{D_t}, \qquad s_{t,j} = E_{t,j} \frac{Q_t}{E_t} \tag{4}
+Q_t = \min(E_t, D_t), \qquad q_{t,i} = D_{t,i} \frac{Q_t}{D_t}, \qquad s_{t,j} = E_{t,j} \frac{Q_t}{E_t} \tag{2}
 $$
 
 Here $q_{t,i}$ is the energy bought by buyer $i$ and $s_{t,j}$ the energy sold
@@ -36,14 +15,6 @@ by seller $j$. Residual demand $D_{t,i} - q_{t,i}$ is supplied by the retail
 supplier at $K_{\mathrm{up},t}$, and residual supply $E_{t,j} - s_{t,j}$ is
 exported at $K_{\mathrm{lo}}$, outside the AMMBA market. If one side of the
 market is empty, no local trade takes place in the slot.
-
-## Equivalence of the two forms
-
-The two forms coincide when buyers fund their true demand at the clearing
-price, $M_{t,i} = \pi_t D_{t,i}$, which is the truthful strategy under the
-[penalty mechanism](incentives.md). Then $M_{t,i} / \pi_t = D_{t,i}$ and
-$E_t M_{t,i} / M_t = E_t D_{t,i} / D_t$, so Eq. (2) reduces to
-$q_{t,i} = D_{t,i} \min(1, E_t / D_t)$, which is the allocation of Eq. (4).
 
 ## Properties
 
@@ -63,7 +34,7 @@ Relative to a situation in which all participants use only the grid, local
 trade creates the gain
 
 $$
-G_t = Q_t \, (K_{\mathrm{up},t} - K_{\mathrm{lo}}) \tag{5}
+G_t = Q_t \, (K_{\mathrm{up},t} - K_{\mathrm{lo}}) \tag{3}
 $$
 
 which does not depend on the price. The price only determines how this gain is
@@ -73,7 +44,7 @@ interpretation of the pricing function:
 
 $$
 \frac{K_{\mathrm{up},t} - \pi_t}{K_{\mathrm{up},t} - K_{\mathrm{lo}}} = \sigma\big(B (r_t - \Theta)\big),
-\qquad \sigma(z) = \frac{1}{1 + e^{-z}} \tag{6}
+\qquad \sigma(z) = \frac{1}{1 + e^{-z}} \tag{4}
 $$
 
 The buyers' share of the gains from local trade is the logistic function of the
@@ -87,8 +58,7 @@ abundant local generation.
 
 ## Worked example
 
-Two buyers and two sellers trade in one slot in the order-based form, with
-the default parameters $\Theta = 1$, $B = 2.5$, $K_{\mathrm{up}} = 28.5$ ct/kWh
+Two buyers and two sellers trade in one slot with the default parameters $\Theta = 1$, $B = 2.5$, $K_{\mathrm{up}} = 28.5$ ct/kWh
 and $K_{\mathrm{lo}} = 8.0$ ct/kWh. Supply is $E = 9$ kWh and demand
 $D = 10$ kWh, so $r = 0.9$ and Eq. (1) gives $\pi = 19.52$ ct/kWh, slightly
 above the midpoint of 18.25 ct/kWh because supply is the short side. Sellers
@@ -103,7 +73,7 @@ are served in full and buyers receive 90% of their bids.
 | **Total**   | E = 9.0, D = 10.0 |         Q = 9.0 |    **0.00** (budget balance) |                     1.0 |             **184.50** |
 
 The gains from local trade of 184.50 ct are split 43.8% to the buyers and
-56.2% to the sellers, exactly as Eq. (6) predicts with
+56.2% to the sellers, exactly as Eq. (4) predicts with
 $\sigma(2.5 \cdot (0.9 - 1)) = 0.438$.
 
 ![Pool-mediated clearing of the worked example](../assets/figures/pool.png)

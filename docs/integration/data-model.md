@@ -7,15 +7,16 @@ implemented by the GSY DEX off-chain storage. The JSON schemas of the relevant
 objects are vendored in
 [`amm-clearing-node/schemas/intelligent/`](https://github.com/INTELLIGENT-UoC/ammba_uoc/tree/main/amm-clearing-node/schemas/intelligent),
 together with a note on their source. Inbound orders and all outbound objects
-are validated against them.
+are validated against them; measurement records are passed to the calibration
+tool as received.
 
-| Object               | Direction | Use in AMMBA                                         |
-| -------------------- | --------- | ---------------------------------------------------- |
-| `int:Order`          | in        | Bids and offers of a market slot                     |
-| `int:Market`         | in        | Market discovery for the self-trigger scheduler      |
-| `int:Measurement`    | in        | Metering history for calibration                     |
-| `int:Trade`          | out       | Buyer–pool, pool–seller and direct preference trades |
-| `int:ClearingResult` | out       | Per-slot summary: price, volumes, status             |
+| Object               | Direction | Use in AMMBA                                                            |
+| -------------------- | --------- | ----------------------------------------------------------------------- |
+| `int:Order`          | in        | Bids and offers of a market slot                                        |
+| `int:Market`         | in        | Market discovery for the self-trigger scheduler                         |
+| `int:Measurement`    | in        | Metering history for calibration, retrieved by `src.fetch_measurements` |
+| `int:Trade`          | out       | Buyer–pool, pool–seller and direct preference trades                    |
+| `int:ClearingResult` | out       | Per-slot summary: price, volumes, status                                |
 
 The wire objects are flat, use camelCase field names, UUID identifiers,
 ISO-8601 timestamps and prices in EUR/kWh. Translation between the wire objects
@@ -63,7 +64,9 @@ DEX:
   `ids.query` or `POST /ids?offchain_id=…`, creating it on first use; the
   settlement engine registers every actor before settling, so that settlement
   events can be attributed to off-chain actors.
-- **Energy and prices** are unsigned integers scaled by 10,000.
+- **Energy and prices** are unsigned integers scaled by 10,000. The currency
+  unit of on-chain prices is not fixed yet
+  ([#30](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/30)).
 
 The settlement engine implements these conventions in
 `amm-execution-node/src/ids.py` and `structs.py`; see the

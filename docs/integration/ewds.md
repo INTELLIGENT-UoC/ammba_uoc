@@ -2,7 +2,9 @@
 
 With `OFFCHAIN_TRANSPORT=ewds`, the clearing engine reads market data through
 a Client Gateway of the Energy Web Digital Spine (EWDS) instead of accessing an
-off-chain store directly. The client is `amm-clearing-node/src/ewds_client.py`;
+off-chain store directly. The calibration fetch step (`src.fetch_measurements`)
+always uses this transport to retrieve the metering history; see the
+[calibration tool](../implementation/calibration-tool.md#input-data). The client is `amm-clearing-node/src/ewds_client.py`;
 it follows the request/response pattern of the GSY DEX off-chain storage's
 EWDS request handler.
 
@@ -48,9 +50,10 @@ message.
 | `markets.query`      | `marketsQuery`      | `marketsQueryResponse`      | none (all markets)                                             |
 | `ids.query`          | `idsQuery`          | `idsQueryResponse`          | `offchainId`                                                   |
 
-The handler filters time windows inclusively at both ends, while AMMBA's slot
-windows are right-open. The client therefore requests orders up to
-`endTime − 1`.
+`measurements.query` is issued only by the calibration fetch step. The handler
+filters time windows inclusively at both ends, while AMMBA's slot windows are
+right-open. The client therefore requests orders up to `endTime − 1`;
+measurement windows are passed as given.
 
 ## Consumer identity
 
@@ -70,9 +73,10 @@ gateway low, the client waits 1 s before the first poll and multiplies the
 delay by 1.5 up to a ceiling of 5 s, until the timeout of 60 s elapses. Network
 errors and HTTP 5xx responses are retried with bounded back-off. When the
 self-trigger scheduler's market query fails, the scheduler doubles its tick
-interval up to ten times the configured value. All four values are
-configurable; see the
+interval up to ten times the configured value. The initial delay, the ceiling,
+the timeout and the scheduler interval are configurable; see the
 [configuration reference](../reference/configuration.md#environment-variables).
+The factor of 1.5 and the tenfold cap are fixed.
 
 ## Data normalisation
 
@@ -82,7 +86,8 @@ normalises every order to the ontology's order shape before validation, for
 example mapping snake_case to camelCase fields, lower-case statuses to the
 ontology's status names, and the `"None"` energy-type marker to an absent
 field. `OFFCHAIN_STRICT_VALIDATION=false` keeps orders that still fail
-validation, logging them instead of dropping them.
+validation, logging them instead of dropping them. Measurement records are
+passed to the calibration tool as received.
 
 ## Writing results
 

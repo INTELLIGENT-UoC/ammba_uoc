@@ -9,7 +9,7 @@ implemented behaviour; a formal treatment and evaluation are planned.
 A buyer and a seller can each name preferred trading partners. On the
 exchange this is the `preferredTradingPartner` field of an order.
 
-1. After the [pro-rata allocation](allocation.md#order-based-allocation), the engine
+1. After the [pro-rata allocation](allocation.md#pro-rata-allocation), the engine
    searches for **mutual** pairs: a bid that names the seller and an offer that
    names the buyer.
 2. Each mutual pair trades directly with each other, at the uniform clearing
@@ -39,7 +39,7 @@ neutral (no type). With community-set rates $g$ (green subsidy rate) and $l$
 - the levy per kWh is $\ell_t = \min(l \, \pi_t,\; c)$, and grey sellers receive
   $\pi_t - \ell_t$;
 - the target subsidy per kWh is $g \, \pi_t$; if the total target subsidy exceeds
-  the levy revenue $\ell_t \cdot V^{\text{grey}}_t$, it is scaled down to that
+  the levy revenue $\ell_t \cdot V^{\mathrm{grey}}_t$, it is scaled down to that
   revenue, so the subsidy never exceeds the levy collected;
 - green sellers receive $\pi_t$ plus the (possibly scaled) subsidy per kWh;
 - neutral sellers, buyers and direct preference trades are unaffected.

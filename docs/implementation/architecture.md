@@ -7,12 +7,12 @@ build, tests and onboarding guide (`AGENTS.md`) in its directory.
 
 ![Components and data flows](../assets/figures/components.png)
 
-| Component         | Path                 | Technology                                | Role                                                                                                                                                  |
-| ----------------- | -------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Clearing engine   | `amm-clearing-node`  | Python 3.11+, FastAPI                     | Clears a market slot: reads the orders, computes price and allocation, generates the trades and the clearing result. Optional self-trigger scheduler. |
-| Calibration tool  | `amm-calibration`    | Python 3.11+, standard library and PyYAML | Offline job that calibrates the pricing parameters from metering history and outputs a configuration snippet.                                         |
-| Settlement engine | `amm-execution-node` | Python 3.11+, web3.py                     | In development: turns AMM trades into on-chain matches and submits them for settlement. Also holds the penalty formulas.                              |
-| Audit anchor      | `amm-smart-contract` | Solidity 0.8.24, Hardhat                  | Optional: records clearing results on-chain as an additional transparency record.                                                                     |
+| Component         | Path                 | Technology                                | Role                                                                                                                                                                                   |
+| ----------------- | -------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Clearing engine   | `amm-clearing-node`  | Python 3.11+, FastAPI                     | Clears a market slot: reads the orders, computes price and allocation, generates the trades and the clearing result. Optional self-trigger scheduler.                                  |
+| Calibration tool  | `amm-calibration`    | Python 3.11+, standard library and PyYAML | Offline job that calibrates the pricing parameters from a metering-history snapshot, retrieved over the EWDS by the clearing engine's fetch step, and outputs a configuration snippet. |
+| Settlement engine | `amm-execution-node` | Python 3.11+, web3.py                     | In development: turns AMM trades into on-chain matches and submits them for settlement. Also holds the penalty formulas.                                                               |
+| Audit anchor      | `amm-smart-contract` | Solidity 0.8.24, Hardhat                  | Optional: records clearing results on-chain as an additional transparency record.                                                                                                      |
 
 The clearing engine reaches market data through one of two transports with an
 identical interface: direct REST access to an off-chain store (the default, also
@@ -60,14 +60,14 @@ ammba_uoc/
 
 ## Where to start reading the code
 
-| Task                                       | Start here                                                                |
-| ------------------------------------------ | ------------------------------------------------------------------------- |
-| Change the clearing pipeline               | `amm-clearing-node/src/clearing.py`                                       |
-| Change the price function                  | `amm-clearing-node/src/sigmoid.py` (and its copy in `amm-execution-node`) |
-| Change the wire format                     | `amm-clearing-node/src/adapters.py` and `schemas/intelligent/`            |
-| Change preferences or differential pricing | `amm-clearing-node/src/preferences.py`                                    |
-| Change the calibration objective           | `amm-calibration/src/optimizer.py`                                        |
-| Change settlement                          | `amm-execution-node/src/engine.py` and `match_builder.py`                 |
+| Task                                       | Start here                                                                                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Change the clearing pipeline               | `amm-clearing-node/src/clearing.py`                                                               |
+| Change the price function                  | `amm-clearing-node/src/sigmoid.py` (and its copies in `amm-execution-node` and `amm-calibration`) |
+| Change the wire format                     | `amm-clearing-node/src/adapters.py` and `schemas/intelligent/`                                    |
+| Change preferences or differential pricing | `amm-clearing-node/src/preferences.py`                                                            |
+| Change the calibration objective           | `amm-calibration/src/optimizer.py`                                                                |
+| Change settlement                          | `amm-execution-node/src/engine.py` and `match_builder.py`                                         |
 
 Each component's `AGENTS.md` describes its conventions and typical change
 recipes in more detail.
