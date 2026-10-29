@@ -5,34 +5,29 @@ divided between the community's buyers and sellers (see
 [gains from trade](allocation.md#gains-from-trade)). Choosing them is therefore
 not only a technical task but a distributive decision, and it belongs to the
 community. It is also a precondition for the community to own its trading
-tools in practice. Saber et al. (2026) envisage that the calibration is
-governed either in a fully decentralised manner by a decentralised autonomous
-organisation (DAO) of all stakeholders, whose rules are enforced by smart
-contracts, or by a democratically elected community manager. This page
-proposes a governance model that works with both arrangements.
+tools in practice. AMMBA does not prescribe a governance system: each community
+uses the governance system of its choice. This page describes the roles and
+the process that such a system fills.
 
 ## Parameter classes and responsibilities
 
-| Parameter                              | Meaning                                                     | Nature of the decision          | Proposed responsibility                                                              | Update cycle                                                             |
-| -------------------------------------- | ----------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| $K_{\mathrm{up},t}$, $K_{\mathrm{lo}}$ | Price band: retail price and feed-in tariff                 | Given by tariffs and regulation | Community manager, from the applicable supply contract and feed-in scheme            | When tariffs change                                                      |
-| $\Theta$, $B$                          | Midpoint and steepness of the pricing function              | Technical and data-driven       | Community manager, using the calibration tool on the community's own data            | Periodically, for example monthly or seasonally, and after major changes |
-| $\alpha$                               | Weight between balanced sharing and strong scarcity signals | Normative                       | Community members, through their governing body: general assembly, board or DAO vote | Rarely, for example annually                                             |
-| $\gamma$, $\eta$                       | Penalty level and tolerance for deviations                  | Normative, informed by data     | Members decide; the community manager proposes values                                | Annually, or when deviations are observed                                |
-| Differential pricing rates             | Green subsidy, grey levy and levy cap                       | Normative                       | Community members                                                                    | On demand                                                                |
+| Parameter                              | Meaning                                                     | Nature of the decision          | Responsibility                                                                | Update cycle                                                             |
+| -------------------------------------- | ----------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| $K_{\mathrm{up},t}$, $K_{\mathrm{lo}}$ | Price band: retail price and feed-in tariff                 | Given by tariffs and regulation | Administrator, from the applicable supply contract and feed-in scheme         | When tariffs change                                                      |
+| $\Theta$, $B$                          | Midpoint and steepness of the pricing function              | Technical and data-driven       | Administrator, using the calibration tool on the community's metering history | Periodically, for example monthly or seasonally, and after major changes |
+| $\alpha$                               | Weight between balanced sharing and strong scarcity signals | Normative                       | Community members, through their governance system                            | Rarely, for example annually                                             |
+| $\gamma$, $\eta_t$                     | Penalty level and tolerance for deviations                  | Normative, informed by data     | Members decide; the administrator proposes values                             | Annually, or when deviations are observed                                |
+| Differential pricing rates             | Green subsidy, grey levy and levy cap                       | Normative                       | Community members                                                             | On demand                                                                |
 
 ## Roles
 
-- **Community manager.** The community manager, or an operator acting on the
-  community's behalf such as an aggregator or energy service company,
-  maintains the price band, runs the calibration, prepares parameter proposals
-  together with an impact assessment, and publishes the approved parameter
-  sets. In a community governed by a DAO, the proposals are put to a vote of
-  the members.
+- **Administrator.** The person or organisation that the community designates
+  for this role, for example the community manager, maintains the price band,
+  runs the calibration, prepares parameter proposals together with an impact
+  assessment, and publishes the approved parameter sets.
 - **Community members.** The members decide the normative parameters through
-  the community's governing body, which may be a general assembly, a board or
-  a DAO. They receive regular transparency reports and can request a
-  recalibration.
+  the community's governance system, whatever form it takes. They receive
+  regular transparency reports and can request a recalibration.
 - **Grid operator and regulator.** They own no AMMBA parameters but define the
   frame in which the parameters are set, in particular the tariff components
   that enter the band and the rules for energy sharing under the national
@@ -45,15 +40,17 @@ proposes a governance model that works with both arrangements.
 
 ![Community-owned parameter cycle](../assets/figures/governance.png)
 
-1. **Collect.** Metering data is aggregated per slot.
+1. **Collect.** The administrator retrieves the community's metering history
+   from the off-chain storage over the EWDS and aggregates it per slot; see
+   the [calibration tool](../implementation/calibration-tool.md#input-data).
 2. **Calibrate.** Candidate parameters are calibrated for one or more values
    of $\alpha$.
 3. **Assess.** The effect of a candidate set is assessed by recomputing past
    slots, which shows the resulting prices and the split of the gains from
    trade compared with the parameters in force.
 4. **Decide.** Normative changes are approved by the members. Routine
-   recalibrations within an approved $\alpha$ can be adopted by the community
-   manager.
+   recalibrations within an approved $\alpha$ can be adopted by the
+   administrator.
 5. **Publish.** The approved set is published with a version number and the
    slot from which it applies.
 6. **Operate.** The market is cleared with the published parameters until the
@@ -64,16 +61,19 @@ proposes a governance model that works with both arrangements.
 - **Prospective effect.** Parameter changes apply only to future slots. Slots
   that have been cleared are never repriced.
 - **Transparency and verifiability.** Parameter sets are versioned and
-  published, and each clearing result should reference the parameter version
-  in force. Because the price depends only on aggregate quantities and
-  published parameters, any member can verify every clearing price.
-  Publishing the parameters through the exchange is planned.
-- **Data minimisation.** Calibration needs only per-slot aggregates of supply
-  and demand, so individual metering data can remain within the community's own
-  systems, in line with the data minimisation principle of the GDPR.
+  published. Because the price depends only on aggregate quantities and the
+  parameters, any member can verify every clearing price for the parameter set
+  in force. Today the clearing engine reads the parameters from its
+  configuration; publishing them through the exchange, so that clearing
+  results can be traced to the parameter set that produced them, is planned
+  ([#35](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/35)).
+- **Data minimisation.** The optimisation needs only per-slot aggregates of
+  supply and demand. The measurement records retrieved for it stay with the
+  administrator as a snapshot file and are reduced to aggregates before use, in
+  line with the data minimisation principle of the GDPR.
 - **Community ownership.** The calibration tool is open source and runs
-  offline, without depending on an external service, so the community can
-  execute the full cycle itself.
+  offline on the retrieved snapshot, so the community can execute the full
+  cycle itself.
 
 ## Explaining α to the community
 

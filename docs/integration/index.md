@@ -26,12 +26,12 @@ matches are settled on-chain. The community selects the mechanism per market._
 
 ## Current support
 
-| Capability                                                     | Status         |
-| -------------------------------------------------------------- | -------------- |
-| Orders in, trades and clearing results out in the ontology     | Supported      |
-| Reading orders, markets and measurements through EWDS          | Supported      |
-| Discovery of closed AMM markets and self-triggered clearing    | Supported      |
-| Settlement of AMM matches through the GSY DEX settlement layer | In development |
+| Capability                                                                              | Status         |
+| --------------------------------------------------------------------------------------- | -------------- |
+| Orders in, trades and clearing results out in the ontology                              | Supported      |
+| Reading orders and markets for clearing, and measurements for calibration, through EWDS | Supported      |
+| Discovery of closed AMM markets and self-triggered clearing                             | Supported      |
+| Settlement of AMM matches through the GSY DEX settlement layer                          | In development |
 
 The [settlement engine](../implementation/settlement-engine.md#known-limitations)
 page lists the known limitations of on-chain settlement.

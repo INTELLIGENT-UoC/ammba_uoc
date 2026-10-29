@@ -40,8 +40,8 @@ counted in the slots with local surplus.
 
 Bid prices are drawn around two thirds of the retail price, and offer prices
 depend on the retail price, the feed-in tariff and the seller's current surplus
-relative to its peak. The same bid prices determine the money that buyers
-deposit in AMMBA, so all three mechanisms face the same willingness to pay. In
+relative to its peak. The same bid prices determine the buyers' funding in the
+AMMBA simulation, so all three mechanisms face the same willingness to pay. In
 their price formation, DA and UPA correspond to the pay-as-bid and pay-as-clear
 mechanisms described in [market design](../background/market-design.md).
 
@@ -60,10 +60,15 @@ welfare, the study uses four indices (Zhou et al., 2018):
 
 ## Calibrated parameters
 
-The parameters below refer to the energy-to-money ratio of the token-based
-formulation. Scenarios with more local generation require a higher midpoint and
-a lower steepness, and lowering $\alpha$ reduces both, which yields flatter
-curves and more stable prices. The evaluation uses $\alpha = 0.5$.
+Scenarios with more local generation require a higher midpoint and a lower
+steepness, and lowering $\alpha$ reduces both, which yields flatter curves and
+more stable prices. The evaluation uses $\alpha = 0.5$.
+
+The study evaluates the publication's formulation, in which buyers fund their
+purchases and the ratio is offered energy over funds (kWh/EUR). The values
+below are on that scale and do not carry over to the energy ratio $E_t / D_t$
+of this software; calibrate a community's parameters with the
+[calibration tool](../implementation/calibration-tool.md).
 
 | Scenario | $\Theta$ ($\alpha = 0.5$) | $B$ ($\alpha = 0.5$) | $\Theta$ ($\alpha = 0.4$) | $B$ ($\alpha = 0.4$) |
 | -------- | ------------------------: | -------------------: | ------------------------: | -------------------: |

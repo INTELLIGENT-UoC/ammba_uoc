@@ -52,22 +52,24 @@ keyed by the community's UUID. An entry sets:
 
 The full list is in the [configuration reference](../reference/configuration.md).
 
-Derive `theta` and `steepness` from the community's own history rather than
-guessing them:
+Derive `theta` and `steepness` from the community's own metering history
+rather than guessing them. Retrieve the history over the EWDS, then calibrate:
 
 ```bash
-cd amm-calibration
+cd amm-clearing-node
+uv run python -m src.fetch_measurements --start <from> --end <to> \
+  --community <community-uuid> --out ../amm-calibration/history.json
+cd ../amm-calibration
 uv run python -m src.calibrate --measurements history.json \
-  --community <community-uuid> --k-upper 28.5 --k-lower 8.0 --out params.yaml
+  --community <community-uuid> --k-upper 28.5 --k-lower 8.0 \
+  --pool-id <pool-label> --pool-actor-uuid <pool-actor-uuid> --out params.yaml
 ```
 
 `history.json` is a list of measurement records. By default, a positive
 `energyKwh` denotes consumption and a negative one injection; pass
-`--injection-positive` for the opposite convention. In a connected deployment
-the history can be retrieved through the gateway with
-`uv run python -m src.fetch_measurements` in `amm-clearing-node`. The
+`--injection-positive` for the opposite convention. The
 [calibration tool](../implementation/calibration-tool.md) page describes both
-tools, and [parameter governance](../model/governance.md) describes who should
+steps, and [parameter governance](../model/governance.md) describes who should
 decide the parameters and how.
 
 ## Production notes
@@ -93,8 +95,7 @@ To take part in a shared data spine (EWDS) instead of using the local store:
 
 1. Obtain access to the deployment's Client Gateway from its operator: the
    gateway URL, any authentication requirements, and an authorised client id
-   for the AMM. In the INTELLIGENT project, Grid Singularity operates the
-   gateway.
+   for the AMM.
 2. Switch the transport with `OFFCHAIN_TRANSPORT=ewds` and
    `EWDS_GATEWAY_URL=<gateway URL>`, plus the topic settings listed in the
    [configuration reference](../reference/configuration.md#environment-variables).

@@ -49,12 +49,12 @@ engine therefore registers standing orders for the pool:
 
 ## Identifiers and units
 
-| Item                                    | On-chain encoding                                                                                    |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Order, trade and market identifiers     | The 16 bytes of the UUID                                                                             |
-| Actor identifiers (buyer, seller, pool) | BLAKE2b-128 hash of the actor's off-chain identifier, registered in the storage's identifier mapping |
-| Energy and prices                       | Unsigned integers scaled by 10,000                                                                   |
-| Energy types                            | `0` unspecified, `1` GREEN, `2` PV, `3` HYDRO, `4` BIOMASS, `5` BATTERY, `6` GREY                    |
+| Item                                    | On-chain encoding                                                                                                                            |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Order, trade and market identifiers     | The 16 bytes of the UUID                                                                                                                     |
+| Actor identifiers (buyer, seller, pool) | BLAKE2b-128 hash of the actor's off-chain identifier, registered in the storage's identifier mapping                                         |
+| Energy and prices                       | Unsigned integers scaled by 10,000; the price currency unit is not fixed yet ([#30](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/30)) |
+| Energy types                            | `0` unspecified, `1` GREEN, `2` PV, `3` HYDRO, `4` BIOMASS, `5` BATTERY, `6` GREY                                                            |
 
 These conventions follow the GSY DEX; see the
 [data model](../integration/data-model.md#on-chain-identifiers).
@@ -83,8 +83,10 @@ uv run python -m src.main --trades trades.json --orders orders.json \
   --pool-actor <pool-actor-uuid> --k-upper 0.285 --k-lower 0.08
 ```
 
-With `--execute`, the planner lists the environment and role prerequisites that
-are still missing instead of sending transactions.
+`--k-upper` and `--k-lower` are the community's price band in the unit of the
+trades' `tradePrice`, EUR/kWh (here 28.5 and 8.0 ct/kWh). With `--execute`,
+the planner lists the environment and role prerequisites that are still
+missing instead of sending transactions.
 
 ## Penalty formulas
 

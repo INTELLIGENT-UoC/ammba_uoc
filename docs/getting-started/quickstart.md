@@ -21,7 +21,8 @@ docker compose --profile dev up --build
 
 The `dev` profile starts two services: the clearing engine on port 8081 and a
 schema-validating simulator of the off-chain store on port 8080. The simulator
-is seeded with one sample market. Check that the engine is up:
+is seeded with sample orders for one AMM market (and a second market that uses
+another matching mechanism). Check that the engine is up:
 
 ```bash
 curl http://localhost:8081/health

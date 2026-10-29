@@ -66,13 +66,13 @@ mechanisms differ along several independent dimensions:
 - **Counterparty.** Participants are either matched with each other, as in an
   order book, or trade with a common pool.
 
-| Mechanism                                     | Matching                           | Price formation                                                                 | Counterparty                                     | Order content                                                                      | Remarks                                                                          |
-| --------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Two-sided pay-as-bid (GSY DEX)                | Continuous within each slot        | Discriminatory: prices of the matched orders                                    | Bilateral                                        | Quantity and limit price                                                           | Partial matches; residual orders stay in the market                              |
-| Two-sided pay-as-clear                        | Periodic: cleared at set intervals | Uniform: intersection of bid and offer curves                                   | Bilateral, derived from the cleared set          | Quantity and limit price                                                           | No trade if bids and offers do not cross                                         |
-| Coefficient-based sharing                     | Ex post                            | Administrative: tariff or allocation keys                                       | Pool                                             | None: metered quantities                                                           | No price discovery                                                               |
-| Constant-function AMM (decentralised finance) | Continuous: per swap               | Pricing function of the pool reserves                                           | Pool funded by liquidity providers               | Swap amount                                                                        | Needs pool inventory from liquidity providers                                    |
-| **AMMBA**                                     | Periodic: one clearing per slot    | Uniform: pricing function of the supply-to-demand ratio, bounded by grid prices | Pool without inventory, emptied after every slot | Energy offered or requested, or money deposited; limit prices not used for pricing | Always clears the largest feasible local volume; residuals settled with the grid |
+| Mechanism                                     | Matching                           | Price formation                                                                 | Counterparty                                     | Order content                                                  | Remarks                                                                          |
+| --------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Two-sided pay-as-bid (GSY DEX)                | Continuous within each slot        | Discriminatory: prices of the matched orders                                    | Bilateral                                        | Quantity and limit price                                       | Partial matches; residual orders stay in the market                              |
+| Two-sided pay-as-clear                        | Periodic: cleared at set intervals | Uniform: intersection of bid and offer curves                                   | Bilateral, derived from the cleared set          | Quantity and limit price                                       | No trade if bids and offers do not cross                                         |
+| Coefficient-based sharing                     | Ex post                            | Administrative: tariff or allocation keys                                       | Pool                                             | None: metered quantities                                       | No price discovery                                                               |
+| Constant-function AMM (decentralised finance) | Continuous: per swap               | Pricing function of the pool reserves                                           | Pool funded by liquidity providers               | Swap amount                                                    | Needs pool inventory from liquidity providers                                    |
+| **AMMBA**                                     | Periodic: one clearing per slot    | Uniform: pricing function of the supply-to-demand ratio, bounded by grid prices | Pool without inventory, emptied after every slot | Energy offered or requested; limit prices not used for pricing | Always clears the largest feasible local volume; residuals settled with the grid |
 
 AMMBA combines two established ideas. From periodic auctions it takes the
 uniform treatment of all orders of a period, which removes any advantage of
@@ -84,7 +84,7 @@ decentralised finance (Canidio and Fritsch, 2023; Ramseyer et al., 2024), and
 AMMs have been proposed for continuous trading in local electricity markets
 (Bevin and Verma, 2023). Unlike constant-function market makers, the AMMBA pool
 holds no inventory and needs no liquidity providers: it collects the
-contributions of one slot, clears them and is emptied. The external grid acts
+orders of one slot, clears them and is emptied. The external grid acts
 as the residual counterparty at the two ends of the price band, so any
 imbalance between local supply and demand is absorbed at the feed-in or retail
 price. The mechanism was introduced by Celig et al. (2024) and developed into
@@ -124,5 +124,4 @@ to influence it by misreporting them; [penalties](../model/incentives.md) make
 truthful reporting a dominant strategy. Participants cannot express a
 willingness to pay through limit prices; [preferences](../model/extensions.md)
 for specific partners and energy types partly restore this expressiveness.
-Network limits are not part of the clearing itself; the
-[network-aware extension](../model/network.md) enforces them after clearing.
+Network limits are not part of the clearing.

@@ -1,8 +1,8 @@
 # Clearing engine
 
-The clearing engine (`amm-clearing-node`) implements the order-based form of
-the [market mechanism](../model/index.md) for operation. It clears one market slot at a
-time, either on request or autonomously.
+The clearing engine (`amm-clearing-node`) implements the
+[market mechanism](../model/index.md) for operation. It clears one market slot
+at a time, either on request or autonomously.
 
 ## Clearing procedure
 
@@ -16,7 +16,7 @@ market slot.
 |    2 | Aggregate the supply $E_t$ and the demand $D_t$.                                                                                                                        |
 |    3 | Compute the clearing price with [Eq. (1)](../model/pricing.md#the-pricing-function) on the ratio $E_t / D_t$. If one side of the market is empty, finish without trade. |
 |    4 | Optionally record the result with the [audit anchor](smart-contract.md). Skipped when no contract is configured.                                                        |
-|    5 | Allocate the quantities pro rata with [Eq. (4)](../model/allocation.md#order-based-allocation).                                                                         |
+|    5 | Allocate the quantities pro rata with [Eq. (2)](../model/allocation.md#pro-rata-allocation).                                                                            |
 |    6 | Serve mutual preferred partners first, then apply the optional [differential pricing](../model/extensions.md).                                                          |
 |    7 | Generate the trades: buyer–pool and pool–seller trades for pool allocations, direct trades for preference pairs.                                                        |
 |    8 | Publish the trades and the clearing result to the off-chain store.                                                                                                      |
@@ -33,7 +33,9 @@ and clamps its result to the band.
 ## Clearing summary
 
 `run_clearing()` returns a summary, which the HTTP endpoint passes back in its
-`detail` field:
+`detail` field. A `cleared` result carries all fields below; `skipped`,
+`no_trade` and `error` results carry only the status and the fields known at
+that point:
 
 | Field                                                     | Meaning                                                                                                                                             |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -72,8 +74,8 @@ clearing result, and check health.
 | `rest` (default) | `src/offchain_db.py` | Direct REST access to an off-chain store or the bundled simulator                             |
 | `ewds`           | `src/ewds_client.py` | Publish and poll through an EWDS Client Gateway; see [EWDS transport](../integration/ewds.md) |
 
-Both transports retry network errors and HTTP 5xx responses up to three times
-with exponential back-off and jitter (base 0.25 s, at most 2 s). Client errors
+Both transports make up to three attempts on network errors and HTTP 5xx
+responses (two retries), with exponential back-off and jitter (base 0.25 s, at most 2 s). Client errors
 are not retried. On the `ewds` transport, writing trades and clearing results
 is a logged no-op: in the integrated platform, matches are settled on-chain and
 the off-chain storage records trades from the settlement events; see the
