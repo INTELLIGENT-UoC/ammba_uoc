@@ -253,8 +253,8 @@ def fig_architecture(path, ammba_note="(this repository)"):
         0.81,
         0.19,
         0.15,
-        "Forecasting service",
-        ["forecasts and", "trading preferences"],
+        "FOS",
+        ["flexibility and energy", "optimisation service"],
         edge=GREY,
         fill=LIGHT_GREY,
     )
