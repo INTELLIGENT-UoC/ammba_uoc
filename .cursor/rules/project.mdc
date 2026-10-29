@@ -13,11 +13,15 @@ recipes, and things never to break.
 
 This is a P2P energy market and an alternative matching engine for the GSY DEX:
 
-- `amm-clearing-node/` — **(v1)** Python 3.12+, FastAPI, uv. Sigmoid clearing +
+- `amm-clearing-node/` — Python 3.11+, FastAPI, uv. Sigmoid clearing +
   pro-rata allocation. Pipeline in `src/clearing.py`; wire-format translation in
   `src/adapters.py`.
+- `amm-calibration/` — Python 3.11+, uv. Offline calibration of the sigmoid
+  parameters from metering history.
 - `amm-smart-contract/` — Solidity (Hardhat 2). On-chain audit anchor (optional).
-- `amm-execution-node/` — **(deferred, not in v1)** Penalties (shortfall + VCG).
+- `amm-execution-node/` — Settlement engine (in development; dry-run only) and
+  the dormant penalty formulas.
+- `docs/` — MkDocs documentation site.
 
 Each component has its own `AGENTS.md` with deeper details — open it when
 working in that component.
@@ -33,7 +37,7 @@ working in that component.
 - All on-chain integers are scaled × 10000 (`NODE_FLOAT_SCALING_FACTOR`).
 - Every participant trades with the AMM pool, not directly with each other.
   Exception: preference-matched mutual pairs. On the wire the pool is a configured
-  actor (`pool_actor_uuid`) with deterministic standing orders (provisional).
+  actor (`pool_actor_uuid`) with deterministic standing orders.
 - Validate against the schemas with `src/ontology.py` (no `jsonschema` dep).
 - The service is fully async — no blocking I/O in request paths.
 

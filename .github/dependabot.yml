@@ -7,7 +7,9 @@ updates:
     open-pull-requests-limit: 5
     labels: ["dependencies", "ci"]
 
-  - package-ecosystem: "pip"
+  # The Python components are uv projects: the "uv" ecosystem updates
+  # pyproject.toml and uv.lock together.
+  - package-ecosystem: "uv"
     directory: "/amm-clearing-node"
     schedule:
       interval: "weekly"
@@ -17,12 +19,12 @@ updates:
       python-minor-and-patch:
         update-types: ["minor", "patch"]
 
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv"
     directory: "/amm-calibration"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
-    labels: ["dependencies"]
+    labels: ["dependencies", "calibration"]
     groups:
       python-minor-and-patch:
         update-types: ["minor", "patch"]
@@ -34,7 +36,7 @@ updates:
     open-pull-requests-limit: 2
     labels: ["dependencies", "documentation"]
 
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv"
     directory: "/amm-execution-node"
     schedule:
       interval: "weekly"
@@ -53,7 +55,7 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: ["minor", "patch"]
-    # Hardhat 3 is a major rewrite — migration tracked separately.
+    # Hardhat 3 is a major rewrite — migration tracked in #67.
     # Keep getting minor/patch + security advisories on the 2.x line.
     ignore:
       - dependency-name: "hardhat"

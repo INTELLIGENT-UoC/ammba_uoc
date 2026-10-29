@@ -6,7 +6,9 @@
 ## What this component does
 
 Offline calibration of the per-community sigmoid parameters (`theta`,
-`steepness`) from historical `int:Measurement` data. Ported from the AMMBA
+`steepness`) from historical `int:Measurement` data. The input snapshot comes
+over the EWDS: `amm-clearing-node/src/fetch_measurements.py` writes the JSON
+file that `--measurements` reads. Ported from the AMMBA
 research optimizer (`optimize_parameters_ammba`). Run on a slow cadence
 (seasonal / monthly), decoupled from the clearing service — it is a job, not a
 server.
@@ -35,10 +37,12 @@ defaults), which is the regression anchor.
 
 1. **Dependency-free algorithm.** No numpy/scipy/pandas — a deterministic grid
    search. Only `pyyaml` (config emit). Don't add heavy deps.
-2. **Unclamped sigmoid here, clamped in the clearing node.** `pricing.py` must
-   NOT clamp to `[k_lower, k_upper]` (the penalty term needs the unclamped
-   shape). The clearing node's `sigmoid.py` clamps for runtime safety. The core
-   `K_upper - (K_upper-K_lower)/(1+exp(...))` formula must match across both.
+2. **Unclamped sigmoid here, clamped in the clearing node.** `pricing.py`
+   follows the reference implementation and does not clamp; its value lies
+   inside `(k_lower, k_upper)` anyway. The clearing node's `sigmoid.py` clamps
+   for runtime safety. The core `K_upper - (K_upper-K_lower)/(1+exp(...))`
+   formula must match across all three copies (clearing node, settlement
+   engine, calibration).
 3. **Output is the clearing node's config shape** (`communities:` block). The
    publish path (config merge vs on-chain `setCommunityParams` vs a future
    `int:AmmParameters` write) is open — tracked in issue #35.

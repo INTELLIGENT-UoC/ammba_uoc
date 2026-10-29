@@ -7,6 +7,7 @@ Endpoints:
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -41,7 +42,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings is None:
         settings = load_settings()
 
-    app = FastAPI(title="AMM Clearing Node", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Self-trigger scheduler (opt-in): discovers closed AMM markets and
+        # clears them without an external trigger. /trigger-clearing keeps
+        # working too.
+        if settings.scheduler_enabled:
+            app.state.scheduler_task = asyncio.create_task(
+                run_scheduler_loop(settings, app.state.db_client, app.state.contract_client)
+            )
+            logger.info("Self-trigger scheduler enabled")
+        try:
+            yield
+        finally:
+            task = app.state.scheduler_task
+            if task is not None:
+                task.cancel()
+            await app.state.db_client.close()
+
+    app = FastAPI(title="AMM Clearing Node", version="0.1.0", lifespan=lifespan)
 
     # Shared clients stored on app state. Transport-selectable: direct REST to
     # the off-chain DB (default / local simulator) or publish/poll via the EW
@@ -83,23 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except Exception:
             logger.warning("Failed to initialize contract client", exc_info=True)
 
-    # Self-trigger scheduler (opt-in): discovers closed AMM markets and clears
-    # them without an external trigger. /trigger-clearing keeps working too.
     app.state.scheduler_task = None
-    if settings.scheduler_enabled:
-
-        @app.on_event("startup")
-        async def start_scheduler():
-            app.state.scheduler_task = asyncio.create_task(
-                run_scheduler_loop(settings, app.state.db_client, app.state.contract_client)
-            )
-            logger.info("Self-trigger scheduler enabled")
-
-        @app.on_event("shutdown")
-        async def stop_scheduler():
-            task = app.state.scheduler_task
-            if task is not None:
-                task.cancel()
 
     @app.get("/health")
     async def health():

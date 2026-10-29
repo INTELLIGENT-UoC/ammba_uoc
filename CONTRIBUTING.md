@@ -25,7 +25,7 @@ Allowed types and where they show up in release notes:
 
 | Type       | Section in CHANGELOG | Bumps version |
 | ---------- | -------------------- | ------------- |
-| `feat`     | Features             | minor         |
+| `feat`     | Features             | minor¹        |
 | `fix`      | Bug Fixes            | patch         |
 | `perf`     | Performance          | patch         |
 | `deps`     | Dependencies         | patch         |
@@ -36,7 +36,11 @@ Allowed types and where they show up in release notes:
 | `chore`    | (hidden)             | none          |
 | `test`     | (hidden)             | none          |
 
-Add `!` after the type, or `BREAKING CHANGE:` in the body, to trigger a major-version bump.
+Add `!` after the type, or `BREAKING CHANGE:` in the body, to trigger a major-version bump¹.
+
+¹ Before 1.0.0 (`bump-minor-pre-major`, `bump-patch-for-minor-pre-major` in
+`.release-please-config.json`), `feat` bumps the patch version and a breaking
+change bumps the minor version.
 
 Examples:
 
@@ -57,23 +61,17 @@ You don't tag or write changelog entries manually. [release-please](https://gith
 2. The PR updates `version.txt`, `.release-please-manifest.json`, and `CHANGELOG.md`.
 3. When you merge the Release PR, it tags `vX.Y.Z` and creates a GitHub Release.
 
-After tagging, manually bump matching versions in:
-
-- `amm-clearing-node/pyproject.toml`
-- `amm-calibration/pyproject.toml`
-- `amm-execution-node/pyproject.toml`
-- `amm-smart-contract/package.json`
-
-`CITATION.cff` is bumped automatically by release-please (generic updater).
-
-(A follow-up automation can sync these — see open issues.)
+The repository has one version, kept in `version.txt`, the manifest and
+`CITATION.cff` (bumped by release-please through its generic updater). The
+component manifests (`pyproject.toml`, `package.json`) carry a fixed `0.1.0`
+and are not bumped; don't change them by hand.
 
 ## Local development
 
 Install pre-commit hooks once:
 
 ```bash
-pip install pre-commit
+uv tool install pre-commit
 pre-commit install
 ```
 

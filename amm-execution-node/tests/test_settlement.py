@@ -89,6 +89,29 @@ class TestStructs:
         encoded = abi_encode([MATCH_ABI], [match.to_tuple()])
         assert isinstance(encoded, bytes) and len(encoded) > 0
 
+    def test_chain_client_abi_fragments_encode_engine_structs(self):
+        """The hand-declared ABI fragments in chain.py accept the engine's tuples."""
+        from src.chain import SettlementChainClient
+        from src.structs import Match, OrderParams
+
+        client = SettlementChainClient(
+            rpc_url="http://localhost:8545",
+            order_registry_address="0x" + "11" * 20,
+            trade_settlement_address="0x" + "22" * 20,
+            private_key="0x" + "33" * 32,
+        )
+        offer = OrderData(u(), u(), MARKET, SLOT, SLOT - 300, 5.0, 0.09, None, "PV")
+        bid = OrderData(u(), u(), MARKET, SLOT, SLOT - 300, 5.0, 0.28)
+        match = Match(
+            trade_id=u(), bid=bid, offer=offer, selected_energy_kwh=5.0, clearing_price=0.195
+        )
+        place = client.registry.functions.placeOrder(
+            OrderParams(order=offer, is_bid=False).to_tuple()
+        )
+        settle = client.settlement.functions.settleBatch([match.to_tuple()])
+        assert place._encode_transaction_data().startswith("0x")
+        assert settle._encode_transaction_data().startswith("0x")
+
 
 class TestMatchBuilder:
     def test_buyer_pool_trade_synthesizes_floor_priced_pool_offer(self):
@@ -96,7 +119,7 @@ class TestMatchBuilder:
         orders = {bid_id: int_order(bid_id, buyer, "Bid", 6.0, 0.27)}
         trades = [pool_trade(trade_id, bid_id, buyer, 5.4, 0.195)]
 
-        result = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08, time_slot=SLOT)
+        result = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08)
 
         assert len(result.matches) == 1
         match = result.matches[0]
@@ -112,7 +135,7 @@ class TestMatchBuilder:
         orders = {offer_id: int_order(offer_id, seller, "Offer", 5.0, 0.09, "PV")}
         trades = [pool_trade(trade_id, offer_id, seller, 5.0, 0.195, seller_is_pool=False)]
 
-        result = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08, time_slot=SLOT)
+        result = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08)
 
         match = result.matches[0]
         assert match.offer.order_id == offer_id
@@ -140,7 +163,7 @@ class TestMatchBuilder:
                 "tradedAt": "2026-08-24T14:00:00Z",
             }
         ]
-        result = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08, time_slot=SLOT)
+        result = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08)
         assert result.pool_orders == []
         assert result.matches[0].bid.order_id == bid_id
         assert result.matches[0].offer.order_id == offer_id
@@ -202,7 +225,7 @@ class TestEngine:
         buyer, bid_id, trade_id = u(), u(), u()
         orders = {bid_id: int_order(bid_id, buyer, "Bid", 6.0, 0.27)}
         trades = [pool_trade(trade_id, bid_id, buyer, 5.4, 0.195)]
-        return build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08, time_slot=SLOT)
+        return build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08)
 
     @pytest.mark.asyncio
     async def test_happy_path_places_pool_orders_then_settles(self):
@@ -239,7 +262,7 @@ class TestEngine:
         # Buyer limit below clearing price → contract would revert; we reject.
         orders = {bid_id: int_order(bid_id, buyer, "Bid", 6.0, 0.10)}
         trades = [pool_trade(trade_id, bid_id, buyer, 5.4, 0.195)]
-        build = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08, time_slot=SLOT)
+        build = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08)
 
         report = await engine.settle(build)
 
@@ -318,7 +341,7 @@ class TestActorRegistration:
         buyer, bid_id, trade_id = u(), u(), u()
         orders = {bid_id: int_order(bid_id, buyer, "Bid", 6.0, 0.27)}
         trades = [pool_trade(trade_id, bid_id, buyer, 5.4, 0.195)]
-        build = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08, time_slot=SLOT)
+        build = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08)
 
         await engine.settle(build)
 
@@ -334,7 +357,7 @@ class TestActorRegistration:
         buyer, bid_id, trade_id = u(), u(), u()
         orders = {bid_id: int_order(bid_id, buyer, "Bid", 6.0, 0.27)}
         trades = [pool_trade(trade_id, bid_id, buyer, 5.4, 0.195)]
-        build = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08, time_slot=SLOT)
+        build = build_matches(trades, orders, POOL, k_upper=0.285, k_lower=0.08)
 
         await engine.settle(build)
         await engine.settle(build)  # everything already settled

@@ -14,6 +14,24 @@ It is **dependency-free** at the algorithm level (no numpy/scipy/pandas): the 2-
 bounded optimization is a deterministic coarse-to-fine grid search. Only `pyyaml`
 is used, for emitting config.
 
+## Input data
+
+In a connected deployment the measurement history comes from the GSY DEX
+off-chain storage over the EWDS. The clearing node's fetch step writes the
+`int:Measurement` snapshot that `--measurements` reads:
+
+```bash
+cd ../amm-clearing-node
+uv run python -m src.fetch_measurements \
+  --start 2026-07-01T00:00:00Z --end 2026-08-01T00:00:00Z \
+  --community 11111111-1111-4111-8111-111111111111 \
+  --out ../amm-calibration/history.json
+```
+
+The gateway settings come from the `EWDS_*` environment variables (or
+`--gateway-url`). Against the local simulator, the fetch step returns its seeded
+measurements.
+
 ## Run
 
 ```bash
@@ -46,10 +64,12 @@ shape). The output is a `communities:` snippet you merge into
 
 ## Note on the price function
 
-`src/pricing.py` is the **unclamped** sigmoid (matching the paper), unlike the
-clearing node's clamped `sigmoid.py`. Calibration needs the unclamped form so
-the range-usage penalty is meaningful; the clearing node clamps for runtime
-safety. Keep the core formula in sync across all three copies.
+`src/pricing.py` is the **unclamped** sigmoid of the reference implementation,
+unlike the clearing node's clamped `sigmoid.py`. The sigmoid's value always
+lies inside `(k_lower, k_upper)`, so the clamp only guards the runtime against
+numerical edge cases; the separate copy keeps this tool free of a dependency
+on the clearing node. Keep the core formula in sync across all three copies
+(clearing node, settlement engine, calibration).
 
 Documentation: [calibration theory](../docs/model/calibration.md),
 [tool usage](../docs/implementation/calibration-tool.md), and the

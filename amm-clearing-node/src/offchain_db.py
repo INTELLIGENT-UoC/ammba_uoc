@@ -17,13 +17,6 @@ class OffchainDBClient:
         self.base_url = base_url.rstrip("/")
         self._client = httpx.AsyncClient(base_url=self.base_url, timeout=30.0)
 
-    async def health_check(self) -> bool:
-        try:
-            resp = await self._client.get("/health_check")
-            return resp.status_code == 200
-        except httpx.HTTPError:
-            return False
-
     async def get_orders(self, market_id: str, start_time: int, end_time: int) -> list[dict]:
         """Fetch orders for a market slot.
 

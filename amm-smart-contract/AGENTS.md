@@ -26,7 +26,6 @@ contracts/AMMContract.sol     # the contract (~205 lines, fully commented)
 test/AMMContract.test.js      # 17 hardhat tests
 scripts/deploy.js             # Volta/EWC deploy script
 hardhat.config.js             # network config (volta, ewc)
-ignition/                     # Hardhat Ignition module (alternative deploy)
 ```
 
 ## Roles
@@ -69,17 +68,26 @@ check storage, check events, and exercise access control.
 
 ```bash
 export DEPLOYER_PRIVATE_KEY=0x...   # account with VT tokens
+export CLEARING_NODE_ADDRESS=0x...  # the clearing node's account (may call clearMarket)
 npx hardhat run scripts/deploy.js --network volta
 ```
+
+The constructor takes the clearing node address. Optional `COMMUNITY_UUID`,
+`K_UPPER`, `K_LOWER`, `THETA`, `STEEPNESS` register one community's parameters
+right after deployment; the identifier is packed with
+`encodeBytes32String`, so it must fit into 32 bytes — a 36-character UUID
+does not (see #36).
 
 **EWC mainnet: do not deploy without explicit instruction in a PR.** The
 network is defined but should never be triggered by CI or by an LLM.
 
 After deployment:
 
-1. Set `CONTRACT_ADDRESS` in the clearing node's env.
-2. Call `setClearingNode(<clearing node EOA>)` from the owner account.
-3. Call `setCommunityParams(...)` for each community before clearing.
+1. Set `CONTRACT_ADDRESS` and `CLEARING_NODE_PRIVATE_KEY` in the clearing
+   node's env.
+2. Call `setCommunityParams(...)` for each community before clearing (unless
+   the deploy script did it). `setClearingNode` rotates the clearing node's
+   account later.
 
 ## Conventions to preserve
 
@@ -90,8 +98,9 @@ After deployment:
    The clearing node relies on this to make retries safe.
 4. **Price bounds check** — `clearingPrice ∈ [kLower, kUpper]` when community
    params exist. Don't relax this.
-5. **`MarketCleared` event shape is API.** Off-chain indexers and the Python
-   clearing node parse it; adding fields is fine, reordering/removing is breaking.
+5. **`MarketCleared` event shape is API.** Off-chain indexers parse it (the
+   clearing node only waits for the transaction receipt); adding fields is
+   fine, reordering/removing is breaking.
 
 ## After ABI changes
 
@@ -100,15 +109,15 @@ The clearing node loads the ABI at runtime from
 After any contract change:
 
 1. `npx hardhat compile` — regenerates artifacts.
-2. Run the clearing-node tests — they exercise the web3.py wrapper end-to-end
-   with a local mock.
+2. Check `amm-clearing-node/src/contract.py` against the new ABI by hand: no
+   automated test exercises the web3.py wrapper yet (its role is open in #36).
 
 ## Toolchain pinning
 
 This contract project is intentionally on **Hardhat 2.x** + **hardhat-toolbox
 5.x**. Hardhat 3 is a major rewrite (new config format, ESM-first, EDR
-runtime). Migration is tracked as a separate effort — see the open
-[Hardhat 3 migration tracking issue](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues).
+runtime). Migration is tracked in
+[#67](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/67).
 Dependabot is configured to **ignore major-version bumps** of `hardhat` and
 `@nomicfoundation/hardhat-toolbox`.
 

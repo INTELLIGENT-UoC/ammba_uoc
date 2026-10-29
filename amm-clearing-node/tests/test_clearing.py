@@ -193,6 +193,26 @@ async def test_preference_matched_pair_trades_directly(community):
 
 
 @pytest.mark.asyncio
+async def test_direct_trades_emitted_once_per_matched_bid(community):
+    """A buyer with two bids gets one direct trade per matched bid, not per bid × match."""
+    buyer = actor_uuid("B1")
+    orders = [
+        make_int_order("B1a", "Bid", 3.0, created_by=buyer, partner=actor_uuid("S1")),
+        make_int_order("B1b", "Bid", 3.0, created_by=buyer, partner=actor_uuid("S1")),
+        make_int_order("S1", "Offer", 5.0, partner=buyer),
+    ]
+    result, db = await _clear(orders, community)
+
+    assert result["status"] == "cleared"
+    trade_ids = [t["tradeId"] for t in db.posted_trades]
+    assert len(trade_ids) == len(set(trade_ids))
+    direct = [t for t in db.posted_trades if POOL_ACTOR_UUID not in (t["buyerId"], t["sellerId"])]
+    assert len(direct) == 2
+    assert {t["bidId"] for t in direct} == {orders[0]["orderId"], orders[1]["orderId"]}
+    assert abs(sum(t["tradeQuantity"] for t in direct) - 5.0) < 1e-9
+
+
+@pytest.mark.asyncio
 async def test_differential_pricing_adjusts_seller_trades(community):
     """Green sellers earn more, grey less; buyers keep the uniform price."""
     community = community.model_copy(update={"green_subsidy_rate": 0.10, "grey_levy_rate": 0.10})

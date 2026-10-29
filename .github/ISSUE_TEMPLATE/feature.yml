@@ -1,6 +1,6 @@
 name: Feature request
 description: Propose a new feature or enhancement
-labels: ["enhancement", "triage"]
+labels: ["enhancement"]
 body:
   - type: dropdown
     id: component
@@ -8,6 +8,7 @@ body:
       label: Component
       options:
         - amm-clearing-node
+        - amm-calibration
         - amm-execution-node
         - amm-smart-contract
         - cross-component

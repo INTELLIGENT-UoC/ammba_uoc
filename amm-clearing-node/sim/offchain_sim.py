@@ -14,9 +14,9 @@ assumptions instead of the agreed contract.
 Run:
     uv run uvicorn sim.offchain_sim:app --port 8080
 
-The transport here is plain REST. When GSY's EW CGW request/response channels
-are finalised, the same int.* payloads move to a publish/poll client behind the
-adapter; this simulator and its fixtures stay the validation reference.
+It serves both transports: the plain REST surface (``rest``) and an emulation
+of the EWDS Client Gateway's publish/poll request-response channels (``ewds``),
+including ``measurementsQuery`` for the calibration fetch step.
 """
 
 import hashlib
@@ -29,6 +29,7 @@ from fastapi import Body, FastAPI, HTTPException
 from src.adapters import iso_to_unix
 from src.ontology import (
     SchemaValidationError,
+    validate,
     validate_clearing_result,
     validate_order,
     validate_trade,
@@ -38,12 +39,15 @@ logger = logging.getLogger(__name__)
 
 SEED_PATH = Path(__file__).parent / "seed_orders.json"
 SEED_MARKETS_PATH = Path(__file__).parent / "seed_markets.json"
+SEED_MEASUREMENTS_PATH = Path(__file__).parent / "seed_measurements.json"
+MEASUREMENT_SCHEMA = "int.measurement.schema.v1.json"
 
 
 class Store:
     def __init__(self) -> None:
         self.orders: list[dict] = []
         self.markets: list[dict] = []
+        self.measurements: list[dict] = []
         self.trades: list[dict] = []
         self.clearing_results: list[dict] = []
         # EWDS gateway emulation: per-topic message queues and per-(topic,
@@ -74,6 +78,13 @@ class Store:
             with open(SEED_MARKETS_PATH) as f:
                 self.markets = json.load(f)
             logger.info("Seeded %d markets", len(self.markets))
+        if SEED_MEASUREMENTS_PATH.exists():
+            with open(SEED_MEASUREMENTS_PATH) as f:
+                measurements = json.load(f)
+            for measurement in measurements:
+                validate(measurement, MEASUREMENT_SCHEMA)
+            self.measurements = measurements
+            logger.info("Seeded %d measurements", len(measurements))
 
 
 def _int_order_to_current_dto(order: dict) -> dict:
@@ -187,6 +198,7 @@ def create_app(store: Store | None = None) -> FastAPI:
         "ordersQuery": "ordersQueryResponse",
         "tradesQuery": "tradesQueryResponse",
         "marketsQuery": "marketsQueryResponse",
+        "measurementsQuery": "measurementsQueryResponse",
         "idsQuery": "idsQueryResponse",
     }
 
@@ -219,6 +231,25 @@ def create_app(store: Store | None = None) -> FastAPI:
                 if end is not None and ts > end:
                     continue
                 results.append(_int_order_to_current_dto(order))
+        elif topic == "measurementsQuery":
+            community = payload.get("communityUuid") or payload.get("community_uuid")
+            facility = payload.get("facilityId") or payload.get("facility_id")
+            start = payload.get("startTime", payload.get("start_time"))
+            end = payload.get("endTime", payload.get("end_time"))
+            results = []
+            for measurement in store.measurements:
+                if community is not None and measurement["communityUuid"] != community:
+                    continue
+                if facility is not None and measurement["facilityId"] != facility:
+                    continue
+                ts = measurement["timeSlot"]
+                ts = ts if isinstance(ts, int) else iso_to_unix(ts)
+                # Same window semantics as ordersQuery: inclusive on both ends.
+                if start is not None and ts < start:
+                    continue
+                if end is not None and ts > end:
+                    continue
+                results.append(measurement)
         elif topic == "marketsQuery":
             # MarketSchema dialect: snake_case keys, ISO times — served as-is.
             results = list(store.markets)

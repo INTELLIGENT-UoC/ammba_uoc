@@ -99,9 +99,7 @@ class TestApplyPriorityAllocation:
         bids = [make_bid("B1", 5.0, partners=["S1"])]
         offers = [make_offer("S1", 5.0, partners=["B1"])]
 
-        bids, offers, matches = apply_priority_allocation(
-            bids, offers, clearing_price=18.0, traded_quantity=5.0
-        )
+        bids, offers, matches = apply_priority_allocation(bids, offers, clearing_price=18.0)
 
         assert len(matches) == 1
         assert matches[0]["energy"] == 5.0
@@ -116,9 +114,7 @@ class TestApplyPriorityAllocation:
         bids = [make_bid("B1", 8.0, partners=["S1"])]
         offers = [make_offer("S1", 3.0, partners=["B1"])]
 
-        bids, offers, matches = apply_priority_allocation(
-            bids, offers, clearing_price=18.0, traded_quantity=3.0
-        )
+        bids, offers, matches = apply_priority_allocation(bids, offers, clearing_price=18.0)
 
         assert matches[0]["energy"] == 3.0
         assert bids[0]["allocated_energy"] == 5.0  # 8 - 3 remains for pool
@@ -129,9 +125,7 @@ class TestApplyPriorityAllocation:
         bids = [make_bid("B1", 5.0)]
         offers = [make_offer("S1", 5.0)]
 
-        bids, offers, matches = apply_priority_allocation(
-            bids, offers, clearing_price=18.0, traded_quantity=5.0
-        )
+        bids, offers, matches = apply_priority_allocation(bids, offers, clearing_price=18.0)
 
         assert len(matches) == 0
         assert bids[0]["allocated_energy"] == 5.0
@@ -241,9 +235,7 @@ class TestPreferenceAllocationIntegration:
             make_offer("S2", 5.0),
         ]
 
-        bids, offers = apply_preference_allocation(
-            bids, offers, clearing_price=18.0, traded_quantity=10.0
-        )
+        bids, offers = apply_preference_allocation(bids, offers, clearing_price=18.0)
 
         # B1↔S1 preference matched: allocated_energy should be reduced
         assert bids[0]["allocated_energy"] == 0.0  # B1 fully matched with S1

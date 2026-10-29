@@ -5,17 +5,15 @@ This is the **unclamped** sigmoid, matching the reference research implementatio
 from the clearing node's `sigmoid.py`, which clamps the result to
 ``[k_lower, k_upper]`` for runtime safety:
 
-- The clearing node clamps so a bad parameter set can never produce an
+- The clearing node clamps so that a numerical edge case can never produce an
   out-of-band price at runtime.
-- Calibration must NOT clamp, because the objective's boundary term measures how
-  fully the sigmoid spans ``[k_lower, k_upper]`` across the observed ratio range.
-  With a clamped price that signal would be lost.
+- The output of this function lies within ``(k_lower, k_upper)`` anyway (the
+  sigmoid denominator is in ``(1, inf)``), so the clamp would not change the
+  objective; calibration tunes the *shape* — how close the price gets to each
+  bound at the ratio extremes.
 
-The output of this function is always within ``(k_lower, k_upper)`` anyway (the
-sigmoid denominator is in ``(1, inf)``); the point is that the *shape* — how
-close it gets to each bound at the ratio extremes — is what calibration tunes.
-
-NOTE: keep the core formula in sync with `amm-clearing-node/src/sigmoid.py`.
+NOTE: keep the core formula in sync with ``amm-clearing-node/src/sigmoid.py``
+and ``amm-execution-node/src/sigmoid.py``.
 """
 
 import math

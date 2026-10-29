@@ -7,23 +7,23 @@ offchain_db:
 
 blockchain:
   rpc_url: "https://volta-rpc.energyweb.org"
-  contract_address: "0x0000000000000000000000000000000000000000"
+  contract_address: "" # empty = no on-chain step (set to enable the audit anchor)
 
 market:
-  time_slot_sec: 900              # 15-minute slots (GSY DEX default)
+  time_slot_sec: 900 # 15-minute slots (GSY DEX default)
 
 # Keyed by the community's UUID (the community_uuid sent on /trigger-clearing,
 # matching the int.* ontology's UUID identifiers).
 communities:
   11111111-1111-4111-8111-111111111111:
-    k_upper_ct_per_kwh: 28.5      # Retail buy price
-    k_lower_ct_per_kwh: 8.0       # Feed-in tariff
-    theta: 1.0                    # Sigmoid midpoint (optimized offline)
-    steepness: 2.5                # Sigmoid steepness (optimized offline)
-    pool_id: "AMM_POOL_communityid_1"          # Human-readable pool label
-    pool_actor_uuid: "22222222-2222-4222-8222-222222222222"  # Pool actor FK on int:Trade
+    k_upper_ct_per_kwh: 28.5 # Retail buy price
+    k_lower_ct_per_kwh: 8.0 # Feed-in tariff
+    theta: 1.0 # Sigmoid midpoint (optimized offline)
+    steepness: 2.5 # Sigmoid steepness (optimized offline)
+    pool_id: "AMM_POOL_communityid_1" # Human-readable pool label
+    pool_actor_uuid: "22222222-2222-4222-8222-222222222222" # Pool actor FK on int:Trade
     # Seller-side differential pricing (0.0 = disabled). Zero-sum: green
     # subsidies are funded by the grey levy; buyers keep the uniform price.
-    green_subsidy_rate: 0.0       # e.g. 0.10 = +10% target for green producers
-    grey_levy_rate: 0.0           # e.g. 0.05 = -5% levy on grey producers
-    levy_cap_ct_per_kwh: 5.0      # Max levy per kWh on grey producers
+    green_subsidy_rate: 0.0 # e.g. 0.10 = +10% target for green producers
+    grey_levy_rate: 0.0 # e.g. 0.05 = -5% levy on grey producers
+    levy_cap_ct_per_kwh: 5.0 # Max levy per kWh on grey producers

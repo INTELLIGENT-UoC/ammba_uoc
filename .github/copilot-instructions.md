@@ -36,18 +36,19 @@ Each component has a more detailed `AGENTS.md` in its directory.
 - Prices: internal ct/kWh, wire EUR/kWh — convert via `CT_PER_EUR` in `adapters.py`.
 - All on-chain numeric values are scaled by `NODE_FLOAT_SCALING_FACTOR = 10000`.
 - Validate against the schemas with `src/ontology.py` (no `jsonschema` dependency).
-- Configuration is loaded from `configuration.yaml` + env-var overrides via
-  `src/config.py`. Don't hard-code values.
+- The clearing node loads `configuration.yaml` + env-var overrides via
+  `src/config.py`; the calibration tool and settlement CLI take arguments.
+  Don't hard-code values.
 
 ## Commit messages
 
 This repo uses [Conventional Commits](https://www.conventionalcommits.org/).
 Allowed types: `feat`, `fix`, `perf`, `deps`, `refactor`, `docs`, `build`,
-`ci`, `chore`, `test`. Optional scopes: `clearing`, `execution`, `contract`,
-`compose`, `ci`, `docs`. Add `!` for breaking changes.
+`ci`, `chore`, `test`. Optional scopes: `clearing`, `calibration`, `execution`,
+`contract`, `compose`, `ci`, `docs`. Add `!` for breaking changes.
 
 ## Testing
 
-Suggest test changes alongside code changes. Test layout:
-`amm-*-node/tests/test_<module>.py` mirroring `src/<module>.py`.
-Contract tests live in `amm-smart-contract/test/`.
+Suggest test changes alongside code changes. Python tests live in each
+component's `tests/` (`test_<area>.py`, usually named after the module or
+area they cover); contract tests live in `amm-smart-contract/test/`.

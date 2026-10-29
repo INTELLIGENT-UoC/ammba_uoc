@@ -42,18 +42,21 @@ documented behaviour updates the affected `docs/` pages in the same PR.
 ```
 ammba_uoc/
 ├── AGENTS.md                        # ← you are here
-├── CLAUDE.md                        # thin shim → AGENTS.md
+├── CLAUDE.md                        # Claude Code guidance; imports AGENTS.md
 ├── README.md                        # user-facing intro
 ├── CONTRIBUTING.md                  # workflow, commit format
 ├── CITATION.cff                     # software citation metadata
 ├── docs/                            # documentation site (MkDocs)
 ├── mkdocs.yml                       # site config + nav (strict build in CI)
 ├── docker-compose.yml               # clearing node + optional simulator (--profile dev)
+├── .env.example                     # every environment variable, commented
+├── pyproject.toml                   # ruff configuration (all Python components)
 │
 ├── amm-smart-contract/
 │   ├── AGENTS.md                    # component-specific onboarding
 │   ├── contracts/AMMContract.sol    # the on-chain contract
 │   ├── test/AMMContract.test.js     # 17 hardhat tests
+│   ├── hardhat.config.js            # networks (volta, ewc)
 │   └── scripts/deploy.js
 │
 ├── amm-clearing-node/              # clearing engine
@@ -64,29 +67,35 @@ ammba_uoc/
 │   │   ├── adapters.py             # ★ int.* ↔ internal; int:Trade / int:ClearingResult builders
 │   │   ├── ontology.py             # schema loader + dependency-free validator
 │   │   ├── sigmoid.py               # price function
-│   │   ├── preferences.py           # mutual preferred-pair matching
+│   │   ├── preferences.py           # mutual preferred-pair matching; differential pricing
 │   │   ├── offchain_db.py           # "rest" transport: httpx client for the off-chain DB
 │   │   ├── ewds_client.py           # "ewds" transport: publish/poll via the EWDS gateway
 │   │   ├── scheduler.py             # self-trigger: discover closed AMM markets, clear them
+│   │   ├── retry.py                 # bounded back-off for transient transport errors
+│   │   ├── fetch_measurements.py    # CLI: int:Measurement snapshot over EWDS for calibration
 │   │   ├── contract.py              # web3.py client for AMMContract (optional)
 │   │   └── config.py                # YAML + env-var settings
+│   ├── configuration.yaml           # static parameters, communities
 │   ├── schemas/intelligent/         # vendored GSY DEX int.* schemas (wire contract)
 │   ├── sim/                         # local off-chain DB + gateway simulator (dev only)
-│   └── tests/                       # 101 pytest tests (incl. conftest fake DB + e2e)
+│   └── tests/                       # 114 pytest tests (incl. conftest fake DB + e2e)
 │
 ├── amm-calibration/                # offline sigmoid-param optimization (a job, not a service)
 │   ├── AGENTS.md
+│   ├── README.md
 │   ├── src/                         # pricing.py, optimizer.py, measurements.py, calibrate.py
 │   └── tests/
 │
 └── amm-execution-node/             # settlement engine (in development)
     ├── AGENTS.md                    # component-specific onboarding
-    ├── src/                         # engine.py, match_builder.py, validator.py, structs.py, chain.py
+    ├── src/                         # engine.py, match_builder.py, validator.py, structs.py, ids.py,
+    │                                # chain.py, main.py (CLI), penalties.py + sigmoid.py (dormant)
     └── tests/                       # settlement skeleton + penalty formulas
 ```
 
-The `★` files are the algorithmic heart of each service — start there when
-investigating any clearing/penalty behaviour.
+The `★` files are the algorithmic heart of the clearing node — start there when
+investigating clearing behaviour; for settlement and penalties, start at the
+execution node's own AGENTS.md.
 
 ---
 
@@ -122,9 +131,10 @@ local end-to-end flow.
 
 ## Critical conventions (don't break these)
 
-1. **Integer scaling**: all on-chain `uint256` values use
-   `NODE_FLOAT_SCALING_FACTOR = 10000`. Example: 28.5 ct/kWh → `285000`.
-   Helpers live in `sigmoid.py` (`to_node_int`, `from_node_int`).
+1. **Integer scaling**: all on-chain integer values use a factor of 10000.
+   Example: 28.5 ct/kWh → `285000`. Clearing-node helpers live in `sigmoid.py`
+   (`NODE_FLOAT_SCALING_FACTOR`, `to_node_int`, `from_node_int`); the settlement
+   engine uses `structs.SCALING_FACTOR` / `structs.scale`.
 
 2. **The wire contract is the `int.*` ontology** in
    [`amm-clearing-node/schemas/intelligent/`](amm-clearing-node/schemas/intelligent).
@@ -148,17 +158,21 @@ local end-to-end flow.
    is EUR/kWh. The `CT_PER_EUR` conversion lives only in `adapters.py`.
 
 6. **Validation is dependency-free** (`ontology.py`). Don't add `jsonschema`;
-   extend the small validator if a schema feature is missing. `sigmoid.py` is
-   duplicated in `amm-execution-node` (counterfactual pricing for penalties) —
-   keep the copies identical.
+   extend the small validator if a schema feature is missing. The price
+   function exists in three copies — `amm-clearing-node/src/sigmoid.py`,
+   `amm-execution-node/src/sigmoid.py` (counterfactual pricing for penalties)
+   and `amm-calibration/src/pricing.py` (unclamped, for the optimizer) — keep
+   the formula identical in all three.
 
 7. **Async everywhere** in the Python services: `httpx.AsyncClient`, FastAPI
    async endpoints, pytest-asyncio in `auto` mode. Don't introduce blocking
    I/O in request paths.
 
-8. **Configuration**: each service has `configuration.yaml` for static
-   parameters and reads env vars for secrets / per-environment overrides.
-   Env vars **always win** over YAML. See `src/config.py` in each service.
+8. **Configuration**: the clearing node reads `configuration.yaml` for static
+   parameters and env vars for secrets / per-environment overrides
+   (`src/config.py`); env vars **always win** over YAML. The calibration tool
+   and the settlement CLI take command-line arguments (live settlement also
+   reads env vars). `.env.example` lists every variable.
 
 9. **Notation**: the docs use the notation of the publication: price
    $\pi_t$, band $K_{\mathrm{up}}$ / $K_{\mathrm{lo}}$, midpoint $\Theta$,
@@ -219,7 +233,7 @@ local end-to-end flow.
 
 | What you changed                 | Minimum verification                                                             |
 | -------------------------------- | -------------------------------------------------------------------------------- |
-| Sigmoid / pricing                | `pytest tests/test_sigmoid.py` + property test with random ratios                |
+| Sigmoid / pricing                | `pytest tests/test_sigmoid.py`, plus the tests of the other two copies           |
 | Wire format / adapter            | `pytest tests/test_adapters.py tests/test_ontology.py`                           |
 | Trade construction               | `pytest tests/test_adapters.py` — built trades must validate against `int:Trade` |
 | Preferences                      | `pytest tests/test_preferences.py`                                               |
@@ -271,8 +285,8 @@ endpoints with the example payloads in [README.md](README.md) /
   numbers manually; the bot opens a "Release PR" when there are unreleased
   commits.
 - **Dependencies**: Dependabot opens weekly PRs. Major bumps may need manual
-  migration work — see [CONTRIBUTING.md](CONTRIBUTING.md) and the per-component
-  `AGENTS.md` files.
+  migration work — see the per-component `AGENTS.md` files (e.g. Hardhat 3 in
+  `amm-smart-contract/AGENTS.md`).
 
 ---
 

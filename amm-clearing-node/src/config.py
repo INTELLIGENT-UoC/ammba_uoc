@@ -15,7 +15,7 @@ class CommunityConfig(BaseModel):
     pool_id: str
     # Actor identity (UUID) the AMM pool trades as on the int:Trade wire. The
     # pool is a virtual counterparty; this is the FK used as buyerId/sellerId for
-    # pool trades. Provisional pending GSY's pool-registration decision.
+    # pool trades.
     pool_actor_uuid: str
     # Seller-side energy-type differential pricing (zero-sum: green subsidy
     # funded by the grey levy; disabled while both rates are 0). Buyers keep
@@ -30,7 +30,7 @@ class Settings(BaseModel):
     port: int = 8081
     offchain_db_url: str = "http://localhost:8080"
     rpc_url: str = "https://volta-rpc.energyweb.org"
-    contract_address: str = "0x0000000000000000000000000000000000000000"
+    contract_address: str = ""  # empty disables the optional on-chain step
     clearing_node_private_key: str = ""
     time_slot_sec: int = 900
     communities: dict[str, CommunityConfig] = {}
@@ -114,9 +114,10 @@ def load_settings(config_path: Path | None = None) -> Settings:
         "ewds_poll_interval_ms",
         "ewds_poll_max_interval_ms",
     }
+    # An empty variable counts as unset, so ``PORT=`` falls back to the default.
     for env_key, field in env_map.items():
         val = os.environ.get(env_key)
-        if val is not None:
+        if val:
             data[field] = int(val) if field in int_fields else val
 
     # Fallback chains matching GSY's EwdsClient env conventions.
@@ -133,10 +134,14 @@ def load_settings(config_path: Path | None = None) -> Settings:
                 break
 
     def _env_bool(key: str) -> bool | None:
-        raw = os.environ.get(key)
-        if raw is None:
+        raw = (os.environ.get(key) or "").strip().lower()
+        if not raw:
             return None
-        return raw.strip().lower() not in ("0", "false", "no")
+        if raw in ("1", "true", "yes", "on"):
+            return True
+        if raw in ("0", "false", "no", "off"):
+            return False
+        raise ValueError(f"{key} must be true/false, got {raw!r}")
 
     strict = _env_bool("OFFCHAIN_STRICT_VALIDATION")
     if strict is not None:
@@ -146,7 +151,7 @@ def load_settings(config_path: Path | None = None) -> Settings:
     if sched is not None:
         data["scheduler_enabled"] = sched
     interval = os.environ.get("SCHEDULER_POLL_INTERVAL_SEC")
-    if interval is not None:
+    if interval:
         data["scheduler_poll_interval_sec"] = int(interval)
 
     return Settings(**data)

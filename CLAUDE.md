@@ -43,8 +43,8 @@ guidance only. Maintainer-specific, git-ignored instructions live in
 
 > `amm-execution-node` is the settlement engine (in development; live
 > execution not yet enabled). Its penalty formulas are not yet wired into a
-> data flow. `sigmoid.py` is duplicated in both nodes: keep the formula in
-> sync.
+> data flow. The price function has three copies (`sigmoid.py` in both nodes,
+> `amm-calibration/src/pricing.py`): keep the formula in sync.
 
 ## Verification before claiming a task is done
 
@@ -68,9 +68,11 @@ green run.
   `jsonschema`; extend the small validator if a schema feature is missing.
 - **Prices cross the boundary in EUR/kWh; the sigmoid runs in ct/kWh.** The
   `CT_PER_EUR` conversion lives only in `adapters.py`; keep it there.
-- **`marketId`/IDs are UUIDs on the `int.*` wire.** The `0x`-prefixed bytes32
-  form is only the on-chain settlement / CGW query-payload path; don't conflate
-  the two.
+- **IDs are UUID strings on the `int.*` wire and in EWDS query payloads.**
+  On-chain settlement uses bytes16 (UUID bytes for orders, trades and markets;
+  blake2b-128 for actors; see `amm-execution-node/src/ids.py`). The
+  `0x`-prefixed bytes32 form belongs only to the AMMContract audit anchor.
+  Don't conflate them.
 - **Docs notation follows the publication** ($\pi_t$, $K_{\mathrm{up}}$,
   $K_{\mathrm{lo}}$, $\Theta$, $B$); don't reintroduce $p_t$, $K_u$, $K_l$,
   $\theta$, $\beta$ in `docs/`.

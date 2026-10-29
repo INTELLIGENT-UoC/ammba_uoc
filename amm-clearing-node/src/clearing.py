@@ -202,7 +202,7 @@ async def run_clearing(
         bid["allocated_energy"] = (bid["energy"] / total_demand_kwh) * traded_quantity
 
     # ── Step 6: Preference allocation (mutual preferred pairs) ────────
-    bids, offers = apply_preference_allocation(bids, offers, clearing_price_ct, traded_quantity)
+    bids, offers = apply_preference_allocation(bids, offers, clearing_price_ct)
 
     # ── Step 6b: Seller-side differential pricing (optional) ──────────
     # Green sellers receive clearing + subsidy, grey sellers clearing − levy

@@ -10,7 +10,7 @@ When reporting, include:
 
 - A description of the vulnerability and its impact.
 - Steps to reproduce, or a proof-of-concept.
-- Affected component(s): `amm-smart-contract`, `amm-clearing-node`, `amm-execution-node`, or other.
+- Affected component(s): `amm-smart-contract`, `amm-clearing-node`, `amm-calibration`, `amm-execution-node`, or other.
 - Your assessment of severity.
 
 We aim to acknowledge reports within **5 business days** and provide a remediation timeline within **15 business days** of acknowledgement. Coordinated disclosure preferred.
@@ -22,7 +22,7 @@ In scope:
 - Logic flaws in the clearing algorithm (sigmoid pricing, pro-rata allocation, preference matching) that allow value extraction or manipulation.
 - Smart-contract vulnerabilities in `AMMContract.sol` (access control, reentrancy, integer issues, signature/replay).
 - Penalty-calculation flaws in the execution node.
-- Server-side vulnerabilities in either FastAPI service (auth bypass, SSRF, injection, key handling).
+- Server-side vulnerabilities in the clearing node's FastAPI service (auth bypass, SSRF, injection, key handling).
 - Supply-chain issues introduced by direct dependencies.
 
 Out of scope:
