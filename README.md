@@ -69,7 +69,7 @@ comparison with order-book mechanisms.
 
 ## Architecture
 
-![AMMBA in the INTELLIGENT architecture](docs/assets/figures/context.png)
+![AMMBA in the INTELLIGENT architecture](docs/assets/figures/architecture.png)
 
 | Component                                    | Stack                    | Role                                                                                                                                                                                                                 |
 | -------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

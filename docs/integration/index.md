@@ -4,11 +4,14 @@ AMMBA is integrated into the INTELLIGENT platform as an alternative matching
 mechanism of the GSY Decentralised Energy Exchange (GSY DEX), alongside the
 exchange's order-book mechanisms.
 
-![AMMBA in the INTELLIGENT architecture](../assets/figures/context.png)
+![AMMBA in the INTELLIGENT architecture](../assets/figures/architecture.png)
 
-_Simplified view: participants' orders reach the GSY DEX off-chain storage,
-matching mechanisms access it through the Energy Web Digital Spine (EWDS), and
-matches are settled on-chain. The community selects the mechanism per market._
+_Simplified view: the Energy Web Digital Spine (EWDS) is the interface between
+the services. Orders and tariffs reach AMMBA through it; AMMBA hands its trades
+and clearing results to the GSY DEX execution engine for on-chain settlement,
+and settled trades flow back to the post-trade services. The calibration tool,
+run by the community's administrator, supplies $\Theta$ and $B$. The community
+selects the matching mechanism per market._
 
 ## Principles
 

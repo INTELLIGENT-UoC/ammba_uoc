@@ -107,7 +107,7 @@ When a change alters documented behaviour, update the affected pages in the
 same pull request. Formulas use `$…$` and `$$…$$`, which render on the site
 and on GitHub; links from `docs/` to files elsewhere in the repository use
 absolute GitHub URLs. Regenerate the figures with
-`uv run --no-project --with matplotlib --with numpy python docs/assets/figures/make_figures.py`
+`uv run --no-project --python 3.13 --with matplotlib --with numpy python docs/assets/figures/make_figures.py`
 instead of editing the images; the script fails if a label overflows its box or
 covers another element.
 
