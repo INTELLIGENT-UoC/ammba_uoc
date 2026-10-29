@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.7...v0.1.8) (2026-10-29)
+
+
+### Build
+
+* **deps:** Update mkdocs-material requirement in /docs ([#61](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/61)) ([8d8348d](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/8d8348da1ece4c300fae41c57910d7478bf8f5a6))
+
 ## [0.1.7](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.6...v0.1.7) (2026-10-21)
 
 
