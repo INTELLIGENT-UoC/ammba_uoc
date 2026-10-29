@@ -2,7 +2,7 @@
 
 Regenerate from the repository root:
 
-    uv run --no-project --with matplotlib --with numpy python docs/assets/figures/make_figures.py
+    uv run --no-project --python 3.13 --with matplotlib --with numpy python docs/assets/figures/make_figures.py
 
 Diagrams are drawn on a unit square that fills the whole figure, and nothing is
 clipped at its edges. After drawing, every diagram is checked: box texts must
@@ -243,67 +243,104 @@ def legend(ax, entries, y=-0.02):
     )
 
 
-# ── Context: AMMBA among the matching mechanisms of the GSY DEX ──────────
-def fig_context(path, ammba_note="(this repository)"):
-    d = Diagram(6.8, 3.5)
+# ── Architecture: AMMBA in the GSY DEX, with the EWDS as the interface ───
+def fig_architecture(path, ammba_note="(this repository)"):
+    d = Diagram(6.8, 5.0)
+    # Services and actors above the data spine.
+    d.box(0.01, 0.81, 0.19, 0.15, "Community members", ["households,", "prosumers"])
+    d.box(
+        0.25,
+        0.81,
+        0.19,
+        0.15,
+        "Forecasting service",
+        ["forecasts and", "trading preferences"],
+        edge=GREY,
+        fill=LIGHT_GREY,
+    )
+    d.box(0.49, 0.81, 0.19, 0.15, "Grid operator", ["retail price, feed-in", "tariff, grid fees"])
+    d.box(
+        0.74,
+        0.81,
+        0.25,
+        0.15,
+        "Post-trade services",
+        ["billing and payment,", "analytics, user interfaces"],
+    )
     d.box(
         0.01,
-        0.66,
-        0.28,
-        0.28,
-        "Community participants",
-        ["households and prosumers,", "or their energy", "management systems"],
-    )
-    d.box(
-        0.36,
-        0.66,
-        0.28,
-        0.28,
-        "GSY DEX off-chain storage",
-        ["orders, markets,", "measurements, trades"],
-    )
-    d.box(
-        0.71,
-        0.66,
-        0.28,
-        0.28,
-        "Energy Web Digital Spine",
-        ["secure data exchange", "between platform services"],
+        0.645,
+        0.98,
+        0.095,
+        "Energy Web Digital Spine (EWDS)",
+        "authenticated exchange of orders, tariffs, trades and clearing results between the services",
         edge=TEAL,
         fill=LIGHT_TEAL,
+        fs=6.8,
     )
-    d.frame(0.40, 0.03, 0.59, 0.50, "matching mechanisms, selected per community and market")
+    # GSY DEX spot market below the spine.
+    d.frame(0.01, 0.185, 0.98, 0.395, " ")
+    d.note((0.02, 0.555), "GSY DEX spot market", ha="left", fs=6.8)
     d.box(
-        0.42,
-        0.07,
-        0.265,
-        0.33,
-        ["GSY DEX", "matching engine"],
-        ["order-book mechanisms:", "pay-as-bid, pay-as-clear"],
+        0.03,
+        0.25,
+        0.53,
+        0.24,
+        ["AMMBA: AMM-based batch auction", ammba_note],
+        [
+            "collects the orders of each 15-minute slot in one batch,",
+            "prices the batch from its supply-to-demand ratio,",
+            "allocates the traded energy pro rata through the pool",
+        ],
+        edge=ORANGE,
+        fill=LIGHT_ORANGE,
+        fs=7.0,
     )
     d.box(
-        0.705,
-        0.07,
-        0.265,
+        0.68,
+        0.36,
+        0.29,
+        0.15,
+        ["GSY DEX", "Execution Engine"],
+        ["verifies delivery,", "settles on-chain"],
+    )
+    d.box(
+        0.68,
+        0.21,
+        0.29,
+        0.10,
+        "GSY DEX matching engine",
+        ["pay-as-bid, pay-as-clear"],
+        edge=GREY,
+        fill="white",
+        dashed=True,
+        fs=6.6,
+    )
+    # Calibration below the market.
+    d.box(0.03, 0.015, 0.20, 0.12, "Community manager", ["or another designated", "administrator"])
+    d.box(
         0.33,
-        "AMMBA",
-        ["AMM batch clearing", ammba_note],
+        0.015,
+        0.23,
+        0.12,
+        "Calibration tool",
+        [r"$\Theta$ and $B$ from the", "metering history"],
         edge=ORANGE,
         fill=LIGHT_ORANGE,
     )
-    d.box(
-        0.01,
-        0.09,
-        0.28,
-        0.29,
-        "Settlement and execution",
-        ["on-chain verification", "and settlement of matches"],
-    )
-    d.arrow((0.29, 0.80), (0.36, 0.80), label="orders", offset=(0, 9))
-    d.arrow((0.64, 0.80), (0.71, 0.80), style="<|-|>")
-    d.arrow((0.85, 0.66), (0.85, 0.53), style="<|-|>")
-    d.arrow((0.40, 0.235), (0.29, 0.235), label="matches", offset=(0, 9))
-    d.arrow((0.20, 0.38), (0.40, 0.66), dashed=True, label="settled trades", offset=(-30, 4))
+    # Flows.
+    d.arrow((0.20, 0.885), (0.25, 0.885), label="data", offset=(0, 8))
+    d.arrow((0.345, 0.81), (0.345, 0.74), label="orders", offset=(20, 0))
+    d.arrow((0.345, 0.645), (0.345, 0.49), label="orders", offset=(20, 0))
+    d.arrow((0.585, 0.81), (0.585, 0.74), label="tariffs", offset=(20, 0))
+    d.arrow((0.50, 0.645), (0.50, 0.49), label="price band", offset=(28, 0))
+    d.arrow((0.56, 0.435), (0.68, 0.435), label="trades,", offset=(0, 16))
+    d.note((0.62, 0.435), "clearing result", offset=(0, 8), fs=6.8, background=True)
+    d.arrow((0.825, 0.31), (0.825, 0.36), dashed=True, color="#9A9A9A")
+    d.arrow((0.865, 0.51), (0.865, 0.645), label="settled trades", lpos=0.78, offset=(-36, 0))
+    d.arrow((0.865, 0.74), (0.865, 0.81))
+    d.arrow((0.23, 0.075), (0.33, 0.075), label="runs", offset=(0, 8))
+    d.arrow((0.445, 0.135), (0.445, 0.25), label=r"$\Theta$, $B$", offset=(14, 0))
     d.save(path)
 
 
@@ -484,8 +521,8 @@ def fig_governance(path):
     legend(
         d.ax,
         [
-            ("community manager", BLUE),
-            ("community members (assembly or DAO)", ORANGE),
+            ("community manager or other administrator", BLUE),
+            ("community members, through their governance system", ORANGE),
             ("platform (no discretion)", TEAL),
         ],
     )
@@ -496,7 +533,7 @@ def fig_governance(path):
 COMPONENT_TEXT = {
     "storage": ["GSY DEX via EWDS,", "or local simulator"],
     "settlement": ["amm-execution-node", "(in development)"],
-    "matches": "matches",
+    "matches": "trades",
     "legend": ("core components", "optional", "in development"),
 }
 
@@ -509,8 +546,8 @@ def fig_components(path, text=None):
         0.64,
         0.24,
         0.28,
-        "Metering history",
-        ["per-slot energy records", "of the community"],
+        "Administrator",
+        ["e.g. the community", "manager"],
         edge=GREY,
         fill=LIGHT_GREY,
     )
@@ -520,7 +557,7 @@ def fig_components(path, text=None):
         0.28,
         0.28,
         "Calibration tool",
-        ["amm-calibration", "offline, run by the", "community manager"],
+        ["amm-calibration", "offline, on a", "measurement snapshot"],
         edge=ORANGE,
         fill=LIGHT_ORANGE,
     )
@@ -540,7 +577,7 @@ def fig_components(path, text=None):
         0.28,
         0.30,
         "Clearing engine",
-        ["amm-clearing-node", "pricing, allocation, trades"],
+        ["amm-clearing-node", "pricing, allocation, trades;", "measurement fetch"],
         edge=ORANGE,
         fill=LIGHT_ORANGE,
     )
@@ -565,9 +602,11 @@ def fig_components(path, text=None):
         fill="white",
         dashed=True,
     )
-    d.arrow((0.25, 0.78), (0.35, 0.78))
-    d.arrow((0.49, 0.64), (0.49, 0.44), label=r"parameters $\Theta$, $B$", offset=(38, 0))
-    d.arrow((0.75, 0.36), (0.63, 0.36), label="orders", offset=(0, 8))
+    d.arrow((0.25, 0.78), (0.35, 0.78), label="runs", offset=(0, 8))
+    d.arrow((0.42, 0.44), (0.42, 0.64), label="snapshot", offset=(-24, 0))
+    d.arrow((0.53, 0.64), (0.53, 0.44), label=r"$\Theta$, $B$", offset=(14, 0))
+    d.arrow((0.75, 0.36), (0.63, 0.36), label="orders,", offset=(0, 16))
+    d.note((0.69, 0.36), "measurements", offset=(0, 8), fs=6.8, background=True)
     d.arrow((0.63, 0.22), (0.75, 0.22), label="trades, results", offset=(0, -8))
     d.arrow((0.60, 0.44), (0.80, 0.66), dashed=True, color=BLUE)
     d.arrow((0.35, 0.29), (0.25, 0.29), dashed=True, color="#9A9A9A", label=text["matches"])
@@ -613,7 +652,7 @@ def fig_kpis(path):
 
 if __name__ == "__main__":
     out = Path(__file__).parent
-    fig_context(out / "context.png")
+    fig_architecture(out / "architecture.png")
     fig_pricing(out / "pricing.png")
     fig_pool(out / "pool.png")
     fig_governance(out / "governance.png")
