@@ -13,7 +13,7 @@ abstract: >-
   INTELLIGENT (Grant Agreement No. 101160678).
 authors:
   - name: "University of Cologne, INTELLIGENT project team"
-version: 0.1.7 # x-release-please-version
+version: 0.1.8 # x-release-please-version
 license: GPL-3.0-or-later
 repository-code: "https://github.com/INTELLIGENT-UoC/ammba_uoc"
 keywords:
