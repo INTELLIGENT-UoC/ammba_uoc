@@ -1,18 +1,40 @@
 services:
   amm-clearing-node:
     build: ./amm-clearing-node
+    # Every variable can be set in .env (copied from .env.example) or in the
+    # shell. An empty value falls back to the clearing node's own default; the
+    # only Compose-specific default points the "rest" transport at the bundled
+    # simulator (compose "dev" profile). Reference: docs/reference/configuration.md
     environment:
-      # Point at the real GSY DEX off-chain DB in staging/production, or at the
-      # bundled simulator (compose "dev" profile) for local end-to-end testing.
-      - OFFCHAIN_DB_URL=${OFFCHAIN_DB_URL:-http://offchain-db-sim:8080}
-      - RPC_URL=https://volta-rpc.energyweb.org
-      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-}
-      - CLEARING_NODE_PRIVATE_KEY=${CLEARING_NODE_PRIVATE_KEY:-}
-      - TIME_SLOT_SEC=900
+      OFFCHAIN_TRANSPORT: ${OFFCHAIN_TRANSPORT:-}
+      OFFCHAIN_DB_URL: ${OFFCHAIN_DB_URL:-http://offchain-db-sim:8080}
+      OFFCHAIN_STRICT_VALIDATION: ${OFFCHAIN_STRICT_VALIDATION:-}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-}
+      SCHEDULER_POLL_INTERVAL_SEC: ${SCHEDULER_POLL_INTERVAL_SEC:-}
+      TIME_SLOT_SEC: ${TIME_SLOT_SEC:-}
+      EWDS_GATEWAY_URL: ${EWDS_GATEWAY_URL:-}
+      EWDS_TOPIC_OWNER: ${EWDS_TOPIC_OWNER:-}
+      EWDS_TOPIC_VERSION: ${EWDS_TOPIC_VERSION:-}
+      EWDS_REQUEST_PUBLISH_FQCN: ${EWDS_REQUEST_PUBLISH_FQCN:-}
+      EWDS_RESPONSE_SUBSCRIBE_FQCN: ${EWDS_RESPONSE_SUBSCRIBE_FQCN:-}
+      EWDS_AMM_CLIENT_ID: ${EWDS_AMM_CLIENT_ID:-}
+      EWDS_RESPONSE_TIMEOUT_MS: ${EWDS_RESPONSE_TIMEOUT_MS:-}
+      EWDS_RESPONSE_POLL_INTERVAL_MS: ${EWDS_RESPONSE_POLL_INTERVAL_MS:-}
+      EWDS_RESPONSE_POLL_MAX_INTERVAL_MS: ${EWDS_RESPONSE_POLL_MAX_INTERVAL_MS:-}
+      RPC_URL: ${RPC_URL:-}
+      CONTRACT_ADDRESS: ${CONTRACT_ADDRESS:-}
+      CLEARING_NODE_PRIVATE_KEY: ${CLEARING_NODE_PRIVATE_KEY:-}
     ports:
       - "8081:8081"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      # The slim Python image has no curl; probe with the standard library.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8081/health', timeout=4)",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -26,7 +48,17 @@ services:
   # Never started in staging/production (no profile match there).
   offchain-db-sim:
     build: ./amm-clearing-node
-    command: ["uv", "run", "uvicorn", "sim.offchain_sim:app", "--host", "0.0.0.0", "--port", "8080"]
+    command:
+      [
+        "uv",
+        "run",
+        "uvicorn",
+        "sim.offchain_sim:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8080",
+      ]
     profiles: ["dev"]
     ports:
       - "8080:8080"

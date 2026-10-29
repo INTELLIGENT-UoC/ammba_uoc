@@ -122,7 +122,6 @@ class SettlementEngine:
             await self.registrar.ensure_mapped(actors)
 
         # 4. Place the pool standing orders backing the fresh matches.
-        fresh_ids = {m.trade_id for m in fresh}
         needed_pool_orders = [
             p
             for p in build.pool_orders
@@ -144,5 +143,4 @@ class SettlementEngine:
                 report.settled[trade_id] = tx_hash
             logger.info("Settled %d matches in %s", len(chunk), tx_hash)
 
-        del fresh_ids
         return report

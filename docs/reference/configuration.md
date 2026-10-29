@@ -3,8 +3,23 @@
 The clearing engine reads static parameters from
 `amm-clearing-node/configuration.yaml` and deployment-specific values from
 environment variables. Environment variables always take precedence over the
-YAML file. The repository's `.env.example` lists all variables with their
-defaults.
+YAML file; an empty variable counts as unset. The repository's `.env.example`
+lists every variable, and Docker Compose passes them from `.env` or the shell
+to the clearing node.
+
+## YAML file
+
+| Key                           | Default                           | Environment override |
+| ----------------------------- | --------------------------------- | -------------------- |
+| `application.host`, `.port`   | `0.0.0.0`, `8081`                 | `HOST`, `PORT`       |
+| `offchain_db.base_url`        | `http://localhost:8080`           | `OFFCHAIN_DB_URL`    |
+| `blockchain.rpc_url`          | `https://volta-rpc.energyweb.org` | `RPC_URL`            |
+| `blockchain.contract_address` | empty (no audit anchor)           | `CONTRACT_ADDRESS`   |
+| `market.time_slot_sec`        | `900`                             | `TIME_SLOT_SEC`      |
+| `communities`                 | none                              | none                 |
+
+The transport, the EWDS settings, the scheduler, inbound validation and the
+signing key have no YAML key and are set through environment variables only.
 
 ## Community parameters
 
@@ -43,10 +58,10 @@ The last three parameters configure
 
 | Variable                                               | Default                                 | Meaning                                                                                             |
 | ------------------------------------------------------ | --------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `HOST`, `PORT`                                         | `0.0.0.0`, `8081`                       | Bind address of the HTTP API                                                                        |
+| `HOST`, `PORT`                                         | `0.0.0.0`, `8081`                       | Bind address when started with `python -m src.main`; uvicorn and the image set `--host`/`--port`    |
 | `TIME_SLOT_SEC`                                        | `900`                                   | Length of a market slot in seconds                                                                  |
 | `OFFCHAIN_TRANSPORT`                                   | `rest`                                  | `rest` for direct store access, `ewds` for the EWDS gateway                                         |
-| `OFFCHAIN_DB_URL`                                      | `http://localhost:8080`                 | Off-chain store, for the `rest` transport                                                           |
+| `OFFCHAIN_DB_URL`                                      | `http://localhost:8080`                 | Off-chain store, for the `rest` transport; Compose defaults to the simulator                        |
 | `OFFCHAIN_STRICT_VALIDATION`                           | `true`                                  | Drop (`true`) or only log (`false`) inbound orders that fail validation                             |
 | `SCHEDULER_ENABLED`                                    | `false`                                 | Enable the self-trigger scheduler                                                                   |
 | `SCHEDULER_POLL_INTERVAL_SEC`                          | `60`                                    | Base interval of the scheduler                                                                      |
@@ -60,11 +75,13 @@ The last three parameters configure
 | `EWDS_RESPONSE_POLL_INTERVAL_MS`                       | `1000`                                  | Delay before the first response poll                                                                |
 | `EWDS_RESPONSE_POLL_MAX_INTERVAL_MS`                   | `5000`                                  | Ceiling of the polling back-off                                                                     |
 | `RPC_URL`                                              | `https://volta-rpc.energyweb.org`       | Chain endpoint, for the optional audit anchor                                                       |
-| `CONTRACT_ADDRESS`                                     | none                                    | Address of the audit-anchor contract                                                                |
+| `CONTRACT_ADDRESS`                                     | empty                                   | Address of the audit-anchor contract                                                                |
 | `CLEARING_NODE_PRIVATE_KEY`                            | none                                    | Key that signs audit-anchor transactions                                                            |
 
-Without `CONTRACT_ADDRESS` and `CLEARING_NODE_PRIVATE_KEY`, the engine runs
-fully off-chain and skips the audit anchor.
+The audit anchor is used only when both `CONTRACT_ADDRESS` and
+`CLEARING_NODE_PRIVATE_KEY` are set; otherwise the engine runs fully off-chain.
+Boolean variables accept `true`/`false`, `1`/`0`, `yes`/`no` and `on`/`off`;
+any other value stops the service at start-up.
 
 ## Other components
 
@@ -76,7 +93,12 @@ fully off-chain and skips the audit anchor.
 `SETTLEMENT_PRIVATE_KEY`; the dry-run planner needs none of them. See the
 [settlement engine](../implementation/settlement-engine.md).
 
-**Contract deployment.** `DEPLOYER_PRIVATE_KEY` and `CLEARING_NODE_ADDRESS`,
-used by `amm-smart-contract/scripts/deploy.js`.
+**Contract deployment.** `amm-smart-contract/scripts/deploy.js` needs
+`DEPLOYER_PRIVATE_KEY` and `CLEARING_NODE_ADDRESS` (the account allowed to call
+`clearMarket`). Optionally, `COMMUNITY_UUID` with `K_UPPER`, `K_LOWER`, `THETA`
+and `STEEPNESS` (scaled by 10,000; defaults 285000, 80000, 10000, 25000)
+registers one community's parameters after deployment; the community
+identifier must fit into 32 bytes. Hardhat does not read `.env`: export the
+variables in the shell.
 
 Never commit real keys. Keep them in environment or secret storage.

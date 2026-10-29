@@ -12,9 +12,10 @@ Two-layer message format: the transport DTO (camelCase, ``payload`` is a JSON
 ``{requestId, success, data, error}`` stringified inside ``message.payload``.
 
 Exposes the same interface as ``OffchainDBClient`` so ``run_clearing`` is
-transport-agnostic. Reads (orders/trades) go over EWDS; writes are a no-op with
-a warning — per GSY, matching engines emit matches settled on-chain (v2), so
-there is no EWDS write path for trades or clearing results.
+transport-agnostic. Reads (orders, trades, markets, measurements, id mappings)
+go over EWDS; writes are a no-op with a warning, because the gateway offers no
+write path for trades or clearing results (settled trades are written by the
+off-chain storage from on-chain settlement events).
 
 Order DTOs are normalized to canonical int:Order shape via
 ``adapters.ewds_order_to_int_order`` before being returned, because the
@@ -128,13 +129,6 @@ class EwdsOffchainClient:
         base = self.config.gateway_url.rstrip("/")
         self._messages_url = f"{base}/api/v2/messages"
         self._client = httpx.AsyncClient(timeout=30.0)
-
-    async def health_check(self) -> bool:
-        try:
-            resp = await self._client.get(self._messages_url, params={"amount": "1"})
-            return resp.status_code < 500
-        except httpx.HTTPError:
-            return False
 
     async def get_orders(self, market_id: str, start_time: int, end_time: int) -> list[dict]:
         """Fetch orders for a market slot window, normalized to int:Order.
@@ -274,8 +268,13 @@ class EwdsOffchainClient:
     async def _poll(self, operation: str, request_id: str, response_topic: str) -> list[dict]:
         poll_client_id = client_id_for_suffix(self.config.client_id, response_topic)
         deadline = time.monotonic() + self.config.timeout_ms / 1000.0
-        delay_ms = float(self.config.poll_interval_ms)
-        max_delay_ms = float(max(self.config.poll_max_interval_ms, self.config.poll_interval_ms))
+        delays = iter(
+            poll_delays_ms(
+                self.config.poll_interval_ms,
+                self.config.poll_max_interval_ms,
+                self.config.timeout_ms,
+            )
+        )
 
         while True:
             if time.monotonic() > deadline:
@@ -320,6 +319,10 @@ class EwdsOffchainClient:
                 return parsed.get("data") or []
 
             # Geometric back-off between polls (see poll_delays_ms).
+            delay_ms = next(delays, None)
+            if delay_ms is None:
+                raise EwdsTimeout(
+                    f"EWDS timeout waiting for {operation} response " f"(request_id={request_id})"
+                )
             remaining_s = max(0.0, deadline - time.monotonic())
             await asyncio.sleep(min(delay_ms / 1000.0, remaining_s))
-            delay_ms = min(delay_ms * POLL_BACKOFF_FACTOR, max_delay_ms)

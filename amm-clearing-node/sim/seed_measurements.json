@@ -1,0 +1,93 @@
+[
+  {
+    "facilityId": "dddddddd-0001-4001-8001-000000000001",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782900000,
+    "creationTime": 1782900900,
+    "energyKwh": 6.0
+  },
+  {
+    "facilityId": "dddddddd-0002-4002-8002-000000000002",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782900000,
+    "creationTime": 1782900900,
+    "energyKwh": 4.0
+  },
+  {
+    "facilityId": "dddddddd-0003-4003-8003-000000000003",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782900000,
+    "creationTime": 1782900900,
+    "energyKwh": -5.0
+  },
+  {
+    "facilityId": "dddddddd-0001-4001-8001-000000000001",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782900900,
+    "creationTime": 1782901800,
+    "energyKwh": 5.0
+  },
+  {
+    "facilityId": "dddddddd-0002-4002-8002-000000000002",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782900900,
+    "creationTime": 1782901800,
+    "energyKwh": 4.0
+  },
+  {
+    "facilityId": "dddddddd-0003-4003-8003-000000000003",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782900900,
+    "creationTime": 1782901800,
+    "energyKwh": -9.0
+  },
+  {
+    "facilityId": "dddddddd-0001-4001-8001-000000000001",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782901800,
+    "creationTime": 1782902700,
+    "energyKwh": 4.0
+  },
+  {
+    "facilityId": "dddddddd-0002-4002-8002-000000000002",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782901800,
+    "creationTime": 1782902700,
+    "energyKwh": 2.0
+  },
+  {
+    "facilityId": "dddddddd-0003-4003-8003-000000000003",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782901800,
+    "creationTime": 1782902700,
+    "energyKwh": -9.0
+  },
+  {
+    "facilityId": "dddddddd-0001-4001-8001-000000000001",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782902700,
+    "creationTime": 1782903600,
+    "energyKwh": 5.0
+  },
+  {
+    "facilityId": "dddddddd-0002-4002-8002-000000000002",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782902700,
+    "creationTime": 1782903600,
+    "energyKwh": 3.0
+  },
+  {
+    "facilityId": "dddddddd-0003-4003-8003-000000000003",
+    "communityUuid": "11111111-1111-4111-8111-111111111111",
+    "timeSlot": 1782902700,
+    "creationTime": 1782903600,
+    "energyKwh": -6.0
+  },
+  {
+    "facilityId": "dddddddd-0009-4009-8009-000000000009",
+    "communityUuid": "99999999-9999-4999-8999-999999999999",
+    "timeSlot": 1782900000,
+    "creationTime": 1782900900,
+    "energyKwh": 1.0
+  }
+]

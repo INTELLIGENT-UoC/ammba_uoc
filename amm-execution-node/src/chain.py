@@ -1,13 +1,13 @@
 """On-chain access for settlement (OrderRegistry + TradeSettlement).
 
 Thin async web3 wrapper. Everything environment-specific (RPC URL, contract
-addresses, the pool/operator signer key, gas funding, chain id) is pending
-from GSY — until those arrive this client is exercised only through the
-FakeChain used in tests, and ``main.py`` refuses --execute with a clear
-message listing what is missing.
+addresses, the pool/operator signer key, gas funding, chain id) comes from the
+settlement environment, which is not available yet: the engine tests
+substitute a FakeChain for this client, and ``main.py`` refuses --execute with
+a message listing what is missing.
 
-ABI fragments are hand-declared for exactly the three calls the engine needs;
-they are replaced by GSY's compiled artifacts once the contracts freeze.
+ABI fragments are hand-declared for exactly the two calls the engine needs;
+they are replaced by the compiled contract artifacts once the contracts freeze.
 """
 
 import logging

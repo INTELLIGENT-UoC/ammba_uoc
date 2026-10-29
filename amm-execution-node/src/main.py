@@ -1,9 +1,9 @@
 """AMM settlement engine CLI (skeleton).
 
-Dry-run is the only mode until GSY provides the execution environment
-(frozen contracts + addresses, OPERATOR_ROLE grant, target chain, funded
-signer, id-mapping utilities). ``--execute`` exists but exits with a checklist
-of exactly what is still missing.
+Dry-run is the only mode until the settlement environment is available
+(frozen contracts and addresses, OPERATOR_ROLE grant, target chain, funded
+signer). ``--execute`` exists but exits with a checklist of exactly what is
+still missing.
 
 Usage:
     uv run python -m src.main --trades trades.json --orders orders.json \
@@ -34,9 +34,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--trades", help="int:Trade JSON list from the clearing node")
     parser.add_argument("--orders", help="int:Order JSON list referenced by the trades")
     parser.add_argument("--pool-actor", help="pool actor UUID")
-    parser.add_argument("--k-upper", type=float, help="community price ceiling")
-    parser.add_argument("--k-lower", type=float, help="community price floor")
-    parser.add_argument("--time-slot", type=int, default=0)
+    parser.add_argument(
+        "--k-upper", type=float, help="community price ceiling, in the unit of tradePrice (EUR/kWh)"
+    )
+    parser.add_argument(
+        "--k-lower", type=float, help="community price floor, in the unit of tradePrice (EUR/kWh)"
+    )
     parser.add_argument("--execute", action="store_true", help="submit transactions (needs env)")
     args = parser.parse_args(argv)
 
@@ -44,8 +47,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         print(
             "\nSkeleton status: dry-run planning works; --execute is blocked on "
-            "the GSY execution environment (contracts freeze, role grant, chain, "
-            "funded key, id-mapping).",
+            "the settlement environment (contracts freeze, role grant, chain, "
+            "funded key).",
             file=sys.stderr,
         )
         return 0
@@ -62,7 +65,6 @@ def main(argv: list[str] | None = None) -> int:
         pool_actor_uuid=args.pool_actor,
         k_upper=args.k_upper,
         k_lower=args.k_lower,
-        time_slot=args.time_slot,
     )
     violations = validate_batch(build.matches)
 
@@ -80,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         missing = [key for key in EXECUTION_ENV if not os.environ.get(key)]
         print(
             "\n--execute unavailable: missing environment "
-            f"({', '.join(missing) if missing else 'none'}) and the GSY-side "
+            f"({', '.join(missing) if missing else 'none'}) and the upstream "
             "prerequisites (OPERATOR_ROLE grant, ActorRegistry authorization for "
             "the pool actor, market-open placement rule for pool orders).",
             file=sys.stderr,

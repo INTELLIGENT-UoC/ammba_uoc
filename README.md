@@ -110,9 +110,9 @@ Each Python component is an independent [uv](https://docs.astral.sh/uv/)
 project, and the contract uses Hardhat:
 
 ```bash
-cd amm-clearing-node  && uv sync --extra dev && uv run pytest   # 101 tests
+cd amm-clearing-node  && uv sync --extra dev && uv run pytest   # 114 tests
 cd amm-calibration    && uv sync --extra dev && uv run pytest   # 8 tests
-cd amm-execution-node && uv sync --extra dev && uv run pytest   # 37 tests
+cd amm-execution-node && uv sync --extra dev && uv run pytest   # 38 tests
 cd amm-smart-contract && npm ci && npx hardhat test             # 17 tests
 ```
 

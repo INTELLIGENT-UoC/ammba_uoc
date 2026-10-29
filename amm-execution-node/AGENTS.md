@@ -64,9 +64,11 @@ tests/
 6. **Two id conventions, following the GSY DEX.**
    Order/trade/market ids are the UUID's 16 bytes (`parse_uuid_or_hex_bytes16`
    parity). Actor ids are _mapped_, not converted: `blake2b-128(offchain_id)`,
-   computed locally in `ids.actor_onchain_id` and registered with the storage
-   through the engine's `IdRegistrar` (`ids.query` / `POST /ids`) so
-   settlement events can be attributed back off-chain.
+   computed locally in `ids.actor_onchain_id`. The engine hands every actor to
+   an `IdRegistrar` so the storage can attribute settlement events back
+   off-chain; the registrar is an interface only (no implementation yet), and
+   the clearing node's `ewds_client.get_or_create_onchain_id` is the client
+   call it will wrap (`ids.query` / `POST /ids`).
 
 ## ⚠ Known limitations (do not work around silently)
 
@@ -83,7 +85,7 @@ tests/
 
 ```bash
 uv sync --extra dev
-uv run pytest -v                 # 37 tests
+uv run pytest -v                 # 38 tests
 uv run python -m src.main        # CLI status / dry-run planner
 ```
 

@@ -75,7 +75,6 @@ def apply_priority_allocation(
     bids: list[dict],
     offers: list[dict],
     clearing_price: float,
-    traded_quantity: float,
 ) -> tuple[list[dict], list[dict], list[dict]]:
     """Apply Preferred Trading Partner priority allocation.
 
@@ -112,10 +111,7 @@ def apply_priority_allocation(
             {
                 "buyer": bid["created_by"],
                 "seller": offer["created_by"],
-                "buyer_area_uuid": bid["area_uuid"],
-                "seller_area_uuid": offer["area_uuid"],
                 "energy": match_energy,
-                "energy_rate": clearing_price,
                 "bid_order_id": bid.get("order_id", ""),
                 "offer_order_id": offer.get("order_id", ""),
             }
@@ -260,7 +256,6 @@ def apply_preference_allocation(
     bids: list[dict],
     offers: list[dict],
     clearing_price: float,
-    traded_quantity: float,
 ) -> tuple[list[dict], list[dict]]:
     """Apply user preference matching to allocated orders.
 
@@ -279,9 +274,7 @@ def apply_preference_allocation(
         return bids, offers
 
     # Apply priority allocation for mutual preferred trading partners
-    bids, offers, preference_matches = apply_priority_allocation(
-        bids, offers, clearing_price, traded_quantity
-    )
+    bids, offers, preference_matches = apply_priority_allocation(bids, offers, clearing_price)
 
     if preference_matches:
         logger.info(
@@ -290,16 +283,13 @@ def apply_preference_allocation(
             sum(m["energy"] for m in preference_matches),
         )
 
-    # Store preference matches on bids/offers for trade builder to use
-    # (The clearing.py will check for this and generate direct trades)
+    # Attach each match to the bid whose order it settles; clearing.py emits one
+    # direct trade per attached match. Keyed by order id, not by actor: a buyer
+    # with several bids would otherwise emit every match once per bid.
     if preference_matches:
         for bid in bids:
             bid["_preference_matches"] = [
-                m for m in preference_matches if m["buyer"] == bid.get("created_by")
-            ]
-        for offer in offers:
-            offer["_preference_matches"] = [
-                m for m in preference_matches if m["seller"] == offer.get("created_by")
+                m for m in preference_matches if m["bid_order_id"] == bid.get("order_id")
             ]
 
     return bids, offers

@@ -1,22 +1,21 @@
 """On-chain struct mirrors for TradeSettlement / OrderRegistry.
 
-Mirrors ``gsy-contracts/contracts/TradeSettlement.sol`` (Match, OrderData) and
-``OrderRegistry.sol`` (OrderParams, energy-type codes) as of the GSYDEXv2
-snapshot vendored locally. The contracts are still WIP upstream ("end of
-month" freeze announced) — treat field order as provisional until the ABI is
-frozen; every encoding detail lives in this one module.
+Mirrors the GSY DEX settlement contracts: ``TradeSettlement.sol`` (Match,
+OrderData) and ``OrderRegistry.sol`` (OrderParams, energy-type codes). The
+contracts are not frozen upstream yet — treat the field order as provisional
+until the ABI is final; every encoding detail lives in this one module.
 
 Unit conventions:
-- Energy: kWh scaled by ``SCALING_FACTOR`` (×10000) into u64 — confirmed to
-  match GSY's convention (2026-08-24).
+- Energy: kWh scaled by ``SCALING_FACTOR`` (×10000) into u64, the GSY DEX
+  convention.
 - Price: rate per kWh scaled by ``SCALING_FACTOR`` into u64. ⚠ The CURRENCY
-  UNIT (EUR vs ct) is not yet fixed (issue #30) — this module takes
-  already-chosen-unit floats and only scales them; the decision plugs in at
-  the call site via ``rate_unit`` on the builder (see match_builder).
+  UNIT (EUR vs ct) is not yet fixed (issue #30) — this module takes floats in
+  the caller's unit (the trades' ``tradePrice``, EUR/kWh on the wire) and only
+  scales them.
 - Energy types: the on-chain u8 coding INCLUDES GREY (=6), even though the
-  current off-chain wire DTO rejects it — drift raised with GSY.
+  current off-chain wire DTO rejects it.
 - Identifiers: order/trade/market ids are the UUID's bytes; ACTOR ids
-  (``createdBy``) are blake2b-128 hashes of the off-chain id per GSY's
+  (``createdBy``) are blake2b-128 hashes of the off-chain id per the GSY DEX
   id-mapping convention (see ids.py) — never the UUID bytes.
 """
 
@@ -24,7 +23,7 @@ from dataclasses import dataclass
 
 from src.ids import ZERO_BYTES16, actor_onchain_id, uuid_to_bytes16
 
-SCALING_FACTOR = 10_000  # confirmed identical on the GSY side (2026-08-24)
+SCALING_FACTOR = 10_000  # same factor as the GSY DEX contracts
 
 # OrderRegistry.sol energy-type codes (u8).
 ENERGY_TYPE_CODES = {

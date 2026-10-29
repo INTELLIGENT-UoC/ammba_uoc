@@ -106,3 +106,38 @@ def test_fetch_cli_writes_calibration_input(tmp_path, monkeypatch):
     # ISO start parsed to unix; numeric end passed through.
     assert captured["envelope"]["payload"]["startTime"] == 1782900000
     assert captured["envelope"]["payload"]["endTime"] == 1782903600
+
+
+@pytest.mark.asyncio
+async def test_fetch_against_simulator(tmp_path, monkeypatch):
+    """The fetch step runs end-to-end against the local simulator's gateway."""
+    from sim.offchain_sim import create_app
+    from src import fetch_measurements as cli
+    from src.ontology import validate
+
+    app = create_app()  # seeds sim/seed_measurements.json
+    transport = httpx.ASGITransport(app=app)
+    real_init = EwdsOffchainClient.__init__
+
+    def patched_init(self, config=None):
+        real_init(self, config)
+        self._client = httpx.AsyncClient(transport=transport, base_url="http://sim")
+
+    monkeypatch.setattr(EwdsOffchainClient, "__init__", patched_init)
+
+    out = tmp_path / "measurements.json"
+    args = cli.argparse.Namespace(
+        start="2026-07-01T10:00:00Z",
+        end="2026-07-01T10:15:00Z",  # inclusive: the first two slots
+        community="11111111-1111-4111-8111-111111111111",
+        facility=None,
+        gateway_url="http://sim",
+        out=str(out),
+    )
+    assert await cli.fetch(args) == 0
+
+    written = json.loads(out.read_text())
+    assert len(written) == 6  # three facilities × two slots; other community excluded
+    for measurement in written:
+        validate(measurement, "int.measurement.schema.v1.json")
+    assert {m["timeSlot"] for m in written} == {1782900000, 1782900900}

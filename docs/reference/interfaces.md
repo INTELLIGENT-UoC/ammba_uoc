@@ -62,7 +62,7 @@ ontology schemas and keeps data in memory.
 | `GET /trades`, `POST /trades-normalized`          | Read and write trades                                                 |
 | `GET /clearing-results`, `POST /clearing-results` | Read and write clearing results                                       |
 | `POST /ids`                                       | Identifier mapping, as in the GSY DEX off-chain storage               |
-| `GET /api/v2/messages`, `POST /api/v2/messages`   | Emulation of the EWDS gateway                                         |
+| `GET /api/v2/messages`, `POST /api/v2/messages`   | Emulation of the EWDS gateway, including `measurementsQuery`          |
 | `POST /_reset`                                    | Reset to the seeded sample data                                       |
 
 The [simulator guide](https://github.com/INTELLIGENT-UoC/ammba_uoc/blob/main/amm-clearing-node/sim/README.md)

@@ -14,5 +14,8 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v5
         with:
+          # A dedicated token makes the release PR's pushes trigger CI; the
+          # built-in token does not (#60). Falls back until the secret exists.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json

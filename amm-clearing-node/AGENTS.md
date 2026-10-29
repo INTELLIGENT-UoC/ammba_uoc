@@ -16,7 +16,8 @@ Runs the clearing pipeline when a market slot closes:
 3. Compute the uniform clearing price via the sigmoid
 4. Record on-chain via `clearMarket()` (optional; deferred for the MVP)
 5. Pro-rata allocation
-6. Preference matching (mutual preferred pairs)
+6. Preference matching (mutual preferred pairs); 6b. optional seller-side
+   energy-type differential pricing (zero-sum against the pool)
 7. Generate `int:Trade` objects (direct preference pairs, Buyer→Pool, Pool→Seller)
 8. POST `int:Trade` list + the `int:ClearingResult` back to the off-chain DB
 
@@ -34,7 +35,7 @@ src/
 ├── adapters.py        # ★ int.* ↔ internal translation; EWDS DTO normalizer; trade builders
 ├── ontology.py        # loads schemas/intelligent/*, dependency-free validator
 ├── sigmoid.py         # sigmoid_price(), to_node_int(), from_node_int()
-├── preferences.py     # mutual preferred-pair matching
+├── preferences.py     # mutual preferred-pair matching; differential pricing
 ├── offchain_db.py     # "rest" transport: httpx client for the off-chain DB API
 ├── ewds_client.py     # "ewds" transport: publish/poll via the EW CGW gateway
 ├── scheduler.py       # self-trigger: discover closed AMM markets, clear them
@@ -45,7 +46,7 @@ src/
 schemas/intelligent/   # vendored GSY DEX int.* JSON Schemas (the wire contract)
 sim/                   # local off-chain DB + CGW gateway simulator (dev only)
 tests/
-└── test_*.py          # incl. conftest.py (schema-validating fake DB), 101 tests total
+└── test_*.py          # incl. conftest.py (schema-validating fake DB), 114 tests total
 ```
 
 Transport is selected by `OFFCHAIN_TRANSPORT` (`rest` default, `ewds` for the
@@ -86,12 +87,14 @@ Start at `clearing.py` for an algorithmic change (numbered step sections) or
 
 ## Configuration
 
-`configuration.yaml` holds community params; env vars override. Required env:
+`configuration.yaml` holds community params; env vars override (an empty
+value counts as unset). The full list, with aliases and the YAML keys, is in
+`docs/reference/configuration.md`; the most relevant variables:
 
-| Var                                                                     | Required when                                            | Default                           |
+| Var                                                                     | Used when                                                | Default                           |
 | ----------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------- |
 | `OFFCHAIN_TRANSPORT`                                                    | always (`rest` or `ewds`)                                | `rest`                            |
-| `OFFCHAIN_DB_URL`                                                       | transport `rest`                                         | `http://offchain-db:8080`         |
+| `OFFCHAIN_DB_URL`                                                       | transport `rest`                                         | `http://localhost:8080`           |
 | `EWDS_GATEWAY_URL`                                                      | transport `ewds`                                         | `http://ewds-gateway-api:3333`    |
 | `EWDS_AMM_CLIENT_ID`                                                    | transport `ewds`                                         | `ammclearingnode`                 |
 | `EWDS_TOPIC_OWNER` / `EWDS_TOPIC_VERSION`                               | transport `ewds`                                         | GSY defaults                      |
@@ -105,14 +108,14 @@ Start at `clearing.py` for an algorithmic change (numbered step sections) or
 | `CLEARING_NODE_PRIVATE_KEY`                                             | submitting on-chain                                      | —                                 |
 | `TIME_SLOT_SEC`                                                         | always                                                   | `900`                             |
 
-If `CONTRACT_ADDRESS` or `CLEARING_NODE_PRIVATE_KEY` is unset, clearing runs
-**off-chain only** (step 4 is skipped). Useful for local testing.
+If `CONTRACT_ADDRESS` or `CLEARING_NODE_PRIVATE_KEY` is unset (the shipped
+default), clearing runs **off-chain only** (step 4 is skipped).
 
 ## Dev loop
 
 ```bash
 uv sync --extra dev                              # install (incl. pytest)
-uv run pytest -v                                 # 101 tests
+uv run pytest -v                                 # 114 tests
 uv run pytest tests/test_clearing.py -v          # subset
 uv run uvicorn src.main:app --port 8081 --reload # local server
 uv run uvicorn sim.offchain_sim:app --port 8080  # local off-chain DB simulator
@@ -127,8 +130,11 @@ See [`sim/README.md`](sim/README.md) for the full local end-to-end flow.
 - **Pure functions for algorithms.** `sigmoid_price`, `apply_priority_allocation`,
   `compute_seller_price_adjustments` all take data in and return data out — no
   side effects, easy to test with concrete numbers.
-- **Side effects only in `clearing.py`.** It's the only module that does I/O
-  (DB + chain). Keeps the rest unit-testable in isolation.
+- **I/O stays at the edges.** The transport clients (`offchain_db.py`,
+  `ewds_client.py`), `contract.py`, `scheduler.py`, `fetch_measurements.py` and
+  `main.py` do I/O; `clearing.py` orchestrates them. The algorithm modules
+  (`sigmoid.py`, `preferences.py`, the `adapters.py` builders) stay pure and
+  unit-testable in isolation.
 - **Pydantic for boundaries**, dataclasses or plain dicts internally. Don't
   push Pydantic models through every internal function — it adds noise.
 - **The wire is `int.*`; the inside is internal.** Only `adapters.py` knows
@@ -156,15 +162,17 @@ See [`sim/README.md`](sim/README.md) for the full local end-to-end flow.
 ## Common change recipes
 
 - **New clearing parameter**: add to `CommunityConfig` in `config.py`, thread
-  it into `run_clearing()`, document it in `configuration.yaml`.
+  it into `run_clearing()`, document it in `configuration.yaml` and
+  `docs/reference/configuration.md`.
 - **New preference rule**: implement in `preferences.py` as a pure function,
   call it from the relevant step in `clearing.py`, add `test_preferences.py`
   cases.
 - **New wire field / trade type**: update the relevant schema in
   `schemas/intelligent/`, add/extend a builder in `adapters.py`, and assert it
   validates in `test_adapters.py`.
-- **New off-chain DB endpoint**: add an async method to
-  `offchain_db.py:OffchainDBClient` and a matching route in `sim/offchain_sim.py`.
+- **New off-chain DB endpoint**: add an async method to both transport clients
+  (`offchain_db.py:OffchainDBClient` and `ewds_client.py:EwdsOffchainClient`)
+  and the matching REST route and gateway topic in `sim/offchain_sim.py`.
 
 ## Don'ts
 

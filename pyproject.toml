@@ -1,5 +1,5 @@
-# Repo-root config for tools that span both Python services.
-# Each service still has its own pyproject.toml for its package definition.
+# Repo-root config for tools that span the three Python components.
+# Each component still has its own pyproject.toml for its package definition.
 
 [tool.ruff]
 line-length = 100

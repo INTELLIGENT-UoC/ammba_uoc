@@ -45,9 +45,7 @@ class BuildResult:
 
 def _participant_order_data(order: dict, market_id: str) -> OrderData:
     """int:Order → OrderData (participant side, real registered order)."""
-    from src.structs import scale  # local import to keep module deps flat
-
-    del scale  # values stay floats here; scaling happens in to_tuple()
+    # Values stay floats here; scaling happens in to_tuple().
     return OrderData(
         order_id=order["orderId"],
         created_by=order["createdBy"],
@@ -75,7 +73,6 @@ def build_matches(
     pool_actor_uuid: str,
     k_upper: float,
     k_lower: float,
-    time_slot: int,
 ) -> BuildResult:
     """Transform int:Trade records into settleable matches + pool orders.
 
@@ -135,5 +132,4 @@ def build_matches(
             )
         )
 
-    del time_slot  # reserved: cross-check against order time slots if desired
     return BuildResult(matches=matches, pool_orders=pool_orders)

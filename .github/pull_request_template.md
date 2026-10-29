@@ -12,6 +12,7 @@
 ## Component(s) affected
 
 - [ ] `amm-clearing-node`
+- [ ] `amm-calibration`
 - [ ] `amm-execution-node`
 - [ ] `amm-smart-contract`
 - [ ] Repo-wide (CI, docs, config)
@@ -21,7 +22,7 @@
 - [ ] PR title follows Conventional Commits
 - [ ] Tests added or updated for the changed behaviour
 - [ ] `pytest` / `hardhat test` passes locally for affected components
-- [ ] Docs updated (README, CONTRIBUTING, or inline comments) where relevant
+- [ ] Docs updated (`docs/`, README, AGENTS files) where relevant; `mkdocs build --strict` passes
 - [ ] No secrets, keys, or `.env` values committed
 - [ ] Breaking changes are flagged in the PR title (`feat!:` / `fix!:`) and described below
 

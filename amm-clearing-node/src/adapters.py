@@ -7,11 +7,11 @@ contract is the ``int.*`` ontology: camelCase, ISO-8601 timestamps, flat
 preference fields, EUR/kWh prices, UUID identifiers.
 
 Everything that crosses the service boundary is converted here so the rest of
-the codebase never sees ontology field names, and a future transport change
-(REST today, EW CGW publish/poll later) only touches this module plus the
-client. Keeping the mapping in one place also makes the open alignment questions
-with GSY (price units, the pool actor / pool order representation, which order
-statuses count as matchable) explicit and easy to revisit.
+the codebase never sees ontology field names, and both transports (direct REST
+and EWDS publish/poll) share one mapping. Keeping the mapping in one place also
+keeps the integration conventions (price units, the pool actor / pool order
+representation, which order statuses count as matchable) explicit and easy to
+revisit.
 """
 
 import uuid
@@ -58,8 +58,8 @@ def pool_order_uuid(market_id: str, side: str) -> str:
     The AMM pool is a virtual counterparty: it does not submit real orders, but
     ``int:Trade`` requires both a ``bidId`` and an ``offerId``. We model the pool
     as holding one standing bid and one standing offer per market slot, with
-    stable derived UUIDs. Provisional convention pending GSY's pool-registration
-    decision.
+    stable derived UUIDs. On-chain, the settlement engine registers one
+    synthetic pool order per pool trade instead (see amm-execution-node).
     """
     return str(uuid.uuid5(_AMMBA_NS, f"pool-order:{side}:{market_id}"))
 

@@ -1,11 +1,11 @@
 # Project-local reference materials (third-party code, transcripts, large data)
 /LLM_context/
 
-# Internal / local reference — not for the public repo (integration planning
-# notes, PO-facing memos, etc.). Kept on disk locally; excluded from tracking.
+# Local working notes and documents — kept on disk, never tracked.
 /INTEGRATION_NOTES.md
 /CLAUDE.local.md
 *.docx
+~$*
 
 # OS
 .DS_Store
@@ -32,6 +32,8 @@ node_modules/
 amm-smart-contract/artifacts/
 amm-smart-contract/cache/
 amm-smart-contract/ignition/deployments/
+amm-smart-contract/typechain-types/
+amm-smart-contract/coverage/
 
 # Env / secrets
 .env
@@ -42,6 +44,12 @@ amm-smart-contract/ignition/deployments/
 
 # Logs
 *.log
+
+# Calibration inputs and outputs (community metering data); default names of
+# src.fetch_measurements and amm-calibration
+measurements.json
+history.json
+params.yaml
 
 # MkDocs build output
 /site/

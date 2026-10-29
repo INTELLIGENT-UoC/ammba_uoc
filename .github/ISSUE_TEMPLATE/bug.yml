@@ -1,6 +1,6 @@
 name: Bug report
 description: Report something that is broken or behaves unexpectedly
-labels: ["bug", "triage"]
+labels: ["bug"]
 body:
   - type: dropdown
     id: component
@@ -8,6 +8,7 @@ body:
       label: Component
       options:
         - amm-clearing-node
+        - amm-calibration
         - amm-execution-node
         - amm-smart-contract
         - docker-compose / repo-wide
