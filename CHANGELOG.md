@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.9](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.8...v0.1.9) (2026-10-31)
+
+
+### Bug Fixes
+
+* repair the compose stack and configuration surface, duplicate direct trades and repository hygiene ([#71](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/71)) ([b308e78](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/b308e78de5edf6e0207c79d3d220701c26e8fe34)), closes [#63](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/63) [#64](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/64) [#65](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/65) [#66](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/66)
+
+
+### Documentation
+
+* describe the order-based mechanism, generic governance and the calibration data path ([#72](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/72)) ([73bdea7](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/73bdea7a4be706c13418b1879f124249fc8b7dc3)), closes [#69](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/69)
+* EWDS-centred architecture figure, governance-neutral legend, calibration data path ([#73](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/73)) ([bc1a93c](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/bc1a93c87c48b4786e18d838cf0faa2229fbdff0)), closes [#70](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/70)
+* label FOS correctly in the architecture figure ([#79](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/79)) ([a69d1d7](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/a69d1d744a9968b517c0888a129c29a0a2795cbd))
+
 ## [0.1.8](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.7...v0.1.8) (2026-10-29)
 
 
