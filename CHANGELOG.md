@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.10](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.9...v0.1.10) (2026-10-31)
+
+
+### Build
+
+* **deps:** Bump the python-minor-and-patch group ([#75](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/75)) ([9b164ca](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/9b164cac3215c1647e479694c0fa223190f1d11f))
+* **deps:** Bump the python-minor-and-patch group ([#77](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/77)) ([277b184](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/277b1841df5c34e4700be18ce5127ab10687dc21))
+* **deps:** Bump web3 from 7.14.1 to 8.0.0 in /amm-clearing-node ([#78](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/78)) ([06f23d0](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/06f23d0fa67a7106018d4e1254a455059c55d2c6))
+* **deps:** Bump web3 from 7.16.0 to 8.0.0 in /amm-execution-node ([#76](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/76)) ([4f32a6c](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/4f32a6c9185f77c7fb10c87495fb7d76e6f21eb2))
+
 ## [0.1.9](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.8...v0.1.9) (2026-10-31)
 
 
