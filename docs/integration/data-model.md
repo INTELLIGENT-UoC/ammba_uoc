@@ -61,16 +61,16 @@ reliably.
 For settlement, identifiers are encoded following the conventions of the GSY
 DEX:
 
-- **Orders, trades and markets** are encoded as the 16 bytes of their UUID.
+- **Orders, trades and markets** are encoded as the 16 bytes of their UUID;
+  the storage's `0x`-hex form of an identifier encodes to the same bytes.
 - **Actors** (buyers, sellers, the pool) are not encoded directly but _mapped_:
   the on-chain identifier is the BLAKE2b-128 hash of the off-chain identifier
   string. The off-chain storage keeps the mapping and returns it through
   `ids.query` or `POST /ids?offchain_id=…`, creating it on first use; the
   settlement engine registers every actor before settling, so that settlement
   events can be attributed to off-chain actors.
-- **Energy and prices** are unsigned integers scaled by 10,000. The currency
-  unit of on-chain prices is not fixed yet
-  ([#30](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/30)).
+- **Energy and prices** are unsigned integers scaled by 10,000; on-chain
+  prices are in EUR/kWh, like the wire's `priceLimit` and `tradePrice`.
 
 The settlement engine implements these conventions in
 `amm-execution-node/src/ids.py` and `structs.py`; see the
