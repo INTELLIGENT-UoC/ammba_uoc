@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.11](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.10...v0.1.11) (2026-11-02)
+
+
+### Features
+
+* **clearing:** align with the updated int.* schemas and query semantics ([#86](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/86)) ([8097e02](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/8097e02a44f7b3bb3a792fd647b59446ae3c72f0))
+* **settlement:** adopt the market-level settleBatch interface ([#88](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/88)) ([5ca768d](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/5ca768d96d040fb4784e928d0d0e5a2038051dbd)), closes [#82](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/82)
+
 ## [0.1.10](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.9...v0.1.10) (2026-10-31)
 
 
