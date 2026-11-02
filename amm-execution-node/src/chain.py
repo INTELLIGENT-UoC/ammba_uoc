@@ -6,49 +6,61 @@ settlement environment, which is not available yet: the engine tests
 substitute a FakeChain for this client, and ``main.py`` refuses --execute with
 a message listing what is missing.
 
-ABI fragments are hand-declared for exactly the two calls the engine needs;
-they are replaced by the compiled contract artifacts once the contracts freeze.
+ABI fragments are hand-declared for exactly the two calls the engine needs
+(tests check them against the encoding signatures in structs.py); they are
+replaced by the compiled contract artifacts once the contracts freeze.
 """
 
 import logging
 
 from web3 import AsyncHTTPProvider, AsyncWeb3
 
-from src.structs import MATCH_ABI, ORDER_PARAMS_ABI
-
 logger = logging.getLogger(__name__)
 
-
-def _components_from(signature: str) -> list[dict]:
-    """Build minimal ABI 'components' for a flat/nested tuple signature."""
-    # Hand-rolled for the two known shapes; replaced by real artifacts later.
-    order_data = [
-        {"name": n, "type": t}
-        for n, t in [
-            ("orderId", "bytes16"),
-            ("createdBy", "bytes16"),
-            ("marketId", "bytes16"),
-            ("timeSlot", "uint64"),
-            ("creationTime", "uint64"),
-            ("energy", "uint64"),
-            ("energyRate", "uint64"),
-            ("energySourcePreference", "uint8"),
-            ("energyType", "uint8"),
-        ]
+# Struct fields in contract order (OrderRegistry / TradeSettlement, GSYDEXv2 f0ea6c8).
+_ORDER_PARAMS = [
+    {"name": n, "type": t}
+    for n, t in [
+        ("orderId", "bytes16"),
+        ("createdBy", "bytes16"),
+        ("marketId", "bytes16"),
+        ("timeSlot", "uint64"),
+        ("creationTime", "uint64"),
+        ("energy", "uint64"),
+        ("energyRate", "uint64"),
+        ("energySourcePreference", "uint8"),
+        ("energyType", "uint8"),
+        ("isBid", "bool"),
+        ("preferredTradingPartner", "bytes16"),
+        ("preferredEnergyRate", "uint64"),
     ]
-    if signature == ORDER_PARAMS_ABI:
-        return [*order_data, {"name": "isBid", "type": "bool"}]
-    if signature == MATCH_ABI:
-        return [
-            {"name": "tradeId", "type": "bytes16"},
-            {"name": "bid", "type": "tuple", "components": order_data},
-            {"name": "offer", "type": "tuple", "components": order_data},
-            {"name": "residualBidId", "type": "bytes16"},
-            {"name": "residualOfferId", "type": "bytes16"},
-            {"name": "selectedEnergy", "type": "uint256"},
-            {"name": "clearingPrice", "type": "uint256"},
-        ]
-    raise ValueError(signature)
+]
+_MATCH = [
+    {"name": "tradeId", "type": "bytes16"},
+    {"name": "bid", "type": "tuple", "components": _ORDER_PARAMS},
+    {"name": "offer", "type": "tuple", "components": _ORDER_PARAMS},
+    {"name": "residualBidId", "type": "bytes16"},
+    {"name": "residualOfferId", "type": "bytes16"},
+    {"name": "selectedEnergy", "type": "uint256"},
+    {"name": "clearingPrice", "type": "uint256"},
+    {"name": "matchType", "type": "uint8"},
+]
+_CLEARING_RESULT = [
+    {"name": n, "type": t}
+    for n, t in [
+        ("marketId", "bytes16"),
+        ("clearingStatus", "uint8"),
+        ("clearingPrice", "uint256"),
+        ("totalSupply", "uint256"),
+        ("totalDemand", "uint256"),
+        ("tradedQuantity", "uint256"),
+        ("numTrades", "uint32"),
+    ]
+]
+_MARKET_SETTLEMENT = [
+    {"name": "matches", "type": "tuple[]", "components": _MATCH},
+    {"name": "clearingResult", "type": "tuple", "components": _CLEARING_RESULT},
+]
 
 
 ORDER_REGISTRY_ABI = [
@@ -56,9 +68,7 @@ ORDER_REGISTRY_ABI = [
         "name": "placeOrder",
         "type": "function",
         "stateMutability": "nonpayable",
-        "inputs": [
-            {"name": "params", "type": "tuple", "components": _components_from(ORDER_PARAMS_ABI)}
-        ],
+        "inputs": [{"name": "params", "type": "tuple", "components": _ORDER_PARAMS}],
         "outputs": [],
     }
 ]
@@ -68,9 +78,7 @@ TRADE_SETTLEMENT_ABI = [
         "name": "settleBatch",
         "type": "function",
         "stateMutability": "nonpayable",
-        "inputs": [
-            {"name": "matches", "type": "tuple[]", "components": _components_from(MATCH_ABI)}
-        ],
+        "inputs": [{"name": "settlements", "type": "tuple[]", "components": _MARKET_SETTLEMENT}],
         "outputs": [],
     }
 ]
@@ -114,5 +122,5 @@ class SettlementChainClient:
     async def place_order(self, params_tuple: tuple) -> str:
         return await self._send(self.registry.functions.placeOrder(params_tuple))
 
-    async def settle_batch(self, match_tuples: list[tuple]) -> str:
-        return await self._send(self.settlement.functions.settleBatch(match_tuples))
+    async def settle_batch(self, settlement_tuples: list[tuple]) -> str:
+        return await self._send(self.settlement.functions.settleBatch(settlement_tuples))

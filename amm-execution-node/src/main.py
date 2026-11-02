@@ -7,10 +7,12 @@ still missing.
 
 Usage:
     uv run python -m src.main --trades trades.json --orders orders.json \
+        --clearing-results results.json \
         --pool-actor <uuid> --k-upper 0.285 --k-lower 0.08
 
 ``trades.json``: int:Trade list (the clearing node's output).
 ``orders.json``: int:Order list (the orders the trades reference).
+``results.json``: int:ClearingResult list, one per market the trades belong to.
 """
 
 import argparse
@@ -18,7 +20,7 @@ import json
 import os
 import sys
 
-from src.match_builder import build_matches
+from src.match_builder import build_settlements
 from src.validator import validate_batch
 
 EXECUTION_ENV = [
@@ -33,6 +35,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="AMM settlement engine (skeleton)")
     parser.add_argument("--trades", help="int:Trade JSON list from the clearing node")
     parser.add_argument("--orders", help="int:Order JSON list referenced by the trades")
+    parser.add_argument(
+        "--clearing-results", help="int:ClearingResult JSON list, one per market of the trades"
+    )
     parser.add_argument("--pool-actor", help="pool actor UUID")
     parser.add_argument(
         "--k-upper", type=float, help="community price ceiling, in the unit of tradePrice (EUR/kWh)"
@@ -58,23 +63,30 @@ def main(argv: list[str] | None = None) -> int:
     with open(args.orders) as f:
         orders = json.load(f)
     orders_by_id = {o["orderId"]: o for o in orders}
+    with open(args.clearing_results) as f:
+        clearing_results = json.load(f)
 
-    build = build_matches(
+    build = build_settlements(
         trades,
         orders_by_id,
+        clearing_results,
         pool_actor_uuid=args.pool_actor,
         k_upper=args.k_upper,
         k_lower=args.k_lower,
     )
-    violations = validate_batch(build.matches)
+    violations = validate_batch(build.settlements)
 
     plan = {
+        "markets": len(build.settlements),
         "matches": len(build.matches),
-        "pool_orders_to_place": [p.order.order_id for p in build.pool_orders],
+        "pool_orders_to_place": [p.order_id for p in build.pool_orders],
         "preflight_rejections": {
-            tid: [f"{v.code}: {v.detail}" for v in vs] for tid, vs in violations.items()
+            market: [f"{v.subject} {v.code}: {v.detail}" for v in vs]
+            for market, vs in violations.items()
         },
-        "settleable": [m.trade_id for m in build.matches if m.trade_id not in violations],
+        "settleable_markets": [
+            s.market_id for s in build.settlements if s.market_id not in violations
+        ],
     }
     print(json.dumps(plan, indent=2))
 

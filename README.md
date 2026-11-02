@@ -112,7 +112,7 @@ project, and the contract uses Hardhat:
 ```bash
 cd amm-clearing-node  && uv sync --extra dev && uv run pytest   # 118 tests
 cd amm-calibration    && uv sync --extra dev && uv run pytest   # 9 tests
-cd amm-execution-node && uv sync --extra dev && uv run pytest   # 38 tests
+cd amm-execution-node && uv sync --extra dev && uv run pytest   # 56 tests
 cd amm-smart-contract && npm ci && npx hardhat test             # 17 tests
 ```
 
