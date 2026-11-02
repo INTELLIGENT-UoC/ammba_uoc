@@ -41,3 +41,11 @@ Runs against a GSY DEX deployment, through its EWDS gateway, need access to
 that infrastructure and are therefore not part of the automated suites. The
 [self-hosting guide](../getting-started/self-hosting.md#joining-a-shared-deployment)
 describes the configuration.
+
+A test deployment without live participants needs seeded data. The simulator
+package includes a generator (`python -m sim.staging_seed --date YYYY-MM-DD`)
+that writes one day of AMM markets for a dedicated test community, the orders
+of a few synthetic participants for every market and metering history for
+calibration. Every object is a schema-valid `int.*` object, and the same set
+can be served by the simulator first. The [simulator README](https://github.com/INTELLIGENT-UoC/ammba_uoc/blob/main/amm-clearing-node/sim/README.md#staging-test-data)
+describes the files.

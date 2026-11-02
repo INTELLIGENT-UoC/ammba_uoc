@@ -53,3 +53,6 @@ params.yaml
 
 # MkDocs build output
 /site/
+
+# Generated staging test data (default output of sim.staging_seed)
+staging-seed/
