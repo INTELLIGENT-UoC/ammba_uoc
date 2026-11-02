@@ -141,7 +141,7 @@ async def run_clearing(
             db_client,
             build_int_clearing_result(
                 market_id=market_id,
-                clearing_status="NO_BID",
+                clearing_status="no_bid",
                 clearing_price_eur=0.0,
                 total_supply_kwh=total_supply_kwh,
                 total_demand_kwh=total_demand_kwh,
@@ -271,7 +271,7 @@ async def run_clearing(
         db_client,
         build_int_clearing_result(
             market_id=market_id,
-            clearing_status="FINAL",
+            clearing_status="final",
             clearing_price_eur=clearing_price_eur,
             total_supply_kwh=total_supply_kwh,
             total_demand_kwh=total_demand_kwh,

@@ -15,8 +15,24 @@ schemas under `schemas/v1.0.0/market`:
 Additional local message contracts wrap these entities for the current
 request/reply topics:
 
-- query request/reply envelopes for orders, trades, and measurements
+- query request/reply envelopes for orders, trades, measurements, and communities
 - upsert request envelopes for forecasts, measurements, and markets
+
+Event envelopes wrap a non-empty list of the entities that other systems send
+to GSY on the events channels, one per topic:
+
+- `int.measurements.event.v1.json` (`int.measurement.schema.v1.json`)
+- `int.facility.event.v1.json` (`int.facility.schema.v1.json`)
+- `int.site.event.v1.json` (`int.site.schema.v1.json`)
+- `int.community.event.v1.json` (`int.community.schema.v1.json`)
+- `int.order.event.v1.json` (`int.order.schema.v1.json`), consumed
+  by the community client rather than the off-chain storage
+
+The off-chain storage publishes these event envelopes on the events channels:
+
+- `int.trade.event.v1.json` (`int.trade.schema.v1.json`)
+- `int.clearing-result.event.v1.json` (`int.clearing-result.schema.v1.json`)
+- `int.market.event.v1.json` (`int.market.schema.v1.json`)
 
 Notes:
 
@@ -24,6 +40,6 @@ Notes:
 - Runtime service fields from GSY DEX are mapped in `docs/platform/ewds-data-contracts.md`.
 - The agreed Intelligent schemas use UUID identifiers and ISO 8601 timestamps.
 - The active DEX EVM settlement path still uses separate runtime DTOs for
-  bytes32 hashes, nonces, area UUID hashes, and unix timeslots.
+  bytes32 hashes, area UUID hashes, and unix timeslots.
 - These schemas are versioned as `v1` and should be registered as EWDS topic
   schemas when the corresponding topics are managed with `topiccreator`.

@@ -2,92 +2,92 @@
   {
     "facilityId": "dddddddd-0001-4001-8001-000000000001",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782900000,
-    "creationTime": 1782900900,
+    "timeSlot": "2026-07-01T10:00:00Z",
+    "creationTime": "2026-07-01T10:15:00Z",
     "energyKwh": 6.0
   },
   {
     "facilityId": "dddddddd-0002-4002-8002-000000000002",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782900000,
-    "creationTime": 1782900900,
+    "timeSlot": "2026-07-01T10:00:00Z",
+    "creationTime": "2026-07-01T10:15:00Z",
     "energyKwh": 4.0
   },
   {
     "facilityId": "dddddddd-0003-4003-8003-000000000003",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782900000,
-    "creationTime": 1782900900,
+    "timeSlot": "2026-07-01T10:00:00Z",
+    "creationTime": "2026-07-01T10:15:00Z",
     "energyKwh": -5.0
   },
   {
     "facilityId": "dddddddd-0001-4001-8001-000000000001",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782900900,
-    "creationTime": 1782901800,
+    "timeSlot": "2026-07-01T10:15:00Z",
+    "creationTime": "2026-07-01T10:30:00Z",
     "energyKwh": 5.0
   },
   {
     "facilityId": "dddddddd-0002-4002-8002-000000000002",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782900900,
-    "creationTime": 1782901800,
+    "timeSlot": "2026-07-01T10:15:00Z",
+    "creationTime": "2026-07-01T10:30:00Z",
     "energyKwh": 4.0
   },
   {
     "facilityId": "dddddddd-0003-4003-8003-000000000003",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782900900,
-    "creationTime": 1782901800,
+    "timeSlot": "2026-07-01T10:15:00Z",
+    "creationTime": "2026-07-01T10:30:00Z",
     "energyKwh": -9.0
   },
   {
     "facilityId": "dddddddd-0001-4001-8001-000000000001",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782901800,
-    "creationTime": 1782902700,
+    "timeSlot": "2026-07-01T10:30:00Z",
+    "creationTime": "2026-07-01T10:45:00Z",
     "energyKwh": 4.0
   },
   {
     "facilityId": "dddddddd-0002-4002-8002-000000000002",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782901800,
-    "creationTime": 1782902700,
+    "timeSlot": "2026-07-01T10:30:00Z",
+    "creationTime": "2026-07-01T10:45:00Z",
     "energyKwh": 2.0
   },
   {
     "facilityId": "dddddddd-0003-4003-8003-000000000003",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782901800,
-    "creationTime": 1782902700,
+    "timeSlot": "2026-07-01T10:30:00Z",
+    "creationTime": "2026-07-01T10:45:00Z",
     "energyKwh": -9.0
   },
   {
     "facilityId": "dddddddd-0001-4001-8001-000000000001",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782902700,
-    "creationTime": 1782903600,
+    "timeSlot": "2026-07-01T10:45:00Z",
+    "creationTime": "2026-07-01T11:00:00Z",
     "energyKwh": 5.0
   },
   {
     "facilityId": "dddddddd-0002-4002-8002-000000000002",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782902700,
-    "creationTime": 1782903600,
+    "timeSlot": "2026-07-01T10:45:00Z",
+    "creationTime": "2026-07-01T11:00:00Z",
     "energyKwh": 3.0
   },
   {
     "facilityId": "dddddddd-0003-4003-8003-000000000003",
     "communityUuid": "11111111-1111-4111-8111-111111111111",
-    "timeSlot": 1782902700,
-    "creationTime": 1782903600,
+    "timeSlot": "2026-07-01T10:45:00Z",
+    "creationTime": "2026-07-01T11:00:00Z",
     "energyKwh": -6.0
   },
   {
     "facilityId": "dddddddd-0009-4009-8009-000000000009",
     "communityUuid": "99999999-9999-4999-8999-999999999999",
-    "timeSlot": 1782900000,
-    "creationTime": 1782900900,
+    "timeSlot": "2026-07-01T10:00:00Z",
+    "creationTime": "2026-07-01T10:15:00Z",
     "energyKwh": 1.0
   }
 ]

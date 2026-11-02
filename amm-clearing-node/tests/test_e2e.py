@@ -58,10 +58,10 @@ async def test_clearing_node_against_simulator():
     direct = [t for t in trades if POOL_ACTOR_UUID not in (t["buyerId"], t["sellerId"])]
     assert direct, "expected a direct preference-matched trade"
 
-    # A FINAL clearing result was persisted.
+    # A final clearing result was persisted.
     resp = await db._client.get("/clearing-results", params={"market_id": SEED_MARKET})
     results = resp.json()
-    assert results and results[0]["clearingStatus"] == "FINAL"
+    assert results and results[0]["clearingStatus"] == "final"
 
     # Idempotency: a second run sees existing trades and skips.
     second = await run_clearing(

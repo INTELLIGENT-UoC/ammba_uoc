@@ -1,17 +1,16 @@
 """Periodic self-trigger: discover closed AMM markets and clear them.
 
-GSY confirmed there is no market-close event — the AMM must self-trigger. The
-scheduler polls the market list (markets.query over EWDS, or GET /markets on
-the REST/simulator transport), selects markets whose order window has closed,
-whose matching_algorithm is "amm", and whose community this node is configured
-for, and runs the clearing pipeline for each. The DB-level idempotency check in
-run_clearing() remains the authoritative re-clear guard; the in-memory
+Markets close by their closing time; no event announces the close, so the AMM
+self-triggers. The scheduler polls the markets of each configured community
+(markets.query over EWDS, or GET /markets on the REST/simulator transport),
+selects markets whose order window has closed and whose matching_algorithm is
+"amm", and runs the clearing pipeline for each. The DB-level idempotency check
+in run_clearing() remains the authoritative re-clear guard; the in-memory
 processed set only avoids re-querying markets already handled this process
 lifetime.
 
-Disabled by default (SCHEDULER_ENABLED=false): manual POST /trigger-clearing
-stays the primary path for tests and pilots until markets.query is live
-upstream.
+Disabled by default (SCHEDULER_ENABLED=false); POST /trigger-clearing always
+works.
 """
 
 import asyncio
@@ -26,6 +25,9 @@ logger = logging.getLogger(__name__)
 AMM_ALGORITHM = "amm"
 # Bound the processed-set so a long-lived node cannot grow it unbounded.
 MAX_PROCESSED = 10_000
+# Markets whose opening time is older than this are not queried again; a
+# market opens before its delivery slot and closes shortly before delivery.
+MARKET_LOOKBACK_SEC = 86_400
 
 
 def select_due_markets(
@@ -64,7 +66,14 @@ async def run_scheduler_tick(
 ) -> list[dict]:
     """One discovery-and-clear pass. Returns the clearing summaries."""
     now = int(time.time()) if now is None else now
-    markets = await db_client.get_markets()
+    # One bounded query per configured community keeps each response small.
+    markets: list[dict] = []
+    for community_id in settings.communities:
+        markets.extend(
+            await db_client.get_markets(
+                community_id=community_id, start_time=now - MARKET_LOOKBACK_SEC, end_time=now
+            )
+        )
     due = select_due_markets(markets, set(settings.communities), now, processed)
     if due:
         logger.info("Scheduler: %d market(s) due for clearing", len(due))

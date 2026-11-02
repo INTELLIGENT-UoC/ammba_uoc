@@ -12,7 +12,7 @@ market slot.
 | Step | Function                                                                                                                                                                |
 | ---: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |    0 | Idempotency check: skip the slot if trades already exist for the market.                                                                                                |
-|    1 | Read the open orders of the market and validate them against the ontology schemas. Orders in status `Submitted` are matchable.                                          |
+|    1 | Read the open orders of the market and validate them against the ontology schemas. Orders in status `submitted` are matchable.                                          |
 |    2 | Aggregate the supply $E_t$ and the demand $D_t$.                                                                                                                        |
 |    3 | Compute the clearing price with [Eq. (1)](../model/pricing.md#the-pricing-function) on the ratio $E_t / D_t$. If one side of the market is empty, finish without trade. |
 |    4 | Optionally record the result with the [audit anchor](smart-contract.md). Skipped when no contract is configured.                                                        |

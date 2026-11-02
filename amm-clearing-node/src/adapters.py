@@ -22,11 +22,15 @@ from datetime import UTC, datetime
 CT_PER_EUR = 100.0
 
 # int:Order.orderStatus values that the AMM treats as open and eligible to
-# match. GSY confirmed "Submitted" is the ontology's representation of the open
-# status. (PartiallyFilled is not expected in the batch-AMM flow — orders are
-# fresh each slot; revisit if partial fills ever reach the AMM.)
-MATCHABLE_ORDER_STATUSES = {"Submitted"}
+# match: "submitted" is the ontology's open status. (partially_filled is not
+# expected in the batch-AMM flow — orders are fresh each slot; revisit if
+# partial fills ever reach the AMM.)
+MATCHABLE_ORDER_STATUSES = {"submitted"}
 INTERNAL_OPEN = "Open"
+
+# int:Trade.tradeStatus of a trade produced by clearing. "matched": the trade is
+# allocated but not yet settled on-chain (settlement sets "settled").
+CLEARED_TRADE_STATUS = "matched"
 
 # Deterministic namespace for derived UUIDs (pool actor, pool orders, trade ids).
 # Fixed so re-running a clearing cycle yields identical identifiers (idempotency).
@@ -45,6 +49,29 @@ def iso_to_unix(value: str) -> int:
 def unix_to_iso(value: int) -> str:
     """Render a unix second as an ISO-8601 UTC timestamp with a ``Z`` suffix."""
     return datetime.fromtimestamp(value, tz=UTC).isoformat().replace("+00:00", "Z")
+
+
+def storage_market_id(market_id: str) -> str:
+    """The ``0x``-hex form the off-chain storage uses for market (and order) IDs.
+
+    Markets are announced with UUID IDs, while orders and trades carry the same
+    16 bytes as ``0x`` + 32 hex digits, and ``orders.query`` / ``trades.query``
+    match the stored form literally. Accepts either form; anything else is
+    returned unchanged so the storage reports it.
+    """
+    text = market_id.strip()
+    try:
+        return "0x" + uuid.UUID(text).hex
+    except ValueError:
+        pass
+    hex_part = text[2:] if text.lower().startswith("0x") else text
+    if len(hex_part) == 32:
+        try:
+            int(hex_part, 16)
+            return "0x" + hex_part.lower()
+        except ValueError:
+            pass
+    return text
 
 
 def pool_actor_uuid(community_pool_uuid: str) -> str:
@@ -82,12 +109,13 @@ def int_order_to_internal(order: dict) -> dict:
     internal = {
         "order_id": order["orderId"],
         "market_id": order["marketId"],
-        "order_type": order["orderType"],
+        # Internal order types keep the capitalised "Bid" / "Offer".
+        "order_type": order["orderType"].capitalize(),
         "status": internal_status,
         "created_by": order["createdBy"],
         "area_uuid": order["createdBy"],
         "time_slot": iso_to_unix(order["timeSlot"]),
-        "creation_time": iso_to_unix(order["createdAt"]),
+        "creation_time": iso_to_unix(order["creationTime"]),
         "energy": order["quantity"],
         # priceLimit is EUR/kWh; the AMM pool sets price from the supply/demand
         # ratio and does not use limit prices, so it is carried only for record.
@@ -108,25 +136,23 @@ def int_order_to_internal(order: dict) -> dict:
     return internal
 
 
-# The EWDS handler's order DTO is still being aligned with the int.* ontology
-# upstream, so three dialects coexist on the wire: the current handler code
-# ("status": "open", lowercase types, nested requirements/attributes, unix
-# timestamps), the announced target DTO (flat "orderStatus": "submitted",
-# camelCase, unix timestamps), and the final int:Order ontology (PascalCase
-# enums, ISO-8601, flat preferences). ewds_order_to_int_order normalizes all
-# three into canonical int:Order shape so the rest of the pipeline stays on the
-# single ontology contract. See docs/integration/ewds.md (data normalisation).
+# The current EWDS order DTO follows the int:Order ontology (camelCase,
+# lower-case enums, RFC 3339 times). Older handler versions emitted other
+# dialects ("status": "open", PascalCase enums, nested requirements/attributes,
+# unix timestamps, "createdAt"); ewds_order_to_int_order still accepts them and
+# always returns the canonical int:Order shape, so the rest of the pipeline
+# stays on the single ontology contract. See docs/integration/ewds.md.
 _EWDS_STATUS_TO_ONTOLOGY = {
-    "open": "Submitted",  # legacy DB status; GSY: Submitted represents "open"
-    "submitted": "Submitted",
-    "partially_filled": "PartiallyFilled",
-    "partiallyfilled": "PartiallyFilled",
-    "filled": "Filled",
-    "cancelled": "Cancelled",
-    "deleted": "Cancelled",  # legacy DB status with no ontology home
-    "expired": "Expired",
-    "rejected": "Rejected",
-    "executed": "Executed",
+    "open": "submitted",  # legacy DB status for an open order
+    "submitted": "submitted",
+    "partially_filled": "partially_filled",
+    "partiallyfilled": "partially_filled",
+    "filled": "filled",
+    "cancelled": "cancelled",
+    "deleted": "cancelled",  # legacy DB status with no ontology home
+    "expired": "expired",
+    "rejected": "rejected",
+    "executed": "executed",
 }
 
 
@@ -147,16 +173,16 @@ def _to_iso(value) -> str | None:
     return value
 
 
-_ENERGY_ENUM = {"GREEN", "PV", "HYDRO", "BIOMASS", "BATTERY", "GREY"}
+_ENERGY_ENUM = {"GREEN", "PV", "HYDRO", "BIOMASS", "BATTERY"}
 
 
 def _normalize_energy(value) -> str | None:
     """Map DTO energy-type values onto the ontology enum casing.
 
-    The handler serializes an absent energy type as the sentinel string
-    "None"/"NONE" (GSY changed the old GREY default to None, 2026-08) — that
-    must become an *absent* field, not a literal enum value. Unknown non-empty
-    values pass through unchanged so ontology validation surfaces real drift.
+    An absent energy type arrives as the value "NONE" (or "None"/null); it
+    becomes an *absent* field. Unknown non-empty values (including "GREY",
+    which the ontology no longer lists) pass through unchanged so ontology
+    validation surfaces them.
     """
     if value is None:
         return None
@@ -174,9 +200,9 @@ def ewds_order_to_int_order(dto: dict) -> dict:
     false. Raises KeyError/TypeError on structurally unusable input; callers
     skip-and-log per order.
     """
-    order_type = str(_first(dto, "orderType", "order_type")).capitalize()
+    order_type = str(_first(dto, "orderType", "order_type")).lower()
 
-    raw_status = _first(dto, "orderStatus", "order_status", "status") or "Submitted"
+    raw_status = _first(dto, "orderStatus", "order_status", "status") or "submitted"
     status = _EWDS_STATUS_TO_ONTOLOGY.get(str(raw_status).lower(), str(raw_status))
 
     requirements = dto.get("requirements") or {}
@@ -203,12 +229,15 @@ def ewds_order_to_int_order(dto: dict) -> dict:
         "quantity": _first(dto, "quantity", "energy_kWh", "energy"),
         "priceLimit": _first(dto, "priceLimit", "price_limit", "energy_rate"),
         "createdBy": _first(dto, "createdBy", "created_by"),
-        "createdAt": _to_iso(
-            _first(dto, "createdAt", "created_at", "creationTime", "creation_time")
+        "creationTime": _to_iso(
+            _first(dto, "creationTime", "creation_time", "createdAt", "created_at")
         ),
     }
     if partner is not None:
         normalized["preferredTradingPartner"] = partner
+    preferred_rate = _first(dto, "preferredEnergyRate", "preferred_energy_rate")
+    if preferred_rate is not None:
+        normalized["preferredEnergyRate"] = preferred_rate
     source_pref = _normalize_energy(source_pref)
     if source_pref is not None:
         normalized["energySourcePreference"] = source_pref
@@ -229,7 +258,7 @@ def _int_trade(
     quantity: float,
     price_eur: float,
     traded_at_iso: str,
-    status: str = "settled",
+    status: str = CLEARED_TRADE_STATUS,
 ) -> dict:
     """Assemble a flat ``int:Trade`` object."""
     return {
@@ -242,7 +271,7 @@ def _int_trade(
         "tradeStatus": status,
         "tradeQuantity": quantity,
         "tradePrice": price_eur,
-        "tradedAt": traded_at_iso,
+        "timestamp": traded_at_iso,
     }
 
 
@@ -332,7 +361,7 @@ def build_int_clearing_result(
         "clearingPrice": clearing_price_eur,
         "totalSupply": total_supply_kwh,
         "totalDemand": total_demand_kwh,
-        "tradedQuantity": traded_quantity_kwh,
+        "tradeQuantity": traded_quantity_kwh,
         "numTrades": num_trades,
         "txHash": tx_hash,
         "createdAt": created_at_iso,
@@ -349,11 +378,12 @@ def _to_unix(value) -> int | None:
 
 
 def ewds_market_to_internal(dto: dict) -> dict:
-    """Normalize a market DTO (MarketSchema dialect or int:Market) to internal.
+    """Normalize a market DTO (int:Market or the older MarketSchema dialect).
 
-    The GSY DB MarketSchema is snake_case with ISO-string times and a lowercase
-    ``matching_algorithm`` ("amm"); the int:Market ontology is camelCase with
-    "AMM". Tolerant on both; times become unix seconds internally.
+    ``markets.query`` returns int:Market: camelCase, UUID ``marketId``, RFC 3339
+    times and a lower-case ``matchingAlgorithm`` ("amm"). The snake_case
+    MarketSchema dialect is still accepted; times become unix seconds
+    internally.
     """
     return {
         "market_id": _first(dto, "marketId", "market_id"),

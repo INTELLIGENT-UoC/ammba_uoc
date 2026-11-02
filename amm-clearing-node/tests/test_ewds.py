@@ -124,12 +124,14 @@ class TestEwdsOrderNormalizer:
     def test_status_mapping_table(self):
         base = make_int_order("B1", "Bid", 1.0)
         for raw, expected in [
-            ("open", "Submitted"),
-            ("submitted", "Submitted"),
-            ("partially_filled", "PartiallyFilled"),
-            ("executed", "Executed"),
-            ("deleted", "Cancelled"),
-            ("Cancelled", "Cancelled"),
+            ("open", "submitted"),
+            ("submitted", "submitted"),
+            ("Submitted", "submitted"),
+            ("partially_filled", "partially_filled"),
+            ("PartiallyFilled", "partially_filled"),
+            ("executed", "executed"),
+            ("deleted", "cancelled"),
+            ("Cancelled", "cancelled"),
         ]:
             dto = {**base, "orderStatus": raw}
             assert ewds_order_to_int_order(dto)["orderStatus"] == expected
@@ -144,11 +146,13 @@ class TestEwdsClientAgainstSim:
         assert len(orders) == 4  # all four seeds are in the slot
         for order in orders:
             validate_order(order)  # normalizer restored the ontology shape
-        assert {o["orderType"] for o in orders} == {"Bid", "Offer"}
-        assert all(o["orderStatus"] == "Submitted" for o in orders)
+        assert {o["orderType"] for o in orders} == {"bid", "offer"}
+        assert all(o["orderStatus"] == "submitted" for o in orders)
+        # The storage returns IDs in its 0x-hex form; they pass through as-is.
+        assert all(o["marketId"] == "0x" + SEED_MARKET.replace("-", "") for o in orders)
         await client.close()
 
-    async def test_inclusive_end_corrected_to_right_open_window(self):
+    async def test_right_open_window(self):
         """An order at exactly slot+900 must NOT appear in [slot, slot+900)."""
         app = create_app()
         store = app.state.store

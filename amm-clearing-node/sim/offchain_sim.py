@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException
-from src.adapters import iso_to_unix
+from src.adapters import iso_to_unix, storage_market_id
 from src.ontology import (
     SchemaValidationError,
     validate,
@@ -87,38 +87,24 @@ class Store:
             logger.info("Seeded %d measurements", len(measurements))
 
 
-def _int_order_to_current_dto(order: dict) -> dict:
-    """Render an int:Order seed in the CURRENT EWDS handler DTO dialect.
+def _int_order_to_ewds_dto(order: dict) -> dict:
+    """Render an int:Order seed as the storage's EWDS order DTO.
 
-    The live GSY handler still emits the pre-ontology shape (lowercase
-    ``status: "open"``, lowercase order type, unix timestamps, nested
-    requirements/attributes). The simulator serves that shape on the gateway
-    path on purpose, so the clearing node's tolerant normalizer is exercised
-    against exactly what staging returns today.
+    The storage keeps order and market IDs in ``0x``-hex form and returns them
+    that way; everything else follows int:Order (camelCase, lower-case enums,
+    RFC 3339 times). Serving the stored ID form exercises the clearing node's
+    UUID-to-hex conversion in its queries.
     """
-    dto = {
-        "orderId": order["orderId"],
-        "marketId": order["marketId"],
-        "orderType": order["orderType"].lower(),
-        "status": "open" if order["orderStatus"] == "Submitted" else order["orderStatus"].lower(),
-        "areaUuid": order["createdBy"],
-        "nonce": 1,
-        "timeSlot": iso_to_unix(order["timeSlot"]),
-        "creationTime": iso_to_unix(order["createdAt"]),
-        "quantity": order["quantity"],
-        "priceLimit": order["priceLimit"],
-        "createdBy": order["createdBy"],
-    }
-    requirements = {}
-    if order.get("preferredTradingPartner"):
-        requirements["tradingPartnerId"] = order["preferredTradingPartner"]
-    if order.get("energySourcePreference"):
-        requirements["energyType"] = order["energySourcePreference"]
-    if requirements:
-        dto["requirements"] = requirements
-    if order.get("energyType"):
-        dto["attributes"] = {"energyType": order["energyType"]}
+    dto = dict(order)
+    dto["orderId"] = storage_market_id(order["orderId"])
+    dto["marketId"] = storage_market_id(order["marketId"])
     return dto
+
+
+def _rfc3339_to_unix(value) -> int | None:
+    if value is None:
+        return None
+    return iso_to_unix(value) if isinstance(value, str) else int(value)
 
 
 def create_app(store: Store | None = None) -> FastAPI:
@@ -127,6 +113,20 @@ def create_app(store: Store | None = None) -> FastAPI:
 
     app = FastAPI(title="AMMBA off-chain DB simulator", version="0.1.0")
     app.state.store = store
+
+    def _filter_markets(community_id, start, end) -> list[dict]:
+        """markets.query semantics: community and opening-time bounds (inclusive)."""
+        out = []
+        for market in store.markets:
+            if community_id is not None and market["communityId"] != community_id:
+                continue
+            opening = iso_to_unix(market["openingTime"])
+            if start is not None and opening < start:
+                continue
+            if end is not None and opening > end:
+                continue
+            out.append(market)
+        return out
 
     @app.get("/health_check")
     @app.get("/health")
@@ -149,8 +149,12 @@ def create_app(store: Store | None = None) -> FastAPI:
         return results
 
     @app.get("/markets")
-    async def get_markets():
-        return list(store.markets)
+    async def get_markets(
+        community_id: str | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ):
+        return _filter_markets(community_id, start_time, end_time)
 
     @app.get("/trades")
     async def get_trades(market_id: str):
@@ -217,47 +221,53 @@ def create_app(store: Store | None = None) -> FastAPI:
         response_topic = REQUEST_TO_RESPONSE[topic]
 
         if topic == "ordersQuery":
+            # Real handler semantics: the market ID is matched literally against
+            # the stored 0x-hex form; times are RFC 3339, window [start, end).
             market_id = payload.get("marketId") or payload.get("market_id")
-            start = payload.get("startTime", payload.get("start_time"))
-            end = payload.get("endTime", payload.get("end_time"))
+            start = _rfc3339_to_unix(payload.get("startTime", payload.get("start_time")))
+            end = _rfc3339_to_unix(payload.get("endTime", payload.get("end_time")))
             results = []
             for order in store.orders:
-                if market_id is not None and order["marketId"] != market_id:
+                if market_id is not None and storage_market_id(order["marketId"]) != market_id:
                     continue
                 ts = iso_to_unix(order["timeSlot"])
-                # Real handler semantics: inclusive on BOTH ends.
                 if start is not None and ts < start:
                     continue
-                if end is not None and ts > end:
+                if end is not None and ts >= end:
                     continue
-                results.append(_int_order_to_current_dto(order))
+                results.append(_int_order_to_ewds_dto(order))
         elif topic == "measurementsQuery":
-            community = payload.get("communityUuid") or payload.get("community_uuid")
-            facility = payload.get("facilityId") or payload.get("facility_id")
-            start = payload.get("startTime", payload.get("start_time"))
-            end = payload.get("endTime", payload.get("end_time"))
+            # Real handler semantics: RFC 3339 bounds (inclusive), optional
+            # facility_id; no community filter.
+            facility = payload.get("facility_id") or payload.get("areaUuid")
+            start = _rfc3339_to_unix(payload.get("startTime", payload.get("start_time")))
+            end = _rfc3339_to_unix(payload.get("endTime", payload.get("end_time")))
             results = []
             for measurement in store.measurements:
-                if community is not None and measurement["communityUuid"] != community:
-                    continue
                 if facility is not None and measurement["facilityId"] != facility:
                     continue
-                ts = measurement["timeSlot"]
-                ts = ts if isinstance(ts, int) else iso_to_unix(ts)
-                # Same window semantics as ordersQuery: inclusive on both ends.
+                ts = iso_to_unix(measurement["timeSlot"])
                 if start is not None and ts < start:
                     continue
                 if end is not None and ts > end:
                     continue
                 results.append(measurement)
         elif topic == "marketsQuery":
-            # MarketSchema dialect: snake_case keys, ISO times — served as-is.
-            results = list(store.markets)
+            results = _filter_markets(
+                payload.get("communityId") or payload.get("community_id"),
+                _rfc3339_to_unix(payload.get("startTime", payload.get("start_time"))),
+                _rfc3339_to_unix(payload.get("endTime", payload.get("end_time"))),
+            )
         elif topic == "idsQuery":
             offchain_id = payload.get("offchainId") or payload.get("offchain_id")
             results = [_id_mapping(offchain_id)]
-        else:  # tradesQuery — no server-side market filter, like the real handler
-            results = list(store.trades)
+        else:  # tradesQuery — filtered by the stored 0x-hex market ID
+            market_id = payload.get("marketId") or payload.get("market_id")
+            results = [
+                trade
+                for trade in store.trades
+                if market_id is None or storage_market_id(trade["marketId"]) == market_id
+            ]
 
         response = {
             "requestId": request_id,

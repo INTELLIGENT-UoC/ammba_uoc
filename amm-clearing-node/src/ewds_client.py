@@ -32,7 +32,12 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from src.adapters import ewds_market_to_internal, ewds_order_to_int_order
+from src.adapters import (
+    ewds_market_to_internal,
+    ewds_order_to_int_order,
+    storage_market_id,
+    unix_to_iso,
+)
 from src.retry import request_with_retries
 
 logger = logging.getLogger(__name__)
@@ -133,13 +138,18 @@ class EwdsOffchainClient:
     async def get_orders(self, market_id: str, start_time: int, end_time: int) -> list[dict]:
         """Fetch orders for a market slot window, normalized to int:Order.
 
-        The handler filters ``time_slot >= start AND time_slot <= end``
-        (inclusive both ends); the AMM's window contract is right-open
-        ``[start, end)``, so ``end - 1`` goes on the wire.
+        ``orders.query`` takes RFC 3339 times and filters ``time_slot`` on the
+        right-open window ``[start, end)``, like the AMM's slot window. The
+        market ID goes on the wire in the storage's ``0x``-hex form, which the
+        handler matches literally.
         """
         data = await self._query(
             "orders.query",
-            {"marketId": market_id, "startTime": start_time, "endTime": end_time - 1},
+            {
+                "marketId": storage_market_id(market_id),
+                "startTime": unix_to_iso(start_time),
+                "endTime": unix_to_iso(end_time),
+            },
         )
         orders = []
         for dto in data:
@@ -154,21 +164,40 @@ class EwdsOffchainClient:
         return orders
 
     async def get_trades(self, market_id: str) -> list[dict]:
-        """Fetch trades for a market (used by the idempotency check).
+        """Fetch the trades of a market (used by the idempotency check).
 
-        trades.query has no server-side market filter, so the market filter is
-        applied client-side.
+        ``trades.query`` filters by the storage's ``0x``-hex market ID; the
+        result is filtered again client-side, comparing both ID forms.
         """
-        data = await self._query("trades.query", {"marketId": market_id})
-        return [t for t in data if (t.get("marketId") or t.get("market_id")) == market_id]
+        wanted = storage_market_id(market_id)
+        data = await self._query("trades.query", {"marketId": wanted})
+        return [
+            t
+            for t in data
+            if storage_market_id(str(t.get("marketId") or t.get("market_id") or "")) == wanted
+        ]
 
-    async def get_markets(self) -> list[dict]:
-        """Fetch all markets, normalized to the internal market dict.
+    async def get_markets(
+        self,
+        community_id: str | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> list[dict]:
+        """Fetch markets, normalized to the internal market dict.
 
         Used by the self-trigger scheduler to discover market slots whose
-        window has closed (MarketSchema: closing_time, matching_algorithm).
+        window has closed. ``markets.query`` filters by community and by the
+        market's opening time (RFC 3339 bounds), which keeps each response well
+        below the broker's message size limit.
         """
-        data = await self._query("markets.query", {})
+        payload: dict = {}
+        if community_id:
+            payload["communityId"] = community_id
+        if start_time is not None:
+            payload["startTime"] = unix_to_iso(start_time)
+        if end_time is not None:
+            payload["endTime"] = unix_to_iso(end_time)
+        data = await self._query("markets.query", payload)
         markets = []
         for dto in data:
             try:
@@ -190,16 +219,20 @@ class EwdsOffchainClient:
     ) -> list[dict]:
         """Fetch int:Measurement records for a time window (calibration input).
 
-        Returns the handler's DTOs as-is — the calibration job consumes the
-        int:Measurement shape (facilityId/communityUuid/timeSlot/energyKwh)
-        directly and stays dependency-free.
+        ``measurements.query`` takes RFC 3339 bounds and an optional
+        ``facility_id``; it has no community filter, so records of other
+        communities are dropped client-side. Returns the handler's DTOs as-is —
+        the calibration job consumes the int:Measurement shape
+        (facilityId/communityUuid/timeSlot/energyKwh) directly and stays
+        dependency-free.
         """
-        payload: dict = {"startTime": start_time, "endTime": end_time}
-        if community_uuid:
-            payload["communityUuid"] = community_uuid
+        payload: dict = {"startTime": unix_to_iso(start_time), "endTime": unix_to_iso(end_time)}
         if facility_id:
-            payload["facilityId"] = facility_id
-        return await self._query("measurements.query", payload)
+            payload["facility_id"] = facility_id
+        data = await self._query("measurements.query", payload)
+        if community_uuid:
+            data = [m for m in data if m.get("communityUuid") == community_uuid]
+        return data
 
     async def post_trades(self, trades: list[dict]) -> None:
         """No EWDS write path — matches are settled on-chain (v2). No-op."""

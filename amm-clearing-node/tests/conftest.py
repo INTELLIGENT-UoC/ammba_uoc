@@ -40,7 +40,7 @@ def make_int_order(
     *,
     market_id: str = MARKET_ID,
     price_limit: float = 0.20,
-    status: str = "Submitted",
+    status: str = "submitted",
     time_slot: str = TIME_SLOT_ISO,
     created_at: str = CREATED_AT_ISO,
     created_by: str | None = None,
@@ -52,13 +52,13 @@ def make_int_order(
     order = {
         "orderId": stable_uuid(f"order:{label}"),
         "marketId": market_id,
-        "orderType": order_type,
+        "orderType": order_type.lower(),  # tests may pass "Bid" / "Offer"
         "orderStatus": status,
         "timeSlot": time_slot,
         "quantity": quantity,
         "priceLimit": price_limit,
         "createdBy": created_by or actor_uuid(label),
-        "createdAt": created_at,
+        "creationTime": created_at,
     }
     if energy_type is not None:
         order["energyType"] = energy_type
