@@ -22,6 +22,7 @@ including ``measurementsQuery`` for the calibration fetch step.
 import hashlib
 import json
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -37,9 +38,7 @@ from src.ontology import (
 
 logger = logging.getLogger(__name__)
 
-SEED_PATH = Path(__file__).parent / "seed_orders.json"
-SEED_MARKETS_PATH = Path(__file__).parent / "seed_markets.json"
-SEED_MEASUREMENTS_PATH = Path(__file__).parent / "seed_measurements.json"
+SEED_DIR = Path(__file__).parent  # override with SIM_SEED_DIR (e.g. a sim.staging_seed set)
 MEASUREMENT_SCHEMA = "int.measurement.schema.v1.json"
 
 
@@ -65,7 +64,9 @@ class Store:
         self.offsets[(topic, client_id)] = cursor + len(batch)
         return batch
 
-    def seed_from_file(self, path: Path = SEED_PATH) -> None:
+    def seed_from_file(self, seed_dir: Path | None = None) -> None:
+        seed_dir = seed_dir or Path(os.environ.get("SIM_SEED_DIR") or SEED_DIR)
+        path = seed_dir / "seed_orders.json"
         if not path.exists():
             return
         with open(path) as f:
@@ -74,12 +75,12 @@ class Store:
             validate_order(order)
         self.orders = orders
         logger.info("Seeded %d orders from %s", len(orders), path)
-        if SEED_MARKETS_PATH.exists():
-            with open(SEED_MARKETS_PATH) as f:
+        if (seed_dir / "seed_markets.json").exists():
+            with open(seed_dir / "seed_markets.json") as f:
                 self.markets = json.load(f)
             logger.info("Seeded %d markets", len(self.markets))
-        if SEED_MEASUREMENTS_PATH.exists():
-            with open(SEED_MEASUREMENTS_PATH) as f:
+        if (seed_dir / "seed_measurements.json").exists():
+            with open(seed_dir / "seed_measurements.json") as f:
                 measurements = json.load(f)
             for measurement in measurements:
                 validate(measurement, MEASUREMENT_SCHEMA)
