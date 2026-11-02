@@ -14,10 +14,10 @@ def _valid_trade():
         "buyerId": "bbbbbbbb-0001-4001-8001-000000000001",
         "offerId": "aaaaaaaa-0002-4002-8002-000000000002",
         "sellerId": "cccccccc-0001-4001-8001-000000000001",
-        "tradeStatus": "settled",
+        "tradeStatus": "matched",
         "tradeQuantity": 5.0,
         "tradePrice": 0.1825,
-        "tradedAt": "2026-07-01T10:00:00Z",
+        "timestamp": "2026-07-01T10:00:00Z",
     }
 
 
@@ -50,11 +50,29 @@ def test_additional_property_fails():
         validate_order(order)
 
 
-def test_bad_uuid_fails():
+def test_bad_datetime_fails():
     trade = _valid_trade()
-    trade["buyerId"] = "not-a-uuid"
-    with pytest.raises(SchemaValidationError, match="uuid"):
+    trade["timestamp"] = "yesterday"
+    with pytest.raises(SchemaValidationError, match="date-time"):
         validate_trade(trade)
+
+
+def test_max_length_fails():
+    from src.ontology import validate_clearing_result
+
+    result = {
+        "marketId": "33333333-3333-4333-8333-333333333333",
+        "clearingStatus": "final",
+        "clearingPrice": 0.1825,
+        "totalSupply": 1.0,
+        "totalDemand": 1.0,
+        "tradeQuantity": 1.0,
+        "numTrades": 2,
+        "txHash": "0x" + "a" * 200,
+        "createdAt": "2026-07-01T10:00:00Z",
+    }
+    with pytest.raises(SchemaValidationError, match="maxLength"):
+        validate_clearing_result(result)
 
 
 def test_non_positive_quantity_fails():

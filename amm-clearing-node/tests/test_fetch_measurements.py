@@ -10,18 +10,26 @@ MEASUREMENTS = [
     {
         "facilityId": "area-1",
         "communityUuid": "c1",
-        "timeSlot": 1782900000,
-        "creationTime": 1782900900,
+        "timeSlot": "2026-07-01T10:00:00Z",
+        "creationTime": "2026-07-01T10:15:00Z",
         "energyKwh": 4.2,
     },
     {
         "facilityId": "area-2",
         "communityUuid": "c1",
-        "timeSlot": 1782900000,
-        "creationTime": 1782900901,
+        "timeSlot": "2026-07-01T10:00:00Z",
+        "creationTime": "2026-07-01T10:15:01Z",
         "energyKwh": -1.5,
     },
+    {
+        "facilityId": "area-9",
+        "communityUuid": "other",
+        "timeSlot": "2026-07-01T10:00:00Z",
+        "creationTime": "2026-07-01T10:15:02Z",
+        "energyKwh": 1.0,
+    },
 ]
+C1 = MEASUREMENTS[:2]  # the handler has no community filter; the client drops "other"
 
 
 def _gateway_transport(data, captured):
@@ -60,14 +68,14 @@ async def test_get_measurements_roundtrip():
     )
     await client.close()
 
-    assert data == MEASUREMENTS
+    assert data == C1
     assert captured["topic"] == "measurementsQuery"
     envelope = captured["envelope"]
     assert envelope["operation"] == "measurements.query"
+    # RFC 3339 bounds; no community key (the handler has no such filter).
     assert envelope["payload"] == {
-        "startTime": 1782900000,
-        "endTime": 1782903600,
-        "communityUuid": "c1",
+        "startTime": "2026-07-01T10:00:00Z",
+        "endTime": "2026-07-01T11:00:00Z",
     }
 
 
@@ -102,10 +110,10 @@ def test_fetch_cli_writes_calibration_input(tmp_path, monkeypatch):
 
     assert rc == 0
     written = json.loads(out.read_text())
-    assert written == MEASUREMENTS
-    # ISO start parsed to unix; numeric end passed through.
-    assert captured["envelope"]["payload"]["startTime"] == 1782900000
-    assert captured["envelope"]["payload"]["endTime"] == 1782903600
+    assert written == C1
+    # ISO and unix CLI inputs both go on the wire as RFC 3339.
+    assert captured["envelope"]["payload"]["startTime"] == "2026-07-01T10:00:00Z"
+    assert captured["envelope"]["payload"]["endTime"] == "2026-07-01T11:00:00Z"
 
 
 @pytest.mark.asyncio
@@ -140,4 +148,4 @@ async def test_fetch_against_simulator(tmp_path, monkeypatch):
     assert len(written) == 6  # three facilities × two slots; other community excluded
     for measurement in written:
         validate(measurement, "int.measurement.schema.v1.json")
-    assert {m["timeSlot"] for m in written} == {1782900000, 1782900900}
+    assert {m["timeSlot"] for m in written} == {"2026-07-01T10:00:00Z", "2026-07-01T10:15:00Z"}

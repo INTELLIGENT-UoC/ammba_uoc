@@ -18,8 +18,12 @@ tool as received.
 | `int:Trade`          | out       | Buyer–pool, pool–seller and direct preference trades                    |
 | `int:ClearingResult` | out       | Per-slot summary: price, volumes, status                                |
 
-The wire objects are flat, use camelCase field names, UUID identifiers,
-ISO-8601 timestamps and prices in EUR/kWh. Translation between the wire objects
+The wire objects are flat, use camelCase field names, lower-case enumeration
+values (for example order types `bid`/`offer` and status `submitted`),
+RFC 3339 timestamps and prices in EUR/kWh. Markets carry UUID identifiers; the
+off-chain storage returns order and market identifiers of orders in its
+`0x`-hex form of the same 16 bytes. Trades produced by clearing have the status
+`matched`; settlement on the exchange later marks trades as settled. Translation between the wire objects
 and the engine's internal representation happens in one module,
 `amm-clearing-node/src/adapters.py`; the algorithm modules never see wire field
 names.

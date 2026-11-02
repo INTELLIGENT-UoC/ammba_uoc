@@ -57,3 +57,15 @@ def test_calibrate_end_to_end():
     assert 0.0 <= params["theta"] <= 50.0
     assert 0.0 <= params["steepness"] <= 50.0
     assert params["n_slots"] == 2
+
+
+def test_rfc3339_time_slots_aggregate_in_time_order():
+    # int:Measurement carries RFC 3339 time slots (as the platform now sends them).
+    measurements = [
+        _meas("2026-07-01T10:15:00Z", "a", 4.0),
+        _meas("2026-07-01T10:00:00Z", "a", 6.0),
+        _meas("2026-07-01T10:00:00Z", "b", -3.0),
+        _meas("2026-07-01T10:15:00Z", "b", -4.0),
+    ]
+    slots = aggregate_slots(measurements, k_upper=28.5, k_lower=8.0)
+    assert [(s.total_supply, s.total_demand) for s in slots] == [(3.0, 6.0), (4.0, 4.0)]

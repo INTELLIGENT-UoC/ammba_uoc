@@ -119,6 +119,12 @@ def _check(value, schema: dict, path: str, errors: list[str]) -> None:
     if pattern and isinstance(value, str) and not re.search(pattern, value):
         errors.append(f"{path}: {value!r} does not match pattern {pattern}")
 
+    if isinstance(value, str):
+        if "minLength" in schema and len(value) < schema["minLength"]:
+            errors.append(f"{path}: shorter than minLength {schema['minLength']}")
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            errors.append(f"{path}: longer than maxLength {schema['maxLength']}")
+
     if isinstance(value, int | float) and not isinstance(value, bool):
         if "minimum" in schema and value < schema["minimum"]:
             errors.append(f"{path}: {value} < minimum {schema['minimum']}")

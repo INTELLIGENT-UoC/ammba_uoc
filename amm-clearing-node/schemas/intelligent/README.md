@@ -6,6 +6,11 @@ are the single source of truth for the wire format and are vendored here so the
 build does not depend on an external checkout and so any upstream change lands
 as a reviewable diff.
 
+Source: `schemas/ewds/intelligent/` of the GSY DEX repository
+(gridsingularity/gsy-decentralized-exchange), branch `GSYDEXv2` at `f0ea6c8`
+(2026-10-30). Upstream changes fields within the `v1` file names, so compare
+against the source when updating.
+
 The clearing node uses three of them directly:
 
 | Schema                               | Role in the clearing node                           |

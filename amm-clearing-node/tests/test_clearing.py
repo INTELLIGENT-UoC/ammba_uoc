@@ -46,15 +46,15 @@ async def test_basic_clearing(community):
     assert len(db.posted_trades) == 4
 
     for trade in db.posted_trades:
-        assert trade["tradeStatus"] == "settled"
+        assert trade["tradeStatus"] == "matched"
         assert trade["marketId"] == MARKET_ID
         # Exactly one side of every pool trade is the pool actor.
         assert POOL_ACTOR_UUID in (trade["buyerId"], trade["sellerId"])
 
-    # A FINAL clearing result was posted.
+    # A final clearing result was posted.
     assert len(db.posted_clearing_results) == 1
     cr = db.posted_clearing_results[0]
-    assert cr["clearingStatus"] == "FINAL"
+    assert cr["clearingStatus"] == "final"
     assert cr["numTrades"] == 4
 
 
@@ -97,8 +97,8 @@ async def test_no_bids(community):
 
     assert result["status"] == "no_trade"
     assert len(db.posted_trades) == 0
-    # NO_BID clearing result still recorded.
-    assert db.posted_clearing_results[0]["clearingStatus"] == "NO_BID"
+    # A no_bid clearing result is still recorded.
+    assert db.posted_clearing_results[0]["clearingStatus"] == "no_bid"
 
 
 @pytest.mark.asyncio
@@ -123,8 +123,8 @@ async def test_filters_non_matchable_orders(community):
     orders = [
         make_int_order("B1", "Bid", 5.0),
         make_int_order("S1", "Offer", 5.0),
-        make_int_order("B2", "Bid", 10.0, status="Executed"),
-        make_int_order("S2", "Offer", 10.0, status="Cancelled"),
+        make_int_order("B2", "Bid", 10.0, status="executed"),
+        make_int_order("S2", "Offer", 10.0, status="cancelled"),
     ]
     result, db = await _clear(orders, community)
 
@@ -213,31 +213,23 @@ async def test_direct_trades_emitted_once_per_matched_bid(community):
 
 
 @pytest.mark.asyncio
-async def test_differential_pricing_adjusts_seller_trades(community):
-    """Green sellers earn more, grey less; buyers keep the uniform price."""
+async def test_differential_pricing_inactive_without_grey_label(community):
+    """The ontology has no grey energy type (#85), so no levy can fund a subsidy.
+
+    The levy and subsidy arithmetic itself is covered in test_preferences.py.
+    """
     community = community.model_copy(update={"green_subsidy_rate": 0.10, "grey_levy_rate": 0.10})
     orders = [
         make_int_order("B1", "Bid", 10.0),
         make_int_order("GreenS", "Offer", 5.0, energy_type="PV"),
-        make_int_order("GreyS", "Offer", 5.0, energy_type="GREY"),
+        make_int_order("PlainS", "Offer", 5.0),  # unlabelled
     ]
     result, db = await _clear(orders, community)
 
     assert result["status"] == "cleared"
-    uniform_eur = result["clearing_price_eur_per_kwh"]
-    prov = result["price_adjustments"]
-    assert prov is not None
-    assert prov["scheme"] == "seller_side_zero_sum"
-    # Zero-sum: the subsidy never exceeds the collected levy revenue.
-    assert prov["subsidy_total_ct"] <= prov["levy_revenue_ct"] + 1e-9
-
-    green_trade = [t for t in db.posted_trades if t["sellerId"] == actor_uuid("GreenS")][0]
-    grey_trade = [t for t in db.posted_trades if t["sellerId"] == actor_uuid("GreyS")][0]
-    buyer_trade = [t for t in db.posted_trades if t["buyerId"] == actor_uuid("B1")][0]
-
-    assert green_trade["tradePrice"] > uniform_eur
-    assert grey_trade["tradePrice"] < uniform_eur
-    assert abs(buyer_trade["tradePrice"] - uniform_eur) < 1e-12
+    assert result["price_adjustments"] is None
+    for trade in db.posted_trades:
+        assert abs(trade["tradePrice"] - result["clearing_price_eur_per_kwh"]) < 1e-12
 
 
 @pytest.mark.asyncio

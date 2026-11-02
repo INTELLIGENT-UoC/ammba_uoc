@@ -46,13 +46,25 @@ class OffchainDBClient:
         resp.raise_for_status()
         return resp.json()
 
-    async def get_markets(self) -> list[dict]:
-        """Fetch all markets (internal dict shape), for the scheduler.
+    async def get_markets(
+        self,
+        community_id: str | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> list[dict]:
+        """Fetch markets (internal dict shape), for the scheduler.
 
-        GET /markets — served by the local simulator; the real GSY path is
-        markets.query over EWDS.
+        GET /markets — served by the local simulator; the platform path is
+        markets.query over EWDS. The filters bound the market's opening time.
         """
-        resp = await request_with_retries(self._client, "GET", "/markets")
+        params: dict = {}
+        if community_id:
+            params["community_id"] = community_id
+        if start_time is not None:
+            params["start_time"] = start_time
+        if end_time is not None:
+            params["end_time"] = end_time
+        resp = await request_with_retries(self._client, "GET", "/markets", params=params)
         resp.raise_for_status()
         return [ewds_market_to_internal(m) for m in resp.json()]
 

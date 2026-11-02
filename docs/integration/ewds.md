@@ -42,18 +42,24 @@ message.
 
 ## Operations
 
-| Operation            | Request topic       | Response topic              | Query parameters                                               |
-| -------------------- | ------------------- | --------------------------- | -------------------------------------------------------------- |
-| `orders.query`       | `ordersQuery`       | `ordersQueryResponse`       | `marketId`, `startTime`, `endTime`                             |
-| `trades.query`       | `tradesQuery`       | `tradesQueryResponse`       | `marketId` (filtered client-side)                              |
-| `measurements.query` | `measurementsQuery` | `measurementsQueryResponse` | `startTime`, `endTime`, optional `communityUuid`, `facilityId` |
-| `markets.query`      | `marketsQuery`      | `marketsQueryResponse`      | none (all markets)                                             |
-| `ids.query`          | `idsQuery`          | `idsQueryResponse`          | `offchainId`                                                   |
+| Operation            | Request topic       | Response topic              | Query parameters                                                   |
+| -------------------- | ------------------- | --------------------------- | ------------------------------------------------------------------ |
+| `orders.query`       | `ordersQuery`       | `ordersQueryResponse`       | `marketId`, `startTime`, `endTime`                                 |
+| `trades.query`       | `tradesQuery`       | `tradesQueryResponse`       | `marketId`                                                         |
+| `measurements.query` | `measurementsQuery` | `measurementsQueryResponse` | `startTime`, `endTime`, optional `facility_id`                     |
+| `markets.query`      | `marketsQuery`      | `marketsQueryResponse`      | `communityId`, `startTime`, `endTime` (bounds of the opening time) |
+| `ids.query`          | `idsQuery`          | `idsQueryResponse`          | `offchainId`                                                       |
 
-`measurements.query` is issued only by the calibration fetch step. The handler
-filters time windows inclusively at both ends, while AMMBA's slot windows are
-right-open. The client therefore requests orders up to `endTime − 1`;
-measurement windows are passed as given.
+Times go on the wire as RFC 3339 strings. The handler filters order time slots
+on the right-open window `[startTime, endTime)`, like AMMBA's slot window. The
+off-chain storage keeps order and market identifiers as `0x` followed by 32 hex
+digits and matches `marketId` in `orders.query` and `trades.query` literally,
+while `markets.query` returns markets with UUID identifiers; the client
+converts a UUID market identifier to the stored form before querying.
+`measurements.query` has no community filter: the calibration fetch step
+drops records of other communities itself. The self-trigger scheduler asks for
+the markets of each configured community that opened during the last 24 hours,
+which keeps every response well below the broker's message size limit.
 
 ## Consumer identity
 
@@ -80,12 +86,11 @@ The factor of 1.5 and the tenfold cap are fixed.
 
 ## Data normalisation
 
-Order data from the handler can arrive in several field-naming dialects while
-the exchange's transport objects are aligned with the ontology. The client
-normalises every order to the ontology's order shape before validation, for
-example mapping snake_case to camelCase fields, lower-case statuses to the
-ontology's status names, and the `"None"` energy-type marker to an absent
-field. `OFFCHAIN_STRICT_VALIDATION=false` keeps orders that still fail
+The handler's order objects follow the ontology. Older handler versions used
+other field-naming dialects, which the client still accepts: it normalises every
+order to the ontology's order shape before validation, for example mapping
+snake_case to camelCase fields, legacy statuses such as `open` to the
+ontology's `submitted`, and the `NONE` energy-type marker to an absent field. `OFFCHAIN_STRICT_VALIDATION=false` keeps orders that still fail
 validation, logging them instead of dropping them. Measurement records are
 passed to the calibration tool as received.
 

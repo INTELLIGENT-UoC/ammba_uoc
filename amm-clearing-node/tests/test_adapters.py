@@ -47,13 +47,13 @@ class TestIntOrderToInternal:
         assert internal["created_by"] == order["createdBy"]
         assert internal["energy"] == 5.0
         assert internal["energy_rate"] == 0.28
-        assert internal["status"] == "Open"  # Submitted -> Open
+        assert internal["status"] == "Open"  # submitted -> Open
         assert internal["time_slot"] == TIME_SLOT_UNIX
 
     def test_non_matchable_status_passthrough(self):
-        order = make_int_order("B1", "Bid", 5.0, status="Cancelled")
+        order = make_int_order("B1", "Bid", 5.0, status="cancelled")
         internal = adapters.int_order_to_internal(order)
-        assert internal["status"] == "Cancelled"  # not mapped to Open
+        assert internal["status"] == "cancelled"  # not mapped to Open
 
     def test_flat_preferences_become_nested(self):
         order = make_int_order(
@@ -110,7 +110,7 @@ class TestBuildIntTrades:
 
         result = adapters.build_int_clearing_result(
             "33333333-3333-4333-8333-333333333333",
-            "FINAL",
+            "final",
             0.1825,
             10.0,
             10.0,
@@ -120,3 +120,22 @@ class TestBuildIntTrades:
             "2026-07-01T10:00:00Z",
         )
         validate_clearing_result(result)
+
+
+class TestStorageMarketId:
+    def test_uuid_becomes_storage_hex(self):
+        assert (
+            adapters.storage_market_id("33333333-3333-4333-8333-333333333333")
+            == "0x33333333333343338333333333333333"
+        )
+
+    def test_hex_forms_are_normalised(self):
+        assert adapters.storage_market_id("0xABCDEF0123456789ABCDEF0123456789") == (
+            "0xabcdef0123456789abcdef0123456789"
+        )
+        assert adapters.storage_market_id("abcdef0123456789abcdef0123456789") == (
+            "0xabcdef0123456789abcdef0123456789"
+        )
+
+    def test_other_values_pass_through(self):
+        assert adapters.storage_market_id("market-1") == "market-1"
