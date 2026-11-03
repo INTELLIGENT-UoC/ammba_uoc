@@ -61,10 +61,11 @@ You don't tag or write changelog entries manually. [release-please](https://gith
 2. The PR updates `version.txt`, `.release-please-manifest.json`, and `CHANGELOG.md`.
 3. When you merge the Release PR, it tags `vX.Y.Z` and creates a GitHub Release.
 
-The repository has one version, kept in `version.txt`, the manifest and
-`CITATION.cff` (bumped by release-please through its generic updater). The
-component manifests (`pyproject.toml`, `package.json`) carry a fixed `0.1.0`
-and are not bumped; don't change them by hand.
+The repository has one version, kept in `version.txt`, the manifest,
+`CITATION.cff` and `amm-clearing-node/src/version.py` (the version the clearing
+node's API reports); release-please bumps the last two through its generic
+updater. The component manifests (`pyproject.toml`, `package.json`) carry a
+fixed `0.1.0` and are not bumped; don't change them by hand.
 
 ## Local development
 

@@ -1,5 +1,7 @@
 """Tests for the FastAPI app: health, trigger endpoint and lifespan."""
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 from src.config import Settings
 from src.main import create_app
@@ -44,3 +46,11 @@ def test_health_trigger_and_shutdown(community):
         assert _trigger(client, community_uuid="unknown").status_code == 400
 
     assert db.closed  # the lifespan closes the transport client
+
+
+def test_api_reports_the_release_version(community):
+    """The API version follows the repository release (version.txt)."""
+    release = (Path(__file__).parents[2] / "version.txt").read_text().strip()
+    app = create_app(Settings(communities={COMMUNITY: community}))
+    with TestClient(app) as client:
+        assert client.get("/openapi.json").json()["info"]["version"] == release
