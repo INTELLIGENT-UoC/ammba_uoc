@@ -35,8 +35,8 @@ conventional automated market maker, nothing is carried over to the next cycle.
 2. [Pricing function](pricing.md): how the clearing price follows from the
    supply-to-demand ratio.
 3. [Allocation and gains from trade](allocation.md): who trades how much, why
-   the pool is budget-balanced, and how the price splits the gains from local
-   trade, with a worked example.
+   the payments of the clearing balance, and how the price splits the gains
+   from local trade, with a worked example.
 4. [Parameter calibration](calibration.md): how the shape of the pricing
    function is fitted to a community's own data.
 5. [Parameter governance](governance.md): who decides the parameters, through
