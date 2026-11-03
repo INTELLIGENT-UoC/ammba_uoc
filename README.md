@@ -56,10 +56,11 @@ uncertain, and every participant has to form price bids. AMMBA instead offers:
 
 - **One price per slot** for every participant, recomputable by anyone from two
   aggregate quantities and the published parameters.
-- **Never worse than the grid**: the price stays between the feed-in
-  tariff and the retail price.
-- **A budget-balanced pool** that needs no subsidy, no liquidity providers and
-  no operator margin.
+- **Prices inside the grid band**: every kWh traded locally is priced between
+  the feed-in tariff and the retail price.
+- **A pass-through pool**: in each slot's clearing, buyers pay exactly what
+  sellers receive, so the pool needs no subsidy, no liquidity providers and no
+  operator margin.
 - **Community-governed distribution**: the pricing parameters decide how the
   gains from local trade are split between buyers and sellers, and they are
   calibrated from the community's own data.

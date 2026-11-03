@@ -18,13 +18,20 @@ market is empty, no local trade takes place in the slot.
 
 ## Properties
 
-- **Budget balance.** Buyers pay $\pi_t \sum_i q_{t,i} = \pi_t Q_t$ and sellers
-  receive $\pi_t \sum_j s_{t,j} = \pi_t Q_t$. The pool neither accumulates nor
-  requires money, so neither a subsidy nor an operator margin is needed.
-- **Individual rationality.** Since $K_{\mathrm{lo}} \le \pi_t \le K_{\mathrm{up},t}$,
-  every buyer pays at most the retail price and every seller receives at least
-  the feed-in tariff for each traded kWh. Taking part in the market is never
-  worse than using the grid alone.
+The following hold for the clearing of a slot, that is, the price of Eq. (1)
+and the allocation of Eq. (2). They do not extend to the ex-post
+[penalties](incentives.md) or to
+[differential pricing](extensions.md#energy-type-differential-pricing), which
+add payments of their own: a penalty can outweigh a participant's gain from
+local trade, and a levy can pay a seller less than the feed-in tariff.
+
+- **Payments balance.** Buyers pay $\pi_t \sum_i q_{t,i} = \pi_t Q_t$ and
+  sellers receive $\pi_t \sum_j s_{t,j} = \pi_t Q_t$. The pool passes the
+  payments of the clearing through, so clearing a slot needs neither a subsidy
+  nor an operator margin.
+- **Prices inside the grid band.** Since $K_{\mathrm{lo}} \le \pi_t \le K_{\mathrm{up},t}$,
+  a buyer pays at most the retail price and a seller receives at least the
+  feed-in tariff for each kWh traded locally.
 - **Maximal local matching.** Given the submitted quantities, no allocation can
   match more energy locally than $Q_t$.
 
@@ -39,8 +46,8 @@ $$
 
 which does not depend on the price. The price only determines how this gain is
 divided: buyers save $Q_t (K_{\mathrm{up},t} - \pi_t)$ and sellers earn
-$Q_t (\pi_t - K_{\mathrm{lo}})$. Substituting Eq. (1) yields an exact
-interpretation of the pricing function:
+$Q_t (\pi_t - K_{\mathrm{lo}})$. Substituting Eq. (1) shows how the pricing
+function divides this gain:
 
 $$
 \frac{K_{\mathrm{up},t} - \pi_t}{K_{\mathrm{up},t} - K_{\mathrm{lo}}} = \sigma\big(B (r_t - \Theta)\big),
@@ -70,10 +77,10 @@ are served in full and buyers receive 90% of their bids.
 | Buyer B2    |               4.0 |             3.6 |                       +70.29 |            0.4 imported |                  32.31 |
 | Seller S1   |               5.0 |             5.0 |                       −97.62 |                     0.0 |                  57.62 |
 | Seller S2   |               4.0 |             4.0 |                       −78.10 |                     0.0 |                  46.10 |
-| **Total**   | E = 9.0, D = 10.0 |         Q = 9.0 |    **0.00** (budget balance) |                     1.0 |             **184.50** |
+| **Total**   | E = 9.0, D = 10.0 |         Q = 9.0 |  **0.00** (payments balance) |                     1.0 |             **184.50** |
 
 The gains from local trade of 184.50 ct are split 43.8% to the buyers and
-56.2% to the sellers, exactly as Eq. (4) predicts with
+56.2% to the sellers, as Eq. (4) gives with
 $\sigma(2.5 \cdot (0.9 - 1)) = 0.438$.
 
 ![Pool-mediated clearing of the worked example](../assets/figures/pool.png)

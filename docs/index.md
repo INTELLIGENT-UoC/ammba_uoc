@@ -18,11 +18,13 @@ evaluation are published in [Saber et al. (2026)](reference/bibliography.md#ammb
 - **One price per slot.** All participants in a slot trade at the same price,
   which anyone can recompute from two aggregate quantities and the published
   parameters.
-- **Never worse than the grid.** The price stays inside the band set by the
-  retail price and the feed-in tariff, so every traded kWh is at least as good
-  for each participant as the grid alternative.
-- **Budget-balanced pool.** The pool pays sellers exactly what it collects from
-  buyers. It needs no subsidy, no liquidity providers and no operator margin.
+- **Prices inside the grid band.** The price stays inside the band set by the
+  retail price and the feed-in tariff, so a buyer pays at most the retail price
+  and a seller receives at least the feed-in tariff for each kWh traded
+  locally.
+- **Pass-through pool.** In the clearing of a slot, the pool pays sellers
+  exactly what it collects from buyers. It needs no subsidy, no liquidity
+  providers and no operator margin.
 - **Maximal local matching.** Every slot clears the largest feasible local
   volume; the longer side of the market is served pro rata.
 - **Truthful reporting.** Ex-post penalties make reporting true demand and
