@@ -29,12 +29,32 @@ selects the matching mechanism per market._
 
 ## Current support
 
-| Capability                                                                              | Status         |
-| --------------------------------------------------------------------------------------- | -------------- |
-| Orders in, trades and clearing results out in the ontology                              | Supported      |
-| Reading orders and markets for clearing, and measurements for calibration, through EWDS | Supported      |
-| Discovery of closed AMM markets and self-triggered clearing                             | Supported      |
-| Settlement of AMM matches through the GSY DEX settlement layer                          | In development |
+The table describes the integration with the GSY DEX at version `GSYDEXv2`
+`f0ea6c8` (2026-10-30).
 
-The [settlement engine](../implementation/settlement-engine.md#known-limitations)
-page lists the known limitations of on-chain settlement.
+| Capability                                                                              | Status                                                                                                                                                                |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Orders in, trades and clearing results out in the ontology                              | Supported                                                                                                                                                             |
+| Reading orders and markets for clearing, and measurements for calibration, through EWDS | Supported                                                                                                                                                             |
+| Discovery of closed AMM markets and self-triggered clearing                             | Supported                                                                                                                                                             |
+| Writing trades and clearing results to the off-chain storage through EWDS               | Not available: the storage records trades and clearing results from settlement events only ([#84][i84])                                                               |
+| AMM markets and order-book markets side by side in one GSY DEX deployment               | Not available: the market orchestrator assigns one matching algorithm to all markets, and the GSY DEX matching engine matches the orders of every market ([#83][i83]) |
+| Energy-type differential pricing                                                        | Implemented, no effect: the ontology has no grey energy type ([preferences](../model/extensions.md#energy-type-differential-pricing))                                 |
+| Settlement of AMM trades through the GSY DEX settlement layer                           | In development ([known limitations](../implementation/settlement-engine.md#known-limitations))                                                                        |
+
+[i83]: https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/83
+[i84]: https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/84
+
+## Verification on a GSY DEX deployment
+
+The supported read and clearing path was verified on 2026-11-03 against a
+staging deployment of the GSY DEX at the version above, through its EWDS
+gateway. The staging environment receives no live orders or metering data, so
+it was seeded with the [staging test data set](../implementation/testing.md#testing-against-a-deployment)
+for that day. The scheduler discovered the 47 AMM markets that had closed,
+read their orders and cleared every market: 273 trades and 47 clearing results,
+all valid against the ontology and identical to a replay of the same data in
+the local simulator. The measurement fetch returned the seeded metering
+records of the previous two days, and the calibration tool produced a parameter
+set from them. A captured order response of the off-chain storage is kept as a
+regression fixture of the clearing node's tests.

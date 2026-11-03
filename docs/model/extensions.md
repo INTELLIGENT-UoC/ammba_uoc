@@ -46,9 +46,10 @@ neutral (no type). With community-set rates $g$ (green subsidy rate) and $l$
 
 The scheme needs both a funding and a funded side: if a slot has no green or
 no grey pool sales, no adjustment is made. The current version of the ontology
-has no grey energy type, so no order can carry the grey label and the scheme
-makes no adjustment; how unlabelled offers should be treated is an open
-question ([#85](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/85)). When the levy revenue exceeds the
+has no grey energy type, so no order can carry the grey label. Offers without
+an energy type count as neutral, not as grey, so with the current ontology the
+scheme makes no adjustment even when enabled; it takes effect once the
+ontology provides a grey energy type. When the levy revenue exceeds the
 subsidy paid, the difference remains with the pool and is reported as the
 pool residual. The adjusted price is written directly into the price of the
 affected pool–seller trades, and the clearing summary records the full

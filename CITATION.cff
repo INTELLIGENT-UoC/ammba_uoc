@@ -16,6 +16,7 @@ authors:
 version: 0.1.12 # x-release-please-version
 license: GPL-3.0-or-later
 repository-code: "https://github.com/INTELLIGENT-UoC/ammba_uoc"
+url: "https://intelligent-uoc.github.io/ammba_uoc/"
 keywords:
   - local energy markets
   - energy communities

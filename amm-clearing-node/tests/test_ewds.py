@@ -1,12 +1,17 @@
 """Tests for the EWDS/CGW transport: DTO normalizer, client, end-to-end run."""
 
 import json
+from datetime import date
+from pathlib import Path
 
 import httpx
 import pytest
+import yaml
 from sim.offchain_sim import create_app
-from src.adapters import ewds_order_to_int_order, int_order_to_internal
+from sim.staging_seed import build_seed, community_snippet, community_uuid, pool_actor_uuid
+from src.adapters import ewds_order_to_int_order, int_order_to_internal, iso_to_unix
 from src.clearing import run_clearing
+from src.config import CommunityConfig
 from src.ewds_client import (
     EwdsConfig,
     EwdsError,
@@ -16,9 +21,10 @@ from src.ewds_client import (
 )
 from src.ontology import validate_order
 
-from tests.conftest import TIME_SLOT_UNIX, actor_uuid, make_int_order
+from tests.conftest import TIME_SLOT_UNIX, FakeDBClient, actor_uuid, make_int_order
 
 SEED_MARKET = "33333333-3333-4333-8333-333333333333"
+STAGING_ORDERS = Path(__file__).parent / "fixtures" / "staging_orders_f0ea6c8.json"
 
 
 def _ewds_client(app, **config_overrides) -> EwdsOffchainClient:
@@ -51,8 +57,19 @@ class TestEwdsOrderNormalizer:
         order = make_int_order("B1", "Bid", 4.5, price_limit=0.12)
         return int_order_to_internal(order)
 
-    def test_current_handler_dialect(self):
-        """Today's staging shape: status 'open', nested prefs, unix times."""
+    def test_storage_payload_f0ea6c8(self):
+        """A captured orders.query response of the storage (GSYDEXv2 f0ea6c8)
+        normalizes to valid int:Order objects without lenient validation."""
+        dtos = json.loads(STAGING_ORDERS.read_text())["dtos"]
+        orders = [ewds_order_to_int_order(dto) for dto in dtos]
+        for order in orders:
+            validate_order(order)
+        assert {o["orderType"] for o in orders} == {"bid", "offer"}
+        assert {o["orderStatus"] for o in orders} == {"expired"}
+        assert all(o["timeSlot"] == dtos[0]["timeSlot"] for o in orders)
+
+    def test_legacy_handler_dialect(self):
+        """The staging shape of August 2026: status 'open', nested prefs, unix times."""
         canonical = make_int_order(
             "B1",
             "Bid",
@@ -216,9 +233,8 @@ class TestEwdsClientAgainstSim:
 async def test_clearing_end_to_end_over_ewds(community):
     """Full clearing cycle with the EWDS transport against the sim gateway.
 
-    The sim serves the CURRENT (pre-ontology) DTO dialect, so this proves
-    normalizer + strict validation + clearing all hold against what the
-    staging handler emits today.
+    The sim serves the storage's order DTO (int:Order fields, 0x-hex IDs), so
+    this proves normalizer + strict validation + clearing hold end to end.
     """
     app = create_app()
     client = _ewds_client(app)
@@ -239,6 +255,41 @@ async def test_clearing_end_to_end_over_ewds(community):
     assert app.state.store.trades == []
     assert app.state.store.clearing_results == []
     await client.close()
+
+
+@pytest.mark.asyncio
+async def test_captured_staging_payload_clears_like_the_seed():
+    """The orders the storage returned clear exactly like the seeded objects
+    they were loaded from (sim.staging_seed, 2026-11-03)."""
+    fixture = json.loads(STAGING_ORDERS.read_text())
+    market = fixture["market"]
+    config = CommunityConfig(**yaml.safe_load(community_snippet())[community_uuid()])
+    seeded = [
+        o
+        for o in build_seed(date(2026, 11, 3), history_days=0)["orders"]
+        if o["marketId"] == market["marketId"]
+    ]
+
+    async def clear(orders):
+        db = FakeDBClient(orders)
+        result = await run_clearing(
+            market_id=market["marketId"],
+            community_uuid=market["communityId"],
+            time_slot=iso_to_unix(market["deliveryStartTime"]),
+            community_config=config,
+            db_client=db,
+            contract_client=None,
+        )
+        return result, db.posted_trades
+
+    staged, trades = await clear([ewds_order_to_int_order(dto) for dto in fixture["dtos"]])
+    expected, _ = await clear(seeded)
+
+    assert staged["status"] == "cleared"
+    for key in ("total_supply_kwh", "total_demand_kwh", "clearing_price_ct_per_kwh", "num_trades"):
+        assert staged[key] == expected[key]
+    pool = pool_actor_uuid()
+    assert any(pool not in (t["buyerId"], t["sellerId"]) for t in trades)  # preferred pair
 
 
 class TestEnergyTypeSentinel:
