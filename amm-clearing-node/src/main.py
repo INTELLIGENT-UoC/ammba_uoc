@@ -18,6 +18,7 @@ from src.contract import AMMContractClient
 from src.ewds_client import EwdsConfig, EwdsOffchainClient
 from src.offchain_db import OffchainDBClient
 from src.scheduler import run_scheduler_loop
+from src.version import __version__
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,7 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 task.cancel()
             await app.state.db_client.close()
 
-    app = FastAPI(title="AMM Clearing Node", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="AMM Clearing Node", version=__version__, lifespan=lifespan)
 
     # Shared clients stored on app state. Transport-selectable: direct REST to
     # the off-chain DB (default / local simulator) or publish/poll via the EW

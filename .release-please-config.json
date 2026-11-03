@@ -22,7 +22,10 @@
   "packages": {
     ".": {
       "package-name": "ammba",
-      "extra-files": [{ "type": "generic", "path": "CITATION.cff" }]
+      "extra-files": [
+        { "type": "generic", "path": "CITATION.cff" },
+        { "type": "generic", "path": "amm-clearing-node/src/version.py" }
+      ]
     }
   }
 }
