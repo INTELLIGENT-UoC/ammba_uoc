@@ -25,8 +25,10 @@ evaluation are published in [Saber et al. (2026)](reference/bibliography.md#ammb
   buyers. It needs no subsidy, no liquidity providers and no operator margin.
 - **Maximal local matching.** Every slot clears the largest feasible local
   volume; the longer side of the market is served pro rata.
-- **Truthful reporting.** Ex-post penalties make reporting true demand and
-  supply a dominant strategy for every participant.
+- **Truthful reporting.** In the published mechanism, ex-post penalties make
+  reporting true demand and supply a dominant strategy for every participant.
+  The penalty formulas are implemented but not yet applied; see
+  [incentives](model/incentives.md).
 - **Community-governed distribution.** The pricing parameters decide how the
   gains from local trade are split between buyers and sellers, and the
   community decides them through a transparent process.
@@ -39,8 +41,12 @@ uniform-price auction; see the [evaluation](model/evaluation.md).
 
 The clearing engine, the calibration tool and local operation for a single
 community are complete and tested. The clearing engine reads market data from
-the GSY DEX through the Energy Web Digital Spine (EWDS) and can clear markets
-autonomously. Settlement of AMM matches on the GSY DEX is in development. Work
+the GSY DEX through the Energy Web Digital Spine (EWDS) and clears closed AMM
+markets autonomously; this was verified on a GSY DEX staging deployment with
+seeded test data. Writing results back to the exchange, running AMM markets
+next to order-book markets, and on-chain settlement of AMM trades need GSY DEX
+features that are not yet available; the settlement engine is in development.
+[Current support](integration/index.md#current-support) gives the details. Work
 in progress is tracked in the
 [issue tracker](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues).
 

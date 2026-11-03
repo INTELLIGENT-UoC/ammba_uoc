@@ -48,4 +48,12 @@ that writes one day of AMM markets for a dedicated test community, the orders
 of a few synthetic participants for every market and metering history for
 calibration. Every object is a schema-valid `int.*` object, and the same set
 can be served by the simulator first. The [simulator README](https://github.com/INTELLIGENT-UoC/ammba_uoc/blob/main/amm-clearing-node/sim/README.md#staging-test-data)
-describes the files.
+describes the files. The results of such a run are summarised under
+[verification on a GSY DEX deployment](../integration/index.md#verification-on-a-gsy-dex-deployment).
+
+The simulator can also expire orders the way the off-chain storage does
+(`POST /_expire_orders`), and the clearing node's tests include an order
+response captured from the storage
+(`amm-clearing-node/tests/fixtures/staging_orders_f0ea6c8.json`), which must
+normalize to valid `int:Order` objects and clear like the seeded orders it
+came from.

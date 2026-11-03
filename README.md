@@ -10,10 +10,11 @@ quantities they want to buy or sell for a delivery slot. When the slot closes,
 all orders are cleared together against a community pool at one **uniform
 price**: a sigmoid function of the ratio between offered and requested energy,
 bounded by the feed-in tariff and the retail price. The traded volume is the
-smaller of total supply and total demand, allocated **pro rata**, and ex-post
-penalties make truthful reporting a dominant strategy. The mechanism is
-published in [Applied Energy](https://doi.org/10.1016/j.apenergy.2026.127957)
-(see [Citation](#citation)).
+smaller of total supply and total demand, allocated **pro rata**. The mechanism
+is published in [Applied Energy](https://doi.org/10.1016/j.apenergy.2026.127957)
+(see [Citation](#citation)), including ex-post penalties that make truthful
+reporting a dominant strategy; this repository implements the penalty formulas
+but does not yet apply them.
 
 AMMBA is developed by the University of Cologne in the Horizon Europe project
 [INTELLIGENT](https://intelligent-project.eu/) as an alternative matching
@@ -24,15 +25,20 @@ and clearing results out, so it is interchangeable with the exchange's
 order-book mechanisms.
 
 > **Status.** The clearing engine, the calibration tool and local operation
-> for a single community are complete and tested. The clearing engine reads
-> market data from the GSY DEX through the Energy Web Digital Spine (EWDS) and
-> can clear markets autonomously. Settlement of AMM matches on the GSY DEX is in
-> development.
+> for a single community are complete and tested. Against the GSY DEX
+> (`GSYDEXv2` `f0ea6c8`), the clearing engine reads orders, markets and metering
+> data through the Energy Web Digital Spine (EWDS) and clears closed AMM markets
+> autonomously; this was verified on a staging deployment with seeded test data
+> on 2026-11-03. Writing results back to the exchange, running AMM markets next
+> to order-book markets, and settling AMM trades on-chain need GSY DEX features
+> that are not yet available; the settlement engine is in development. See
+> [current support](https://intelligent-uoc.github.io/ammba_uoc/integration/#current-support).
 
 ## Documentation
 
-The full documentation lives in [`docs/`](docs/index.md) and is built as a
-website with MkDocs:
+The documentation is published at
+<https://intelligent-uoc.github.io/ammba_uoc/>. Its sources live in
+[`docs/`](docs/index.md) and are built with MkDocs:
 
 |                                                                  |                                                                    |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -110,7 +116,7 @@ Each Python component is an independent [uv](https://docs.astral.sh/uv/)
 project, and the contract uses Hardhat:
 
 ```bash
-cd amm-clearing-node  && uv sync --extra dev && uv run pytest   # 124 tests
+cd amm-clearing-node  && uv sync --extra dev && uv run pytest   # 126 tests
 cd amm-calibration    && uv sync --extra dev && uv run pytest   # 9 tests
 cd amm-execution-node && uv sync --extra dev && uv run pytest   # 56 tests
 cd amm-smart-contract && npm ci && npx hardhat test             # 17 tests
