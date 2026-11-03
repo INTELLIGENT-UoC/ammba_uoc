@@ -22,10 +22,12 @@ from datetime import UTC, datetime
 CT_PER_EUR = 100.0
 
 # int:Order.orderStatus values that the AMM treats as open and eligible to
-# match: "submitted" is the ontology's open status. (partially_filled is not
-# expected in the batch-AMM flow — orders are fresh each slot; revisit if
-# partial fills ever reach the AMM.)
-MATCHABLE_ORDER_STATUSES = {"submitted"}
+# match: "submitted" is the ontology's open status. "expired" counts too: the
+# off-chain storage expires every submitted order once its time slot has
+# started, which is after its market has closed, and the AMM clears only after
+# the close. (partially_filled is not expected in the batch-AMM flow — orders
+# are fresh each slot; revisit if partial fills ever reach the AMM.)
+MATCHABLE_ORDER_STATUSES = {"submitted", "expired"}
 INTERNAL_OPEN = "Open"
 
 # int:Trade.tradeStatus of a trade produced by clearing. "matched": the trade is

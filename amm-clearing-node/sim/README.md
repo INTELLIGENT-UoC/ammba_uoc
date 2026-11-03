@@ -20,7 +20,10 @@ preferred pair), `seed_markets.json` (one AMM and one pay-as-bid market) and
 `seed_measurements.json` (metering records for the calibration fetch step).
 REST endpoints: `GET /orders`, `GET /markets`, `GET /trades`,
 `POST /trades-normalized`, `POST /clearing-results`, `GET /clearing-results`,
-`POST /ids`, `POST /_reset`, `GET /health` (alias `/health_check`). The EWDS
+`POST /ids`, `POST /_reset`, `POST /_expire_orders`, `GET /health` (alias
+`/health_check`). `POST /_expire_orders?now=…` performs one run of the
+storage's periodic order expiry: every `submitted` order whose time slot has
+started becomes `expired`. The EWDS
 gateway emulation (`POST`/`GET /api/v2/messages`) answers `ordersQuery`,
 `tradesQuery`, `marketsQuery`, `measurementsQuery` and `idsQuery`.
 

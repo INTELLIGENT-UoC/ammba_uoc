@@ -135,6 +135,22 @@ async def test_filters_non_matchable_orders(community):
 
 
 @pytest.mark.asyncio
+async def test_clears_orders_expired_at_slot_start(community):
+    """The storage expires orders once the slot starts; the AMM still clears them."""
+    orders = [
+        make_int_order("B1", "Bid", 5.0, status="expired"),
+        make_int_order("S1", "Offer", 5.0, status="expired"),
+        make_int_order("S2", "Offer", 10.0, status="cancelled"),
+    ]
+    result, db = await _clear(orders, community)
+
+    assert result["status"] == "cleared"
+    assert result["total_supply_kwh"] == 5.0  # S1, not the cancelled S2
+    assert result["total_demand_kwh"] == 5.0
+    assert result["num_trades"] == 2
+
+
+@pytest.mark.asyncio
 async def test_clearing_price_within_bounds(community):
     orders = [make_int_order("B1", "Bid", 5.0), make_int_order("S1", "Offer", 5.0)]
     result, _ = await _clear(orders, community)

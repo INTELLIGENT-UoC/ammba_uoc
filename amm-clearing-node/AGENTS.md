@@ -46,7 +46,7 @@ src/
 schemas/intelligent/   # vendored GSY DEX int.* JSON Schemas (the wire contract)
 sim/                   # local off-chain DB + CGW gateway simulator, staging test data (dev only)
 tests/
-└── test_*.py          # incl. conftest.py (schema-validating fake DB), 122 tests total
+└── test_*.py          # incl. conftest.py (schema-validating fake DB), 124 tests total
 ```
 
 Transport is selected by `OFFCHAIN_TRANSPORT` (`rest` default, `ewds` for the
@@ -115,7 +115,7 @@ default), clearing runs **off-chain only** (step 4 is skipped).
 
 ```bash
 uv sync --extra dev                              # install (incl. pytest)
-uv run pytest -v                                 # 122 tests
+uv run pytest -v                                 # 124 tests
 uv run pytest tests/test_clearing.py -v          # subset
 uv run uvicorn src.main:app --port 8081 --reload # local server
 uv run uvicorn sim.offchain_sim:app --port 8080  # local off-chain DB simulator
