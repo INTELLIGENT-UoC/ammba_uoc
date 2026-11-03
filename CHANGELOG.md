@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.12](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.11...v0.1.12) (2026-11-03)
+
+
+### Features
+
+* **clearing:** generate a staging test data set ([#91](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/91)) ([1d206e4](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/1d206e44f6370b14baf94c0ed109319fba5a0178)), closes [#90](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/90)
+
+
+### Bug Fixes
+
+* **clearing:** count orders the storage expired at slot start ([#94](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/94)) ([d806076](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/d8060768a9dd385912cc2e139359e8c00d26753c)), closes [#93](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/93)
+
 ## [0.1.11](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.10...v0.1.11) (2026-11-02)
 
 
