@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.13](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.12...v0.1.13) (2026-11-03)
+
+
+### Bug Fixes
+
+* **clearing:** report the release version in the API ([#98](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/98)) ([f4c8582](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/f4c8582d76e3c88f351bdd94853a9923ca863635))
+
+
+### Documentation
+
+* report the integration status at GSY DEX f0ea6c8 ([#99](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/99)) ([f79a03d](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/f79a03d7789ac9d7d9be1be7e3dcd59bdf3f56e0))
+* state the clearing properties without budget-balance and rationality claims ([#101](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/101)) ([6a9db86](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/6a9db864b80c59fcfee775d2e6b83dd66b29097f))
+
 ## [0.1.12](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.11...v0.1.12) (2026-11-03)
 
 

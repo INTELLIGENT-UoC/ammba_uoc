@@ -5,4 +5,4 @@ release-please updates the marked line on every release (see
 version.
 """
 
-__version__ = "0.1.12"  # x-release-please-version
+__version__ = "0.1.13"  # x-release-please-version
