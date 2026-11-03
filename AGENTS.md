@@ -78,7 +78,7 @@ ammba_uoc/
 │   ├── configuration.yaml           # static parameters, communities
 │   ├── schemas/intelligent/         # vendored GSY DEX int.* schemas (wire contract)
 │   ├── sim/                         # local off-chain DB + gateway simulator, staging test data (dev only)
-│   └── tests/                       # 122 pytest tests (incl. conftest fake DB + e2e)
+│   └── tests/                       # 124 pytest tests (incl. conftest fake DB + e2e)
 │
 ├── amm-calibration/                # offline sigmoid-param optimization (a job, not a service)
 │   ├── AGENTS.md

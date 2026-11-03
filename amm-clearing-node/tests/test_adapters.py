@@ -55,6 +55,11 @@ class TestIntOrderToInternal:
         internal = adapters.int_order_to_internal(order)
         assert internal["status"] == "cancelled"  # not mapped to Open
 
+    def test_expired_is_matchable(self):
+        # The storage expires orders at slot start, before the AMM clears.
+        order = make_int_order("B1", "Bid", 5.0, status="expired")
+        assert adapters.int_order_to_internal(order)["status"] == "Open"
+
     def test_flat_preferences_become_nested(self):
         order = make_int_order(
             "B1",

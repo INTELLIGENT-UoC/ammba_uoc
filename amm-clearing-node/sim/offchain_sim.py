@@ -64,6 +64,15 @@ class Store:
         self.offsets[(topic, client_id)] = cursor + len(batch)
         return batch
 
+    def expire_orders(self, now: int) -> int:
+        """Storage parity: submitted orders whose time slot has started expire."""
+        expired = 0
+        for order in self.orders:
+            if order["orderStatus"] == "submitted" and iso_to_unix(order["timeSlot"]) < now:
+                order["orderStatus"] = "expired"
+                expired += 1
+        return expired
+
     def seed_from_file(self, seed_dir: Path | None = None) -> None:
         seed_dir = seed_dir or Path(os.environ.get("SIM_SEED_DIR") or SEED_DIR)
         path = seed_dir / "seed_orders.json"
@@ -192,6 +201,11 @@ def create_app(store: Store | None = None) -> FastAPI:
         store.offsets.clear()
         store.seed_from_file()
         return {"status": "reset"}
+
+    @app.post("/_expire_orders")
+    async def expire_orders(now: int | None = None):
+        """One run of the storage's periodic order expiry (default: current time)."""
+        return {"expired": store.expire_orders(int(time.time()) if now is None else now)}
 
     # ── EWDS gateway emulation (publish/poll request-response) ────────
     # Mimics the EW CGW surface the GSY off-chain storage request handler

@@ -12,7 +12,7 @@ market slot.
 | Step | Function                                                                                                                                                                |
 | ---: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |    0 | Idempotency check: skip the slot if trades already exist for the market.                                                                                                |
-|    1 | Read the open orders of the market and validate them against the ontology schemas. Orders in status `submitted` are matchable.                                          |
+|    1 | Read the open orders of the market and validate them against the ontology schemas. Orders in status `submitted` or `expired` are matchable (see below).                 |
 |    2 | Aggregate the supply $E_t$ and the demand $D_t$.                                                                                                                        |
 |    3 | Compute the clearing price with [Eq. (1)](../model/pricing.md#the-pricing-function) on the ratio $E_t / D_t$. If one side of the market is empty, finish without trade. |
 |    4 | Optionally record the result with the [audit anchor](smart-contract.md). Skipped when no contract is configured.                                                        |
@@ -20,6 +20,12 @@ market slot.
 |    6 | Serve mutual preferred partners first, then apply the optional [differential pricing](../model/extensions.md).                                                          |
 |    7 | Generate the trades: buyer–pool and pool–seller trades for pool allocations, direct trades for preference pairs.                                                        |
 |    8 | Publish the trades and the clearing result to the off-chain store.                                                                                                      |
+
+The GSY DEX off-chain storage sets every `submitted` order to `expired` once
+its time slot has started. A market closes no later than the start of its
+delivery slot, and the engine clears it only after the close, so its orders
+may already be expired by then. The engine therefore treats `expired` orders
+like `submitted` ones and ignores orders in any other status.
 
 Each pool allocation becomes two trades so that the bilateral trade object of
 the ontology can describe pool-mediated exchanges; the pool appears as a

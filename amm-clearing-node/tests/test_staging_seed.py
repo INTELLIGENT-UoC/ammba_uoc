@@ -75,7 +75,8 @@ def test_community_snippet_is_valid_config():
 
 @pytest.mark.asyncio
 async def test_scheduler_clears_the_seeded_day(tmp_path, monkeypatch):
-    """The simulator serves the generated set; a tick at noon clears every closed market."""
+    """The simulator serves the generated set; a tick at noon clears every closed market,
+    including those whose orders the storage has already expired."""
     assert main(["--date", DAY.isoformat(), "--out", str(tmp_path)]) == 0
     monkeypatch.setenv("SIM_SEED_DIR", str(tmp_path))
     app = create_app()
@@ -87,6 +88,9 @@ async def test_scheduler_clears_the_seeded_day(tmp_path, monkeypatch):
     db._client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://sim")
 
     now = iso_to_unix("2026-11-10T12:00:00Z")
+    # As on the storage, orders of started slots have expired before the AMM clears.
+    expired = (await db._client.post("/_expire_orders", params={"now": now})).json()["expired"]
+    assert 0 < expired < len(app.state.store.orders)
     results = await run_scheduler_tick(settings, db, None, set(), now=now)
     await db.close()
 
