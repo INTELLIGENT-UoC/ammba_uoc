@@ -20,6 +20,7 @@ jobs:
       execution: ${{ steps.filter.outputs.execution }}
       contract: ${{ steps.filter.outputs.contract }}
       docs: ${{ steps.filter.outputs.docs }}
+      images: ${{ steps.filter.outputs.images }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -42,6 +43,51 @@ jobs:
               - 'docs/**'
               - 'mkdocs.yml'
               - '.github/workflows/ci.yml'
+            images:
+              - 'amm-clearing-node/**'
+              - 'amm-execution-node/**'
+              - 'docker-compose.yml'
+              - '.env.example'
+              - '.github/workflows/ci.yml'
+
+  # Runs on every change: cheap, and covers root-level Python files too. The
+  # ruff version matches the pre-commit hook.
+  lint:
+    name: lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uvx ruff@0.8.4 check .
+      - run: uvx ruff@0.8.4 format --check .
+
+  # Builds both images and runs the quick start of
+  # docs/getting-started/quickstart.md against the compose "dev" stack.
+  images:
+    name: images (docker compose)
+    needs: changes
+    if: needs.changes.outputs.images == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose --env-file .env.example --profile dev config --quiet
+      - run: docker compose --env-file .env.example --profile dev up --build --detach --wait
+      - name: Clear the sample market
+        run: |
+          curl --fail --silent http://localhost:8081/health
+          curl --fail --silent -X POST http://localhost:8081/trigger-clearing \
+            -H 'Content-Type: application/json' \
+            -d '{"market_id": "33333333-3333-4333-8333-333333333333",
+                 "community_uuid": "11111111-1111-4111-8111-111111111111",
+                 "time_slot": 1782900000}' | tee summary.json
+          python3 -c "import json; d = json.load(open('summary.json'))['detail']; assert d['status'] == 'cleared' and d['num_trades'] == 4, d"
+          curl --fail --silent 'http://localhost:8080/trades?market_id=33333333-3333-4333-8333-333333333333' \
+            | python3 -c "import json, sys; assert len(json.load(sys.stdin)) == 4"
+      - if: failure()
+        run: docker compose --env-file .env.example --profile dev logs
+      - run: docker compose --env-file .env.example --profile dev down
+      - run: docker build --tag amm-execution-node amm-execution-node
+      - run: docker run --rm amm-execution-node uv run python -m src.main --help
 
   clearing-node:
     name: clearing-node (pytest)
@@ -128,13 +174,14 @@ jobs:
 
   ci-ok:
     name: CI
-    needs: [clearing-node, calibration, execution-node, contract, docs]
+    needs:
+      [lint, images, clearing-node, calibration, execution-node, contract, docs]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Verify required jobs succeeded or were skipped
         run: |
-          for r in "${{ needs.clearing-node.result }}" "${{ needs.calibration.result }}" "${{ needs.execution-node.result }}" "${{ needs.contract.result }}" "${{ needs.docs.result }}"; do
+          for r in "${{ needs.lint.result }}" "${{ needs.images.result }}" "${{ needs.clearing-node.result }}" "${{ needs.calibration.result }}" "${{ needs.execution-node.result }}" "${{ needs.contract.result }}" "${{ needs.docs.result }}"; do
             if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
               echo "A required job failed: $r"
               exit 1
