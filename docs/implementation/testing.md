@@ -32,8 +32,11 @@ Every pull request and every push to `main` runs continuous integration on
 GitHub Actions (release pull requests only once the release workflow has its
 own token, see [#60](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/60)). A first job detects which components changed; only their test
 suites run, and a final job reports a single status for the whole pipeline.
-The documentation is built with `mkdocs build --strict` whenever it changes, so
-broken links and missing pages fail the build.
+Linting with `ruff` runs on every change. When a service or the Compose
+configuration changes, both Docker images are built and the
+[quick start](../getting-started/quickstart.md) runs against the Compose `dev`
+stack. The documentation is built with `mkdocs build --strict` whenever it
+changes, so broken links and missing pages fail the build.
 
 ## Testing against a deployment
 
