@@ -31,7 +31,7 @@ class Settings(BaseModel):
     offchain_db_url: str = "http://localhost:8080"
     rpc_url: str = "https://volta-rpc.energyweb.org"
     contract_address: str = ""  # empty disables the optional on-chain step
-    clearing_node_private_key: str = ""
+    audit_anchor_private_key: str = ""
     time_slot_sec: int = 900
     communities: dict[str, CommunityConfig] = {}
 
@@ -96,7 +96,6 @@ def load_settings(config_path: Path | None = None) -> Settings:
         "OFFCHAIN_TRANSPORT": "offchain_transport",
         "RPC_URL": "rpc_url",
         "CONTRACT_ADDRESS": "contract_address",
-        "CLEARING_NODE_PRIVATE_KEY": "clearing_node_private_key",
         "TIME_SLOT_SEC": "time_slot_sec",
         "HOST": "host",
         "PORT": "port",
@@ -125,6 +124,8 @@ def load_settings(config_path: Path | None = None) -> Settings:
         "ewds_request_fqcn": ("EWDS_REQUEST_PUBLISH_FQCN", "EWDS_REQUEST_FQCN"),
         "ewds_response_fqcn": ("EWDS_RESPONSE_SUBSCRIBE_FQCN", "EWDS_RESPONSE_FQCN"),
         "ewds_client_id": ("EWDS_AMM_CLIENT_ID", "EWDS_RESPONSE_CLIENT_ID"),
+        # CLEARING_NODE_PRIVATE_KEY is the former name, still read by existing deployments.
+        "audit_anchor_private_key": ("AUDIT_ANCHOR_PRIVATE_KEY", "CLEARING_NODE_PRIVATE_KEY"),
     }
     for field, env_keys in fallback_chains.items():
         for env_key in env_keys:

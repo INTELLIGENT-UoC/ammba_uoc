@@ -76,10 +76,10 @@ The last three parameters configure
 | `EWDS_RESPONSE_POLL_MAX_INTERVAL_MS`                   | `5000`                                  | Ceiling of the polling back-off                                                                     |
 | `RPC_URL`                                              | `https://volta-rpc.energyweb.org`       | Chain endpoint, for the optional audit anchor                                                       |
 | `CONTRACT_ADDRESS`                                     | empty                                   | Address of the audit-anchor contract                                                                |
-| `CLEARING_NODE_PRIVATE_KEY`                            | none                                    | Key that signs audit-anchor transactions                                                            |
+| `AUDIT_ANCHOR_PRIVATE_KEY`                             | none                                    | Key that signs audit-anchor transactions (formerly `CLEARING_NODE_PRIVATE_KEY`, still accepted)     |
 
 The audit anchor is used only when both `CONTRACT_ADDRESS` and
-`CLEARING_NODE_PRIVATE_KEY` are set; otherwise the engine runs fully off-chain.
+`AUDIT_ANCHOR_PRIVATE_KEY` are set; otherwise the engine runs fully off-chain.
 Boolean variables accept `true`/`false`, `1`/`0`, `yes`/`no` and `on`/`off`;
 any other value stops the service at start-up.
 
