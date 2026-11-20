@@ -92,12 +92,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Contract client (optional — may not have credentials in dev)
     app.state.contract_client = None
-    if settings.clearing_node_private_key and settings.contract_address:
+    if settings.audit_anchor_private_key and settings.contract_address:
         try:
             app.state.contract_client = AMMContractClient(
                 rpc_url=settings.rpc_url,
                 contract_address=settings.contract_address,
-                private_key=settings.clearing_node_private_key,
+                private_key=settings.audit_anchor_private_key,
             )
             logger.info("Contract client initialized for %s", settings.contract_address)
         except Exception:

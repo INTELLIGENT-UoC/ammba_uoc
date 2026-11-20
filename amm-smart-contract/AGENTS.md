@@ -83,7 +83,7 @@ network is defined but should never be triggered by CI or by an LLM.
 
 After deployment:
 
-1. Set `CONTRACT_ADDRESS` and `CLEARING_NODE_PRIVATE_KEY` in the clearing
+1. Set `CONTRACT_ADDRESS` and `AUDIT_ANCHOR_PRIVATE_KEY` in the clearing
    node's env.
 2. Call `setCommunityParams(...)` for each community before clearing (unless
    the deploy script did it). `setClearingNode` rotates the clearing node's

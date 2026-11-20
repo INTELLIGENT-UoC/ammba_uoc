@@ -11,6 +11,7 @@ ENV_KEYS = (
     "OFFCHAIN_DB_URL",
     "OFFCHAIN_TRANSPORT",
     "CONTRACT_ADDRESS",
+    "AUDIT_ANCHOR_PRIVATE_KEY",
     "CLEARING_NODE_PRIVATE_KEY",
     "PORT",
     "TIME_SLOT_SEC",
@@ -63,3 +64,16 @@ def test_unrecognised_boolean_is_rejected(monkeypatch):
     monkeypatch.setenv("OFFCHAIN_STRICT_VALIDATION", "maybe")
     with pytest.raises(ValueError, match="OFFCHAIN_STRICT_VALIDATION"):
         load_settings(REPO_CONFIG)
+
+
+def test_audit_anchor_key_is_read_from_its_variable(monkeypatch):
+    monkeypatch.setenv("AUDIT_ANCHOR_PRIVATE_KEY", "0x" + "11" * 32)
+    monkeypatch.setenv("CLEARING_NODE_PRIVATE_KEY", "0x" + "22" * 32)
+    settings = load_settings(REPO_CONFIG)
+    assert settings.audit_anchor_private_key == "0x" + "11" * 32
+
+
+def test_former_audit_anchor_key_name_is_still_accepted(monkeypatch):
+    monkeypatch.setenv("CLEARING_NODE_PRIVATE_KEY", "0x" + "22" * 32)
+    settings = load_settings(REPO_CONFIG)
+    assert settings.audit_anchor_private_key == "0x" + "22" * 32

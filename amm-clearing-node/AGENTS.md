@@ -46,7 +46,7 @@ src/
 schemas/intelligent/   # vendored GSY DEX int.* JSON Schemas (the wire contract)
 sim/                   # local off-chain DB + CGW gateway simulator, staging test data (dev only)
 tests/
-└── test_*.py          # incl. conftest.py (schema-validating fake DB), 127 tests total
+└── test_*.py          # incl. conftest.py (schema-validating fake DB), 129 tests total
 ```
 
 Transport is selected by `OFFCHAIN_TRANSPORT` (`rest` default, `ewds` for the
@@ -105,17 +105,17 @@ value counts as unset). The full list, with aliases and the YAML keys, is in
 | `SCHEDULER_POLL_INTERVAL_SEC`                                           | self-trigger mode                                        | `60`                              |
 | `RPC_URL`                                                               | submitting on-chain                                      | `https://volta-rpc.energyweb.org` |
 | `CONTRACT_ADDRESS`                                                      | submitting on-chain                                      | —                                 |
-| `CLEARING_NODE_PRIVATE_KEY`                                             | submitting on-chain                                      | —                                 |
+| `AUDIT_ANCHOR_PRIVATE_KEY`                                              | submitting on-chain                                      | —                                 |
 | `TIME_SLOT_SEC`                                                         | always                                                   | `900`                             |
 
-If `CONTRACT_ADDRESS` or `CLEARING_NODE_PRIVATE_KEY` is unset (the shipped
+If `CONTRACT_ADDRESS` or `AUDIT_ANCHOR_PRIVATE_KEY` is unset (the shipped
 default), clearing runs **off-chain only** (step 4 is skipped).
 
 ## Dev loop
 
 ```bash
 uv sync --extra dev                              # install (incl. pytest)
-uv run pytest -v                                 # 127 tests
+uv run pytest -v                                 # 129 tests
 uv run pytest tests/test_clearing.py -v          # subset
 uv run uvicorn src.main:app --port 8081 --reload # local server
 uv run uvicorn sim.offchain_sim:app --port 8080  # local off-chain DB simulator

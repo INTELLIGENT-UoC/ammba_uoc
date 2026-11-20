@@ -80,7 +80,7 @@ decide the parameters and how.
   is the reference implementation; it is GPL-3.0 licensed and can be
   self-hosted with MongoDB.
 - **Keys and secrets.** Keys are only needed for the optional on-chain anchor
-  (`CLEARING_NODE_PRIVATE_KEY`, `CONTRACT_ADDRESS`, `RPC_URL`). Keep them in
+  (`AUDIT_ANCHOR_PRIVATE_KEY`, `CONTRACT_ADDRESS`, `RPC_URL`). Keep them in
   environment or secret storage, never in the YAML file. Without them the
   engine runs fully off-chain.
 - **Health checks.** `GET /health` on the clearing engine; the compose file
