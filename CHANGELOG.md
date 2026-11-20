@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.14](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.13...v0.1.14) (2026-11-20)
+
+
+### Refactor
+
+* **clearing:** rename CLEARING_NODE_PRIVATE_KEY to AUDIT_ANCHOR_PRIVATE_KEY ([#116](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/116)) ([02a7fb7](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/02a7fb72cdd67b145b7e801e5baa017bc5e741bf))
+
+
+### Build
+
+* **deps-dev:** Bump hardhat ([#113](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/113)) ([d30f0da](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/d30f0da716cabdf04024c757f28beeee47fe1b71))
+* **deps:** Bump pytest ([#103](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/103)) ([6887af3](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/6887af3bf8ba613d94c43e906038565e41403da5))
+* **deps:** Bump the python-minor-and-patch group across 1 directory with 2 updates ([#114](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/114)) ([1b45c6e](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/1b45c6e84cb10f1258f50034c547aea3692ecdbd))
+* **deps:** Bump the python-minor-and-patch group across 1 directory with 4 updates ([#115](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/115)) ([d10e3bf](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/d10e3bf53466119fc75bb28292c0e27bf5aa2349))
+* **deps:** Update mkdocs-material requirement in /docs ([#111](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/111)) ([3804ad1](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/3804ad131757a0366952a568853f5088a004005a))
+
 ## [0.1.13](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.12...v0.1.13) (2026-11-03)
 
 
