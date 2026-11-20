@@ -284,9 +284,11 @@ endpoints with the example payloads in [README.md](README.md) /
 - **Versioning**: handled automatically by `release-please`. Don't bump version
   numbers manually; the bot opens a "Release PR" when there are unreleased
   commits.
-- **Dependencies**: Dependabot opens weekly PRs. Major bumps may need manual
-  migration work — see the per-component `AGENTS.md` files (e.g. Hardhat 3 in
-  `amm-smart-contract/AGENTS.md`).
+- **Dependencies**: Dependabot opens weekly PRs. Minor and patch updates merge
+  automatically once CI passes (`.github/workflows/dependabot-auto-merge.yml`).
+  Docker base-image updates and major bumps stay open for review. Major bumps
+  may need manual migration work — see the per-component `AGENTS.md` files
+  (e.g. Hardhat 3 in `amm-smart-contract/AGENTS.md`).
 
 ---
 

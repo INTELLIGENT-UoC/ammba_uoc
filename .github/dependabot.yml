@@ -68,9 +68,17 @@ updates:
     schedule:
       interval: "weekly"
     labels: ["dependencies", "docker"]
+    # Python 3.15 waits until all compiled dependencies ship cp315 wheels (#118).
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: "docker"
     directory: "/amm-execution-node"
     schedule:
       interval: "weekly"
     labels: ["dependencies", "docker"]
+    # Python 3.15 waits until all compiled dependencies ship cp315 wheels (#118).
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-minor"]
