@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.2.1...v0.2.2) (2026-11-25)
+
+
+### Refactor
+
+* reduce the complexity of four functions ([#133](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/133)) ([691946e](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/691946e412b0319d3a2bb82958e86323123e83c4)), closes [#131](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/131)
+
 ## [0.2.1](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.2.0...v0.2.1) (2026-11-25)
 
 
