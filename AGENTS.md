@@ -253,6 +253,7 @@ local end-to-end flow.
 | Settlement engine                | `pytest` in `amm-execution-node` (builder, validator, engine)                    |
 | Smart contract                   | `npx hardhat test`                                                               |
 | Documentation                    | `uvx --with-requirements docs/requirements.txt mkdocs build --strict`            |
+| Quality gates (all code)         | `uvx ruff@0.8.4 check .` (incl. complexity ≤ 15), `uvx vulture@2.14`, `uv run --with pytest-cov pytest --cov=src` |
 | Anything in CI                   | Push to a branch and watch the GitHub Actions run                                |
 
 For manual smoke tests, `docker compose --profile dev up` then exercise the

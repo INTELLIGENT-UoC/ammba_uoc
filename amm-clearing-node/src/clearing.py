@@ -51,7 +51,7 @@ from src.sigmoid import from_node_int, sigmoid_price, to_node_int
 logger = logging.getLogger(__name__)
 
 
-async def run_clearing(
+async def run_clearing(  # noqa: C901 (#131)
     market_id: str,
     community_uuid: str,
     time_slot: int,
