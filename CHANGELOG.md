@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.2.0...v0.2.1) (2026-11-25)
+
+
+### Refactor
+
+* remove code made obsolete by bilateral matches ([#129](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/129)) ([80f492a](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/80f492a3916e410ab3c571115668330afe1c9c94)), closes [#128](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/128)
+
 ## [0.2.0](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.14...v0.2.0) (2026-11-25)
 
 
