@@ -96,7 +96,7 @@ tests/
 
 ```bash
 uv sync --extra dev
-uv run pytest -v                 # 57 tests
+uv run pytest -v                 # full suite
 uv run python -m src.main        # CLI status / dry-run planner
 ```
 
@@ -108,4 +108,5 @@ uv run python -m src.main        # CLI status / dry-run planner
 - Don't wire `--execute` paths before the settlement contracts are final; the
   hand-declared ABI fragments in `chain.py` must then be replaced by the
   compiled contract artifacts.
-- `sigmoid.py` must stay in sync with `amm-clearing-node/src/sigmoid.py`.
+- `sigmoid.py` must stay in sync with `amm-clearing-node/src/sigmoid.py`
+  (`python3 scripts/check_pricing_copies.py` from the repo root checks it).

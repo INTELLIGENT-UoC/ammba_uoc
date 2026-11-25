@@ -42,7 +42,7 @@ defaults), which is the regression anchor.
    inside `(k_lower, k_upper)` anyway. The clearing node's `sigmoid.py` clamps
    for runtime safety. The core `K_upper - (K_upper-K_lower)/(1+exp(...))`
    formula must match across all three copies (clearing node, settlement
-   engine, calibration).
+   engine, calibration); `python3 scripts/check_pricing_copies.py` (repo root) checks this.
 3. **Output is the clearing node's config shape** (`communities:` block). The
    publish path (config merge vs on-chain `setCommunityParams` vs a future
    `int:AmmParameters` write) is open — tracked in issue #35.

@@ -52,11 +52,12 @@ ammba_uoc/
 ├── docker-compose.yml               # clearing node + optional simulator (--profile dev)
 ├── .env.example                     # every environment variable, commented
 ├── pyproject.toml                   # ruff configuration (all Python components)
+├── scripts/check_pricing_copies.py  # checks that the three price-function copies agree
 │
 ├── amm-smart-contract/
 │   ├── AGENTS.md                    # component-specific onboarding
 │   ├── contracts/AMMContract.sol    # the on-chain contract
-│   ├── test/AMMContract.test.js     # 17 hardhat tests
+│   ├── test/AMMContract.test.js     # hardhat tests
 │   ├── hardhat.config.js            # networks (volta, ewc)
 │   └── scripts/deploy.js
 │
@@ -80,7 +81,7 @@ ammba_uoc/
 │   ├── configuration.yaml           # static parameters, communities
 │   ├── schemas/intelligent/         # vendored GSY DEX int.* schemas (wire contract)
 │   ├── sim/                         # local off-chain DB + gateway simulator, staging test data (dev only)
-│   └── tests/                       # 184 pytest tests (incl. conftest fake DB + e2e)
+│   └── tests/                       # pytest suite (incl. conftest fake DB + e2e)
 │
 ├── amm-calibration/                # offline sigmoid-param optimization (a job, not a service)
 │   ├── AGENTS.md
@@ -105,7 +106,7 @@ execution node's own AGENTS.md.
 
 ```bash
 # Smart contract
-cd amm-smart-contract && npm ci && npx hardhat test           # 17 tests
+cd amm-smart-contract && npm ci && npx hardhat test
 cd amm-smart-contract && npx hardhat compile
 
 # Clearing node
@@ -170,7 +171,8 @@ local end-to-end flow.
    function exists in three copies — `amm-clearing-node/src/sigmoid.py`,
    `amm-execution-node/src/sigmoid.py` (counterfactual pricing for penalties)
    and `amm-calibration/src/pricing.py` (unclamped, for the optimizer) — keep
-   the formula identical in all three.
+   the formula identical in all three. `scripts/check_pricing_copies.py`
+   compares them on a grid of ratios and parameters (CI and pre-commit run it).
 
 7. **Async everywhere** in the Python services: `httpx.AsyncClient`, FastAPI
    async endpoints, pytest-asyncio in `auto` mode. Don't introduce blocking
@@ -216,7 +218,7 @@ local end-to-end flow.
    clearing node reads the ABI from
    `amm-smart-contract/artifacts/contracts/AMMContract.sol/AMMContract.json`
    at runtime.
-4. Run `npx hardhat test` — all 17 must pass. Add a new test for any new
+4. Run `npx hardhat test` — all tests must pass. Add a new test for any new
    function or modifier.
 
 ### Touching the penalty logic
@@ -241,7 +243,7 @@ local end-to-end flow.
 
 | What you changed                 | Minimum verification                                                             |
 | -------------------------------- | -------------------------------------------------------------------------------- |
-| Sigmoid / pricing                | `pytest tests/test_sigmoid.py`, plus the tests of the other two copies           |
+| Sigmoid / pricing                | `pytest tests/test_sigmoid.py`; `python3 scripts/check_pricing_copies.py`        |
 | Wire format / adapter            | `pytest tests/test_adapters.py tests/test_ontology.py`                           |
 | Trade construction               | `pytest tests/test_adapters.py` — built trades must validate against `int:Trade` |
 | Preferences                      | `pytest tests/test_preferences.py`                                               |

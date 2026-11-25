@@ -117,15 +117,16 @@ Each Python component is an independent [uv](https://docs.astral.sh/uv/)
 project, and the contract uses Hardhat:
 
 ```bash
-cd amm-clearing-node  && uv sync --extra dev && uv run pytest   # 184 tests
-cd amm-calibration    && uv sync --extra dev && uv run pytest   # 9 tests
-cd amm-execution-node && uv sync --extra dev && uv run pytest   # 57 tests
-cd amm-smart-contract && npm ci && npx hardhat test             # 17 tests
+cd amm-clearing-node  && uv sync --extra dev && uv run pytest
+cd amm-calibration    && uv sync --extra dev && uv run pytest
+cd amm-execution-node && uv sync --extra dev && uv run pytest
+cd amm-smart-contract && npm ci && npx hardhat test
 ```
 
-Continuous integration lints every change, runs the suites of the changed
-components, builds the Docker images and runs the quick start against them when
-a service changes, and builds the documentation strictly. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+Continuous integration lints every change, checks that the three copies of the
+price function agree, runs the suites of the changed components, builds the
+Docker images and runs the quick start against them when a service changes,
+and builds the documentation strictly. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
 workflow and [AGENTS.md](AGENTS.md) for the contributor onboarding, which is
 also written for AI coding assistants.
 

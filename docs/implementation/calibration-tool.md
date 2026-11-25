@@ -45,7 +45,7 @@ objective only ever sees per-slot aggregates.
 cd amm-calibration
 uv run python -m src.calibrate --measurements history.json \
   --community <community-uuid> --k-upper 28.5 --k-lower 8.0 --alpha 0.5 \
-  --pool-id <pool-label> --out params.yaml
+  --out params.yaml
 ```
 
 | Argument                 | Meaning                                                   |
@@ -54,7 +54,6 @@ uv run python -m src.calibrate --measurements history.json \
 | `--community`            | Only use records of this community                        |
 | `--k-upper`, `--k-lower` | Price band in ct/kWh (required)                           |
 | `--alpha`                | Weight of the range term; default 0.5                     |
-| `--pool-id`              | Copied into the configuration snippet                     |
 | `--injection-positive`   | Treat positive energy as injection instead of consumption |
 | `--out`                  | Write the configuration snippet to this YAML file         |
 
@@ -66,8 +65,7 @@ slots used. It renders a `communities` entry for
 `amm-clearing-node/configuration.yaml` with the band and the calibrated
 parameters, and writes it to the file named with `--out` (otherwise to
 standard output). The entry is keyed by `--community`; without it, the key is
-the placeholder `<community_uuid>`. The clearing engine requires `pool_id` for
-every community, so pass `--pool-id`, or add it before merging the entry.
+the placeholder `<community_uuid>`.
 
 ## In the governance cycle
 

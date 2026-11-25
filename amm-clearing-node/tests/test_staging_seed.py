@@ -70,7 +70,8 @@ def test_community_snippet_is_valid_config():
     config = yaml.safe_load(community_snippet())
     assert list(config) == [community_uuid()]
     parsed = CommunityConfig(**config[community_uuid()])
-    assert parsed.pool_id == "AMM_POOL_staging_test"
+    assert parsed.theta == 1.0
+    assert parsed.steepness == 2.5
 
 
 @pytest.mark.asyncio

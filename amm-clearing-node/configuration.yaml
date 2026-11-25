@@ -20,7 +20,6 @@ communities:
     k_lower_ct_per_kwh: 8.0 # Feed-in tariff
     theta: 1.0 # Sigmoid midpoint (optimized offline)
     steepness: 2.5 # Sigmoid steepness (optimized offline)
-    pool_id: "AMM_POOL_communityid_1" # Human-readable pool label
     # Seller-side differential pricing (0.0 = disabled). Zero-sum: green
     # subsidies are funded by the grey levy. Reported in the clearing summary
     # only; trade prices stay at the uniform clearing price.

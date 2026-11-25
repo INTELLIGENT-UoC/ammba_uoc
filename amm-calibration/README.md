@@ -42,7 +42,6 @@ uv run python -m src.calibrate \
   --measurements history.json \
   --community 11111111-1111-4111-8111-111111111111 \
   --k-upper 28.5 --k-lower 8.0 --alpha 0.5 \
-  --pool-id AMM_POOL_x \
   --out params.yaml
 ```
 
@@ -69,7 +68,8 @@ unlike the clearing node's clamped `sigmoid.py`. The sigmoid's value always
 lies inside `(k_lower, k_upper)`, so the clamp only guards the runtime against
 numerical edge cases; the separate copy keeps this tool free of a dependency
 on the clearing node. Keep the core formula in sync across all three copies
-(clearing node, settlement engine, calibration).
+(clearing node, settlement engine, calibration);
+`python3 scripts/check_pricing_copies.py` (repo root) checks that they agree.
 
 Documentation: [calibration theory](../docs/model/calibration.md),
 [tool usage](../docs/implementation/calibration-tool.md), and the

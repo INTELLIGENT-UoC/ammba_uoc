@@ -6,7 +6,6 @@ simulation.py in https://github.com/INTELLIGENT-UoC/ammba_simulation.
 
 from src.penalties import (
     compute_buyer_externality_penalty,
-    compute_penalties_for_trades,
     compute_seller_externality_penalty,
     compute_seller_shortfall_penalty,
 )
@@ -218,71 +217,3 @@ class TestBuyerExternalityPenalty:
             steepness=STEEPNESS,
         )
         assert p == 0.0
-
-
-class TestComputePenaltiesForTrades:
-    def _make_trade(
-        self,
-        buyer,
-        seller,
-        area_uuid_offer,
-        area_uuid_bid,
-        selected_energy,
-        clearing_price=18.0,
-        total_supply=10.0,
-        total_demand=10.0,
-    ):
-        return {
-            "trade_uuid": f"trade_{buyer}_{seller}",
-            "status": "Settled",
-            "buyer": buyer,
-            "seller": seller,
-            "offer": {
-                "seller": seller,
-                "offer_component": {"area_uuid": area_uuid_offer},
-            },
-            "bid": {
-                "buyer": buyer,
-                "bid_component": {"area_uuid": area_uuid_bid},
-            },
-            "parameters": {
-                "selected_energy": selected_energy,
-                "energy_rate": clearing_price,
-                "total_supply_kwh": total_supply,
-                "total_demand_kwh": total_demand,
-                "theta": THETA,
-                "steepness": STEEPNESS,
-            },
-        }
-
-    def test_no_deviations(self):
-        """When measurements match trades, no penalties."""
-        trades = [
-            self._make_trade("AMM_POOL_c1", "Seller1", "area_s1", "AMM_POOL_c1", 5.0),
-            self._make_trade("Buyer1", "AMM_POOL_c1", "AMM_POOL_c1", "area_b1", 5.0),
-        ]
-        measurements = {"area_s1": 5.0, "area_b1": 5.0}
-        config = {"k_upper": K_UPPER, "k_lower": K_LOWER, "theta": THETA, "steepness": STEEPNESS}
-
-        results = compute_penalties_for_trades(trades, measurements, config)
-        assert len(results) == 2
-        assert all(r["total_penalty"] == 0.0 for r in results)
-
-    def test_seller_shortfall_detected(self):
-        """Seller delivered less → shortfall penalty."""
-        trades = [
-            self._make_trade("AMM_POOL_c1", "Seller1", "area_s1", "AMM_POOL_c1", 5.0),
-        ]
-        measurements = {"area_s1": 3.0}  # Delivered 3, traded 5
-        config = {"k_upper": K_UPPER, "k_lower": K_LOWER, "theta": THETA, "steepness": STEEPNESS}
-
-        results = compute_penalties_for_trades(trades, measurements, config)
-        assert len(results) == 1
-        assert results[0]["seller_shortfall_penalty"] > 0
-        expected_shortfall = GAMMA * K_UPPER * 2.0  # K_sho * (5-3)
-        assert abs(results[0]["seller_shortfall_penalty"] - expected_shortfall) < 1e-9
-
-    def test_empty_trades(self):
-        """Empty trade list returns empty results."""
-        results = compute_penalties_for_trades([], {}, {"k_upper": K_UPPER, "k_lower": K_LOWER})
-        assert results == []

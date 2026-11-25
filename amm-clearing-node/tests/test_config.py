@@ -96,8 +96,8 @@ def test_former_audit_anchor_key_name_is_still_accepted(monkeypatch):
     assert settings.audit_anchor_private_key == "0x" + "22" * 32
 
 
-def test_configuration_with_the_former_pool_actor_key_still_loads(tmp_path):
-    """pool_actor_uuid was removed; an existing file that still carries it loads."""
+def test_configuration_with_the_former_pool_keys_still_loads(tmp_path):
+    """pool_id and pool_actor_uuid were removed; an existing file that still carries them loads."""
     config = tmp_path / "configuration.yaml"
     config.write_text(
         "communities:\n"
@@ -111,4 +111,5 @@ def test_configuration_with_the_former_pool_actor_key_still_loads(tmp_path):
     )
     community = load_settings(config).communities["11111111-1111-4111-8111-111111111111"]
     assert community.k_upper_ct_per_kwh == 28.5
+    assert not hasattr(community, "pool_id")
     assert not hasattr(community, "pool_actor_uuid")

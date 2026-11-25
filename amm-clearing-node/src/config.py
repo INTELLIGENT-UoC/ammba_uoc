@@ -12,12 +12,11 @@ class CommunityConfig(BaseModel):
     k_lower_ct_per_kwh: float
     theta: float
     steepness: float
-    pool_id: str
     # Seller-side energy-type differential pricing (zero-sum: green subsidy
     # funded by the grey levy; disabled while both rates are 0). Computed for
     # the clearing summary only; trade prices stay at the clearing price.
     # Unknown keys are ignored, so a configuration that still carries the
-    # former pool_actor_uuid keeps loading.
+    # former pool_id or pool_actor_uuid keeps loading.
     green_subsidy_rate: float = 0.0
     grey_levy_rate: float = 0.0
     levy_cap_ct_per_kwh: float = 5.0

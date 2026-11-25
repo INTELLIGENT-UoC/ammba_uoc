@@ -63,7 +63,6 @@ DEFAULT_EMPTY_RESPONSE_GRACE_MS = 10_000
 # Back-off for publishes the gateway did not deliver (zero recipients, HTTP 429).
 DEFAULT_PUBLISH_BACKOFF_MS = 2000
 DEFAULT_PUBLISH_MAX_BACKOFF_MS = 30_000
-DIAGNOSTIC_CLIENT_ID = "ammclearingnodediag"  # the ONE id for ad-hoc probe scripts
 
 
 class EwdsError(RuntimeError):

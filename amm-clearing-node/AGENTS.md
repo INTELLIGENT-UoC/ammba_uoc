@@ -50,7 +50,7 @@ src/
 schemas/intelligent/   # vendored GSY DEX int.* JSON Schemas (the wire contract)
 sim/                   # local off-chain DB + CGW gateway simulator, staging test data (dev only)
 tests/
-└── test_*.py          # incl. conftest.py (schema-validating fake DB), 184 tests total
+└── test_*.py          # incl. conftest.py (schema-validating fake DB)
 ```
 
 Transport is selected by `OFFCHAIN_TRANSPORT` (`rest` default, `ewds` for the
@@ -75,9 +75,8 @@ polls that back off geometrically from `EWDS_RESPONSE_POLL_INTERVAL_MS` to
 latency is 15–25 s, so a typical answered query costs ~7 GETs). A scheduler
 tick is one `markets.query` plus, per due market, `trades.query` +
 `orders.query`; a failed tick doubles the tick interval up to 10× the base
-(`scheduler.next_tick_interval_sec`). Ad-hoc probe scripts must use the single
-`DIAGNOSTIC_CLIENT_ID` (`ammclearingnodediag`) — every fresh clientId
-registers a new consumer cursor on the gateway.
+(`scheduler.next_tick_interval_sec`). Ad-hoc probe scripts must reuse one fixed
+clientId — every fresh clientId registers a new consumer cursor on the gateway.
 
 Start at `clearing.py` for an algorithmic change (numbered step sections) or
 `adapters.py` for anything touching the wire format.
@@ -119,7 +118,7 @@ default), clearing runs **off-chain only** (step 4 is skipped).
 
 ```bash
 uv sync --extra dev                              # install (incl. pytest)
-uv run pytest -v                                 # 184 tests
+uv run pytest -v                                 # full suite
 uv run pytest tests/test_clearing.py -v          # subset
 uv run uvicorn src.main:app --port 8081 --reload # local server
 uv run uvicorn sim.offchain_sim:app --port 8080  # local off-chain DB simulator

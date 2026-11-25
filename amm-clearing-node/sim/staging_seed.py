@@ -229,7 +229,6 @@ def community_snippet() -> str:
         f"  k_lower_ct_per_kwh: {K_LOWER_CT}\n"
         "  theta: 1.0\n"
         "  steepness: 2.5\n"
-        '  pool_id: "AMM_POOL_staging_test"\n'
     )
 
 
