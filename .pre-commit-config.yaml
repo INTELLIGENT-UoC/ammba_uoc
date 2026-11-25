@@ -19,6 +19,15 @@ repos:
         args: [--fix]
       - id: ruff-format
 
+  - repo: local
+    hooks:
+      - id: pricing-copies
+        name: pricing copies agree
+        entry: python3 scripts/check_pricing_copies.py
+        language: system
+        files: '(sigmoid|pricing|check_pricing_copies)\.py$'
+        pass_filenames: false
+
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v4.0.0-alpha.8
     hooks:

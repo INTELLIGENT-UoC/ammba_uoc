@@ -13,7 +13,8 @@ from the clearing node's `sigmoid.py`, which clamps the result to
   bound at the ratio extremes.
 
 NOTE: keep the core formula in sync with ``amm-clearing-node/src/sigmoid.py``
-and ``amm-execution-node/src/sigmoid.py``.
+and ``amm-execution-node/src/sigmoid.py``; ``scripts/check_pricing_copies.py``
+(repo root) checks that the three copies agree.
 """
 
 import math

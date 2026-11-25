@@ -61,6 +61,16 @@ jobs:
       - run: uvx ruff@0.8.4 check .
       - run: uvx ruff@0.8.4 format --check .
 
+  # The price function has three copies (both nodes and the calibration tool)
+  # that cannot import each other; check that they agree. Standard library only.
+  pricing-copies:
+    name: pricing copies (consistency)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uv run --no-project --python 3.11 python scripts/check_pricing_copies.py
+
   # Builds both images and runs the quick start of
   # docs/getting-started/quickstart.md against the compose "dev" stack.
   images:
@@ -175,13 +185,22 @@ jobs:
   ci-ok:
     name: CI
     needs:
-      [lint, images, clearing-node, calibration, execution-node, contract, docs]
+      [
+        lint,
+        pricing-copies,
+        images,
+        clearing-node,
+        calibration,
+        execution-node,
+        contract,
+        docs,
+      ]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Verify required jobs succeeded or were skipped
         run: |
-          for r in "${{ needs.lint.result }}" "${{ needs.images.result }}" "${{ needs.clearing-node.result }}" "${{ needs.calibration.result }}" "${{ needs.execution-node.result }}" "${{ needs.contract.result }}" "${{ needs.docs.result }}"; do
+          for r in "${{ needs.lint.result }}" "${{ needs.pricing-copies.result }}" "${{ needs.images.result }}" "${{ needs.clearing-node.result }}" "${{ needs.calibration.result }}" "${{ needs.execution-node.result }}" "${{ needs.contract.result }}" "${{ needs.docs.result }}"; do
             if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
               echo "A required job failed: $r"
               exit 1

@@ -68,9 +68,9 @@ consumer of a shared gateway needs its own client identifier. Sharing one would
 let consumers read each other's messages. The client derives one identifier per
 topic as the alphanumeric concatenation of a base and the topic name; with the
 default base `ammclearingnode`, it polls `ordersQueryResponse` as
-`ammclearingnodeordersQueryResponse`. Ad-hoc diagnostic scripts use the single
-fixed identifier `ammclearingnodediag` and never generate random identifiers,
-which would create new consumers on the gateway.
+`ammclearingnodeordersQueryResponse`. Ad-hoc diagnostic scripts reuse one fixed
+identifier and never generate random identifiers, which would create new
+consumers on the gateway.
 
 ## Polling and load
 

@@ -7,7 +7,7 @@ Every component has its own automated test suite.
 | Component         | Command                                     | Covers                                                                                                                                                                                                                                                  |
 | ----------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Clearing engine   | `cd amm-clearing-node && uv run pytest`     | Pricing function, allocation, preferences and differential pricing, trade generation, schema validation, transports with retry and back-off, scheduler, configuration, HTTP API, an end-to-end clearing and the measurement fetch against the simulator |
-| Calibration tool  | `cd amm-calibration && uv run pytest`       | Objective, grid search, aggregation of measurements, sign convention                                                                                                                                                                                    |
+| Calibration tool  | `cd amm-calibration && uv run pytest`       | Objective, grid search, aggregation of measurements, sign convention, configuration snippet                                                                                                                                                             |
 | Settlement engine | `cd amm-execution-node && uv run pytest`    | Identifier conventions, struct encoding, match building, pre-flight validation, engine pipeline against a mocked chain, penalty formulas                                                                                                                |
 | Audit anchor      | `cd amm-smart-contract && npx hardhat test` | Deployment, parameter registration, clearing records, access control, views                                                                                                                                                                             |
 
@@ -32,7 +32,9 @@ Every pull request and every push to `main` runs continuous integration on
 GitHub Actions (release pull requests only once the release workflow has its
 own token, see [#60](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/60)). A first job detects which components changed; only their test
 suites run, and a final job reports a single status for the whole pipeline.
-Linting with `ruff` runs on every change. When a service or the Compose
+Linting with `ruff` and a check that the three copies of the pricing function
+(clearing engine, settlement engine, calibration tool) agree on a grid of
+ratios and parameters run on every change. When a service or the Compose
 configuration changes, both Docker images are built and the
 [quick start](../getting-started/quickstart.md) runs against the Compose `dev`
 stack. The documentation is built with `mkdocs build --strict` whenever it

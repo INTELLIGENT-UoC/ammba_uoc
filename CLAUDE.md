@@ -45,7 +45,8 @@ guidance only. Maintainer-specific, git-ignored instructions live in
 > `amm-execution-node` is the settlement engine (in development; live
 > execution not yet enabled). Its penalty formulas are not yet wired into a
 > data flow. The price function has three copies (`sigmoid.py` in both nodes,
-> `amm-calibration/src/pricing.py`): keep the formula in sync.
+> `amm-calibration/src/pricing.py`): keep the formula in sync;
+> `python3 scripts/check_pricing_copies.py` checks that they agree.
 
 ## Verification before claiming a task is done
 

@@ -76,7 +76,6 @@ def community() -> CommunityConfig:
         k_lower_ct_per_kwh=8.0,
         theta=1.0,
         steepness=2.5,
-        pool_id="AMM_POOL_test",
     )
 
 

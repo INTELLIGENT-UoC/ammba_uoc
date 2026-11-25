@@ -23,7 +23,7 @@ verify the submitted price.
 
 ```
 contracts/AMMContract.sol     # the contract (~205 lines, fully commented)
-test/AMMContract.test.js      # 17 hardhat tests
+test/AMMContract.test.js      # hardhat tests
 scripts/deploy.js             # Volta/EWC deploy script
 hardhat.config.js             # network config (volta, ewc)
 ```
@@ -55,7 +55,7 @@ both Python services.
 ```bash
 npm ci                              # install
 npx hardhat compile                 # compile + regenerate ABI/artifacts
-npx hardhat test                    # all 17 tests
+npx hardhat test                    # full suite
 npx hardhat test --grep "clearMarket"  # subset
 ```
 

@@ -32,7 +32,6 @@ communities:
     k_lower_ct_per_kwh: 8.0 # feed-in tariff (lower end of the band)
     theta: 1.0 # midpoint of the pricing function
     steepness: 2.5 # steepness of the pricing function
-    pool_id: "AMM_POOL_communityid_1"
     green_subsidy_rate: 0.0 # differential pricing, off when both rates are 0
     grey_levy_rate: 0.0
     levy_cap_ct_per_kwh: 5.0
@@ -44,7 +43,6 @@ communities:
 | `k_lower_ct_per_kwh`  | number | required | Feed-in tariff $K_{\mathrm{lo}}$, ct/kWh                      |
 | `theta`               | number | required | Midpoint $\Theta$; see [calibration](../model/calibration.md) |
 | `steepness`           | number | required | Steepness $B$                                                 |
-| `pool_id`             | string | required | Human-readable pool label                                     |
 | `green_subsidy_rate`  | number | 0.0      | Target subsidy for green sellers, as a fraction of the price  |
 | `grey_levy_rate`      | number | 0.0      | Levy on grey sellers, as a fraction of the price              |
 | `levy_cap_ct_per_kwh` | number | 5.0      | Upper limit of the levy per kWh                               |
@@ -52,8 +50,8 @@ communities:
 The last three parameters configure
 [differential pricing](../model/extensions.md#energy-type-differential-pricing).
 Its adjustments are reported in the clearing summary but not applied to trade
-prices. Older configuration files may still carry `pool_actor_uuid`; the key is
-no longer used and is ignored.
+prices. Older configuration files may still carry `pool_id` or
+`pool_actor_uuid`; these keys are no longer used and are ignored.
 
 ## Environment variables
 

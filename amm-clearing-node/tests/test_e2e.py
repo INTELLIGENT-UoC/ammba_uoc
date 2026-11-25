@@ -33,7 +33,6 @@ async def test_clearing_node_against_simulator():
         k_lower_ct_per_kwh=8.0,
         theta=1.0,
         steepness=2.5,
-        pool_id="AMM_POOL_test",
     )
 
     result = await run_clearing(
