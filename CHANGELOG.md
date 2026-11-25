@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.14...v0.2.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **clearing:** int:Trade objects no longer reference a pool actor or pool orders; every trade pairs a participant bid with a participant offer at the clearing price, and trade prices carry no energy-type adjustment. The community key pool_actor_uuid and the settlement CLI options --pool-actor, --k-upper and --k-lower are removed.
+
+### Features
+
+* **clearing:** emit bilateral matches at the clearing price ([#126](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/126)) ([67444f9](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/67444f9ae4fb8962cf2760037e11bde2577e7579))
+
+
+### Bug Fixes
+
+* **clearing:** hold back empty EWDS responses and re-publish undelivered requests ([#124](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/124)) ([a0d5244](https://github.com/INTELLIGENT-UoC/ammba_uoc/commit/a0d5244f09f52dc7ab7b5d2e6e62a55d975d8128)), closes [#123](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/123)
+
 ## [0.1.14](https://github.com/INTELLIGENT-UoC/ammba_uoc/compare/v0.1.13...v0.1.14) (2026-11-20)
 
 
