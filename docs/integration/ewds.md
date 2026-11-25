@@ -84,6 +84,17 @@ the timeout and the scheduler interval are configurable; see the
 [configuration reference](../reference/configuration.md#environment-variables).
 The factor of 1.5 and the tenfold cap are fixed.
 
+The timeout covers publishing and polling together. The gateway reports for
+each publish how many recipients it reached. A publish that reached none, or
+that the gateway rejected with HTTP 429, is sent again under the same request
+identifier after 2 s, then after delays doubling up to 30 s, as long as the
+timeout allows; then the query fails. Other HTTP 4xx errors fail at once. So
+that a transient empty response cannot make a slot clear without orders, an
+empty result is held back for 10 s: a non-empty response for the same request
+within that time replaces it, otherwise the client accepts the empty result
+when the 10 s or the timeout run out. Queries whose result is normally empty,
+such as the trade lookup before a slot is cleared, take up to 10 s longer.
+
 ## Data normalisation
 
 The handler's order objects follow the ontology. Older handler versions used

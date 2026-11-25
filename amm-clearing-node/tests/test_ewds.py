@@ -1,13 +1,14 @@
 """Tests for the EWDS/CGW transport: DTO normalizer, client, end-to-end run."""
 
 import json
+import time
 from datetime import date
 from pathlib import Path
 
 import httpx
 import pytest
 import yaml
-from sim.offchain_sim import create_app
+from sim.offchain_sim import NO_RECIPIENTS, create_app
 from sim.staging_seed import build_seed, community_snippet, community_uuid, pool_actor_uuid
 from src.adapters import ewds_order_to_int_order, int_order_to_internal, iso_to_unix
 from src.clearing import run_clearing
@@ -17,7 +18,10 @@ from src.ewds_client import (
     EwdsError,
     EwdsOffchainClient,
     EwdsTimeout,
+    EwdsUndelivered,
     client_id_for_suffix,
+    publish_backoff_ms,
+    undelivered_reason,
 )
 from src.ontology import validate_order
 
@@ -29,7 +33,14 @@ STAGING_ORDERS = Path(__file__).parent / "fixtures" / "staging_orders_f0ea6c8.js
 
 def _ewds_client(app, **config_overrides) -> EwdsOffchainClient:
     """EWDS client wired to the simulator via in-memory ASGI transport."""
-    config_kwargs = {"gateway_url": "http://sim", "poll_interval_ms": 5, "timeout_ms": 2000}
+    config_kwargs = {
+        "gateway_url": "http://sim",
+        "poll_interval_ms": 5,
+        "timeout_ms": 2000,
+        "empty_response_grace_ms": 50,
+        "publish_backoff_ms": 5,
+        "publish_max_backoff_ms": 20,
+    }
     config_kwargs.update(config_overrides)
     config = EwdsConfig(**config_kwargs)
     client = EwdsOffchainClient(config)
@@ -438,3 +449,195 @@ class TestAdaptivePolling:
         await client.close()
         assert gets < 300 // 10  # a fixed 10 ms rate would be ~30 polls
         assert gets >= 3  # ...but it did keep polling until the deadline
+
+
+def _count_requests(client: EwdsOffchainClient) -> dict:
+    """Count the client's gateway requests by HTTP method (POST = publish, GET = poll)."""
+    counts = {"POST": 0, "GET": 0}
+    original_request = client._client.request  # the retry helper goes through .request
+
+    async def counting_request(method, *args, **kwargs):
+        counts[method.upper()] = counts.get(method.upper(), 0) + 1
+        return await original_request(method, *args, **kwargs)
+
+    client._client.request = counting_request
+    return counts
+
+
+@pytest.mark.asyncio
+class TestEmptyResponseGrace:
+    """An empty response is held back briefly in case data for the same request follows."""
+
+    async def test_data_after_empty_response_wins(self):
+        app = create_app()
+        app.state.store.empty_then_data["ordersQuery"] = 2  # data on the 3rd poll
+        client = _ewds_client(app, empty_response_grace_ms=1000)
+        counts = _count_requests(client)
+        orders = await client.get_orders(SEED_MARKET, TIME_SLOT_UNIX, TIME_SLOT_UNIX + 900)
+        await client.close()
+        assert len(orders) == 4
+        assert counts["GET"] >= 3  # it kept polling past the empty response
+
+    async def test_data_in_same_batch_as_empty_response_wins(self):
+        app = create_app()
+        app.state.store.empty_then_data["ordersQuery"] = 0
+        client = _ewds_client(app)
+        orders = await client.get_orders(SEED_MARKET, TIME_SLOT_UNIX, TIME_SLOT_UNIX + 900)
+        await client.close()
+        assert len(orders) == 4
+
+    async def test_data_first_is_returned_without_waiting(self):
+        app = create_app()
+        client = _ewds_client(app, empty_response_grace_ms=10_000)
+        counts = _count_requests(client)
+        orders = await client.get_orders(SEED_MARKET, TIME_SLOT_UNIX, TIME_SLOT_UNIX + 900)
+        await client.close()
+        assert len(orders) == 4
+        assert counts["GET"] == 1
+
+    async def test_empty_result_is_accepted_after_the_grace_period(self):
+        app = create_app()
+        app.state.store.empty_then_data["ordersQuery"] = 1_000_000  # data never arrives
+        client = _ewds_client(app, empty_response_grace_ms=100, timeout_ms=5000)
+        start = time.monotonic()
+        orders = await client.get_orders(SEED_MARKET, TIME_SLOT_UNIX, TIME_SLOT_UNIX + 900)
+        elapsed = time.monotonic() - start
+        await client.close()
+        assert orders == []
+        assert 0.1 <= elapsed < 2.0  # waited for the grace period, not the timeout
+
+    async def test_timeout_bounds_the_grace_period(self):
+        """A grace period longer than the timeout ends at the timeout with the empty result."""
+        app = create_app()
+        app.state.store.empty_then_data["ordersQuery"] = 1_000_000
+        client = _ewds_client(app, empty_response_grace_ms=60_000, timeout_ms=200)
+        start = time.monotonic()
+        orders = await client.get_orders(SEED_MARKET, TIME_SLOT_UNIX, TIME_SLOT_UNIX + 900)
+        elapsed = time.monotonic() - start
+        await client.close()
+        assert orders == []  # not EwdsTimeout: a response did arrive
+        assert elapsed < 2.0
+
+    async def test_zero_grace_returns_the_first_response(self):
+        app = create_app()
+        app.state.store.empty_then_data["ordersQuery"] = 0
+        client = _ewds_client(app, empty_response_grace_ms=0)
+        orders = await client.get_orders(SEED_MARKET, TIME_SLOT_UNIX, TIME_SLOT_UNIX + 900)
+        await client.close()
+        assert orders == []
+
+    async def test_error_after_empty_response_still_raises(self):
+        app = create_app()
+        store = app.state.store
+        request_id = "orders-query-test-2"
+        store.publish(
+            "ordersQueryResponse",
+            json.dumps({"requestId": request_id, "success": True, "data": [], "error": None}),
+        )
+        store.defer(
+            "ordersQueryResponse",
+            json.dumps(
+                {
+                    "requestId": request_id,
+                    "success": False,
+                    "data": None,
+                    "error": {"code": "DB_DOWN", "message": "mongo unavailable"},
+                }
+            ),
+            polls=1,
+        )
+        client = _ewds_client(app, empty_response_grace_ms=1000)
+        with pytest.raises(EwdsError, match="DB_DOWN"):
+            await client._poll("orders.query", request_id, "ordersQueryResponse")
+        await client.close()
+
+
+@pytest.mark.asyncio
+class TestPublishDelivery:
+    """Publishes the gateway did not deliver are retried within the response timeout."""
+
+    async def test_zero_recipients_is_republished(self):
+        app = create_app()
+        app.state.store.publish_faults = [NO_RECIPIENTS, NO_RECIPIENTS]
+        client = _ewds_client(app)
+        counts = _count_requests(client)
+        orders = await client.get_orders(SEED_MARKET, TIME_SLOT_UNIX, TIME_SLOT_UNIX + 900)
+        await client.close()
+        assert len(orders) == 4
+        assert counts["POST"] == 3
+
+    async def test_rate_limit_is_republished(self):
+        app = create_app()
+        app.state.store.publish_faults = [429]
+        client = _ewds_client(app)
+        counts = _count_requests(client)
+        orders = await client.get_orders(SEED_MARKET, TIME_SLOT_UNIX, TIME_SLOT_UNIX + 900)
+        await client.close()
+        assert len(orders) == 4
+        assert counts["POST"] == 2
+
+    async def test_persistent_non_delivery_fails_within_the_timeout(self):
+        app = create_app()
+        app.state.store.publish_faults = [NO_RECIPIENTS] * 1000
+        client = _ewds_client(app, timeout_ms=300, publish_backoff_ms=10, publish_max_backoff_ms=40)
+        counts = _count_requests(client)
+        start = time.monotonic()
+        with pytest.raises(EwdsUndelivered, match="no recipients"):
+            await client.get_orders(SEED_MARKET, TIME_SLOT_UNIX, TIME_SLOT_UNIX + 900)
+        elapsed = time.monotonic() - start
+        await client.close()
+        assert elapsed < 0.3 + 0.1  # gave up before re-publishing past the timeout
+        assert 3 <= counts["POST"] < 30  # retried, with back-off
+        assert counts["GET"] == 0  # never polled for a request nobody received
+
+    async def test_other_client_errors_fail_at_once(self):
+        app = create_app()
+        app.state.store.publish_faults = [403]
+        client = _ewds_client(app)
+        counts = _count_requests(client)
+        with pytest.raises(EwdsError, match="HTTP 403") as excinfo:
+            await client.get_orders(SEED_MARKET, TIME_SLOT_UNIX, TIME_SLOT_UNIX + 900)
+        await client.close()
+        assert not isinstance(excinfo.value, EwdsUndelivered)
+        assert counts["POST"] == 1
+
+    async def test_sim_reports_delivery_summary(self):
+        app = create_app()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://sim"
+        ) as c:
+            ok = await c.post("/api/v2/messages", json={"topicName": "noise", "payload": "{}"})
+            app.state.store.publish_faults = [NO_RECIPIENTS]
+            dropped = await c.post("/api/v2/messages", json={"topicName": "noise", "payload": "{}"})
+        assert ok.json()["recipients"]["sent"] == 1
+        assert dropped.json()["recipients"]["sent"] == 0
+        assert len(app.state.store.topics["noise"]) == 1  # the undelivered one was dropped
+
+
+class TestPublishHelpers:
+    def test_backoff_doubles_up_to_the_cap(self):
+        delays = [publish_backoff_ms(n, 2000, 30_000) for n in range(7)]
+        assert delays == [2000, 4000, 8000, 16_000, 30_000, 30_000, 30_000]
+
+    def test_backoff_cap_below_initial_is_clamped(self):
+        assert publish_backoff_ms(3, 2000, 100) == 2000
+
+    @pytest.mark.parametrize(
+        ("status", "body", "undelivered"),
+        [
+            (200, {"recipients": {"total": 1, "sent": 1, "failed": 0}}, False),
+            (200, {"recipients": {"total": 8, "sent": 0, "failed": 8}}, True),
+            (201, {"recipients": {"total": 0, "sent": 0, "failed": 0}}, True),
+            (200, {"status": "accepted"}, False),  # no delivery summary
+            (200, [], False),
+            (429, {"message": "Too Many Requests"}, True),
+            (403, {"message": "Forbidden"}, False),  # an error, but not a delivery issue
+            (500, {}, False),
+        ],
+    )
+    def test_undelivered_reason(self, status, body, undelivered):
+        response = httpx.Response(status, json=body)
+        assert (undelivered_reason(response) is not None) is undelivered
+
+    def test_non_json_body_counts_as_delivered(self):
+        assert undelivered_reason(httpx.Response(200, text="ok")) is None

@@ -25,7 +25,12 @@ REST endpoints: `GET /orders`, `GET /markets`, `GET /trades`,
 storage's periodic order expiry: every `submitted` order whose time slot has
 started becomes `expired`. The EWDS
 gateway emulation (`POST`/`GET /api/v2/messages`) answers `ordersQuery`,
-`tradesQuery`, `marketsQuery`, `measurementsQuery` and `idsQuery`.
+`tradesQuery`, `marketsQuery`, `measurementsQuery` and `idsQuery`, and answers
+each publish with a delivery summary (`recipients.total/sent/failed`). Tests
+script transient gateway faults on the store: `publish_faults` makes the next
+publishes report zero recipients (`NO_RECIPIENTS`) or fail with an HTTP status
+such as 429, and `empty_then_data` answers the next request on a topic with an
+empty result first and the real one a given number of polls later.
 
 ## Run with the clearing node (compose)
 
