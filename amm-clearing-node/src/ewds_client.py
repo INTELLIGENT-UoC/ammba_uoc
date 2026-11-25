@@ -309,7 +309,7 @@ class EwdsOffchainClient:
         Returns the storage's mapping record ``{offchain_id, onchain_id,
         creation_time}``; ``onchain_id`` is ``0x`` + hex of
         blake2b-128(offchain_id) and the call is idempotent upstream. Only
-        actor ids (buyer/seller/facility/pool) are mapped — order, trade and
+        actor ids (buyer/seller/facility) are mapped — order, trade and
         market ids convert directly to bytes16.
         """
         data = await self._query("ids.query", {"offchainId": offchain_id})

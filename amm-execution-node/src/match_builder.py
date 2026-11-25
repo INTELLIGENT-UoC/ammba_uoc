@@ -1,34 +1,36 @@
 """Build on-chain market settlements from an AMM clearing outcome.
 
-Implements the pool representation agreed with GSY (option (a), 2026-08-24):
-the engine registers standing pool orders on-chain and settles matches against
-them. Because settlement marks both orders as executed, one pool order can
-settle exactly ONE match — so a distinct pool order is synthesized per pool
-trade (deterministic UUID derived from the trade id).
+The clearing node emits bilateral trades only: every ``int:Trade`` pairs a
+participant bid with a participant offer at the uniform clearing price. Each
+trade becomes one on-chain ``Match`` between the two registered orders; no
+synthetic orders are needed.
 
-Pool order pricing exploits the settlement invariant for ``Standard`` matches,
-``bid.energyRate ≥ clearingPrice ≥ offer.energyRate``: the pool's synthetic
-bid is priced at the community ceiling (k_upper) and its synthetic offer at
-the floor (k_lower), so the pool side can never cause a PriceMismatch for any
-clearing price inside the band. Participant limit prices are NOT adjusted —
-if a participant's limit conflicts with the clearing price the validator
-flags it before any gas is spent (see validator.py; AMM clearing does not
-price-condition on limits). Direct trades of mutual preferred partners are
-``Preferred`` matches.
+- **Match type.** A trade whose two orders name each other as preferred
+  trading partners is a ``Preferred`` match (the clearing node's direct trade
+  of a mutual pair); every other trade is a ``Standard`` match. The clearing
+  node exhausts one side of a mutual pair in its preference step, so the same
+  two orders never meet again in the sequential fill.
+- **Limit prices.** ``Standard`` matches require
+  ``bid.energyRate ≥ clearingPrice ≥ offer.energyRate``. AMM clearing does
+  not price-condition on limits, so a participant whose limit conflicts with
+  the clearing price is flagged by the validator before any gas is spent
+  (see validator.py).
+- **Residual chaining.** A participant order that a match fills only partly
+  leaves a residual order, which the registry creates under a fresh id; a
+  later match of the same order (for example a fill match after a direct
+  preference trade) consumes that residual.
 
 ``settleBatch`` takes one ``MarketSettlement`` per market: the market's
 matches and its clearing result, built from the clearing node's
-``int:ClearingResult``. A participant order that a match fills only partly
-leaves a residual order, which the registry creates under a fresh id; a later
-match of the same order (for example the pool leg after a direct preference
-trade) consumes that residual.
+``int:ClearingResult``. Because every match is bilateral, the selected energy
+of a market's matches sums to its traded quantity.
 
 Inputs are the clearing node's wire artifacts: the int:Trade list, the
 int:Order objects by id and the int:ClearingResult of each market.
 """
 
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 from src.ids import uuid_to_bytes16
@@ -43,28 +45,22 @@ from src.structs import (
     scale,
 )
 
-_POOL_SETTLE_NS = uuid.uuid5(uuid.NAMESPACE_URL, "https://ammba.uoc/settlement")
+_SETTLE_NS = uuid.uuid5(uuid.NAMESPACE_URL, "https://ammba.uoc/settlement")
 
 
-def pool_settle_order_uuid(trade_id: str) -> str:
-    """Deterministic UUID for the pool order backing one settled match.
+def residual_order_uuid(order_id: str, trade_id: str) -> str:
+    """Deterministic id for the residual an order leaves after one match.
 
     Convention mirrors the clearing node's derived-UUID approach
     (amm-clearing-node/src/adapters.py) — keep the namespaces distinct but the
     style in sync.
     """
-    return str(uuid.uuid5(_POOL_SETTLE_NS, f"pool-order:{trade_id}"))
-
-
-def residual_order_uuid(order_id: str, trade_id: str) -> str:
-    """Deterministic id for the residual an order leaves after one match."""
-    return str(uuid.uuid5(_POOL_SETTLE_NS, f"residual:{order_id}:{trade_id}"))
+    return str(uuid.uuid5(_SETTLE_NS, f"residual:{order_id}:{trade_id}"))
 
 
 @dataclass(frozen=True)
 class BuildResult:
     settlements: list[MarketSettlement]
-    pool_orders: list[OrderParams] = field(default_factory=list)  # must exist on-chain
 
     @property
     def matches(self) -> list[Match]:
@@ -107,23 +103,26 @@ def _clearing_result(result: dict, num_trades: int) -> ClearingResult:
     )
 
 
+def is_mutual_pair(bid: dict, offer: dict) -> bool:
+    """True if the two int:Orders name each other as preferred trading partners."""
+    return (
+        bid.get("preferredTradingPartner") == offer["createdBy"]
+        and offer.get("preferredTradingPartner") == bid["createdBy"]
+    )
+
+
 def build_settlements(
     trades: list[dict],
     orders_by_id: dict[str, dict],
     clearing_results: list[dict],
-    pool_actor_uuid: str,
-    k_upper: float,
-    k_lower: float,
 ) -> BuildResult:
     """Transform int:Trade records into one MarketSettlement per market.
 
-    ``k_upper``/``k_lower`` are the community price bounds in EUR/kWh, the unit
-    of the trades' ``tradePrice``.
+    Trades are processed in list order, which is the order residuals chain in.
     """
     results_by_market = {uuid_to_bytes16(r["marketId"]): r for r in clearing_results}
     live: dict[str, OrderParams] = {}  # original order id -> its current (residual) form
     matches_by_market: dict[bytes, list[Match]] = {}
-    pool_orders: list[OrderParams] = []
 
     def take(order: dict, is_bid: bool, quantity: float, trade_id: str):
         """The order (or its residual) a match consumes, and the residual id it leaves."""
@@ -140,47 +139,13 @@ def build_settlements(
     for trade in trades:
         trade_id = trade["tradeId"]
         quantity = trade["tradeQuantity"]
-        buyer_is_pool = trade["buyerId"] == pool_actor_uuid
-        seller_is_pool = trade["sellerId"] == pool_actor_uuid
-        if buyer_is_pool and seller_is_pool:
-            raise ValueError(f"trade {trade_id} has the pool on both sides")
-
-        residual_bid = residual_offer = None
-        if not buyer_is_pool and not seller_is_pool:
-            # Direct trade of mutual preferred partners — two registered orders.
-            bid, residual_bid = take(orders_by_id[trade["bidId"]], True, quantity, trade_id)
-            offer, residual_offer = take(orders_by_id[trade["offerId"]], False, quantity, trade_id)
-            match_type = MATCH_TYPE_PREFERRED
-        elif seller_is_pool:
-            # Buyer → Pool: real bid, synthetic pool offer priced at the floor.
-            bid, residual_bid = take(orders_by_id[trade["bidId"]], True, quantity, trade_id)
-            offer = OrderParams(
-                order_id=pool_settle_order_uuid(trade_id),
-                created_by=pool_actor_uuid,
-                market_id=bid.market_id,
-                time_slot=bid.time_slot,
-                creation_time=bid.creation_time,
-                energy_kwh=quantity,
-                energy_rate=k_lower,
-                is_bid=False,
-            )
-            pool_orders.append(offer)
-            match_type = MATCH_TYPE_STANDARD
-        else:
-            # Pool → Seller: synthetic pool bid priced at the ceiling.
-            offer, residual_offer = take(orders_by_id[trade["offerId"]], False, quantity, trade_id)
-            bid = OrderParams(
-                order_id=pool_settle_order_uuid(trade_id),
-                created_by=pool_actor_uuid,
-                market_id=offer.market_id,
-                time_slot=offer.time_slot,
-                creation_time=offer.creation_time,
-                energy_kwh=quantity,
-                energy_rate=k_upper,
-                is_bid=True,
-            )
-            pool_orders.append(bid)
-            match_type = MATCH_TYPE_STANDARD
+        bid_order = orders_by_id[trade["bidId"]]
+        offer_order = orders_by_id[trade["offerId"]]
+        bid, residual_bid = take(bid_order, True, quantity, trade_id)
+        offer, residual_offer = take(offer_order, False, quantity, trade_id)
+        match_type = (
+            MATCH_TYPE_PREFERRED if is_mutual_pair(bid_order, offer_order) else MATCH_TYPE_STANDARD
+        )
 
         match = Match(
             trade_id=trade_id,
@@ -206,4 +171,4 @@ def build_settlements(
                 clearing_result=_clearing_result(result, len(matches)),
             )
         )
-    return BuildResult(settlements=settlements, pool_orders=pool_orders)
+    return BuildResult(settlements=settlements)

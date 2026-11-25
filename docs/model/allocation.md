@@ -90,9 +90,13 @@ computes a clearing price of 19.5246 ct/kWh and the allocation above.
 
 ## Representation as trades
 
-On the exchange, every pool allocation is represented by two bilateral trades:
-one between the buyer and the pool and one between the pool and the seller,
-both at the clearing price. The pool appears as a configured actor of the
-community. Mutual preferred partners trade directly with each other instead;
-see [preferences](extensions.md#preferred-trading-partners) and the
-[data model](../integration/data-model.md).
+The pool is how the mechanism prices and allocates; it holds no position of its
+own. On the exchange, the allocations are therefore represented as bilateral
+trades between buyers and sellers, all at the clearing price. The clearing
+engine cuts the allocations into buyer–seller matches so that every
+participant trades exactly its allocation; in the worked example, B1's 5.4 kWh
+and B2's 3.6 kWh are matched with S1's 5.0 kWh and S2's 4.0 kWh in
+three trades. Mutual preferred partners trade directly with each other; see
+[preferences](extensions.md#preferred-trading-partners), the
+[bilateral decomposition](../implementation/clearing-engine.md#bilateral-decomposition)
+and the [data model](../integration/data-model.md).

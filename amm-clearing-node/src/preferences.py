@@ -3,21 +3,19 @@
 1. Preferred Trading Partners (Priority Allocation):
    - Identify mutual pairs (buyer listed seller, seller listed buyer)
    - Allocate their quantities first at the clearing price
-   - Remaining volume distributed pro-rata to residual pool
+   - The remaining allocations go to the sequential fill (``decompose.py``)
 
 2. Energy-Type Differential Pricing (seller-side, zero-sum):
    - The community manager defines a green subsidy rate and a grey levy rate.
-   - Applied to Pool→Seller legs only: green producers receive
-     clearing + subsidy, grey producers receive clearing − levy (capped).
-   - Buyers and direct preference trades stay at the uniform clearing price,
-     preserving the consumer-side uniform-price property; the differential is
-     settled against the pool account.
+   - Computed over the sellers' remaining (non-preference) allocations: green
+     producers would receive clearing + subsidy, grey producers clearing − levy
+     (capped). Buyers and direct preference trades stay at the uniform price.
    - Safety: Levy Cap bounds the per-kWh levy; Dynamic Subsidy Scaling shrinks
      the subsidy so it never exceeds the collected levy revenue (zero-sum; any
-     surplus levy remains with the pool and is reported).
-   - The adjusted price goes directly into the wire ``tradePrice``; provenance
-     (base price, adjustment, classification) is returned to the caller and
-     surfaced in the clearing summary — no ontology change required.
+     surplus levy is reported as the residual).
+   - The adjustments are reported in the clearing summary only. Every trade is
+     a bilateral match with one price for both sides, so individual prices are
+     left to the execution step and ``tradePrice`` stays at the clearing price.
 """
 
 import logging
@@ -83,8 +81,9 @@ def apply_priority_allocation(
     3. Reduce allocated_energy for matched participants
     4. Return bids, offers, and list of preference-matched allocations
 
-    The preference-matched allocations are separate from the pool trades —
-    they represent direct buyer↔seller trades at the clearing price.
+    The preference-matched allocations are separate from the sequential fill
+    of the remaining allocations — they represent direct buyer↔seller trades
+    of the mutual partners at the clearing price.
     """
     mutual_pairs = find_mutual_preferred_pairs(bids, offers)
 
@@ -103,7 +102,7 @@ def apply_priority_allocation(
 
         match_energy = min(available_bid, available_offer)
 
-        # Deduct from their pool allocation
+        # Deduct from the allocation left for the sequential fill
         bid["allocated_energy"] -= match_energy
         offer["allocated_energy"] -= match_energy
 
@@ -144,16 +143,17 @@ def compute_seller_price_adjustments(
     clearing_price: float,
     multipliers: EnergyTypeMultipliers | None,
 ) -> tuple[dict[str, float], dict | None]:
-    """Seller-side differential pricing over the pool allocations (zero-sum).
+    """Seller-side differential pricing over the remaining allocations (zero-sum).
 
-    Offers with remaining pool allocation are classified by energy type:
-    green sellers receive ``clearing + subsidy``, grey sellers receive
+    Offers with a remaining (non-preference) allocation are classified by
+    energy type: green sellers get ``clearing + subsidy``, grey sellers
     ``clearing − levy`` (levy capped per kWh). The subsidy is scaled down so
     the total subsidy never exceeds the collected levy revenue (Dynamic
-    Subsidy Scaling); any surplus levy remains with the pool.
+    Subsidy Scaling); any surplus levy is reported as the residual.
 
     Buyers and direct preference trades are untouched — consumers keep the
-    uniform clearing price, and the differential settles against the pool.
+    uniform clearing price. The clearing pipeline reports the result in its
+    summary; trade prices stay at the clearing price.
 
     Returns ``(adjusted_ct_by_order_id, provenance)``; ``({}, None)`` when no
     adjustment applies (no multipliers, zero rates, or a missing side).

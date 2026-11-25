@@ -9,6 +9,7 @@ AMMBA is a P2P energy market mechanism and an alternative matching engine for
 the GSY DEX. It runs periodic batch auctions: orders are collected during a
 15-minute slot, a sigmoid-based uniform clearing price is computed from the
 supply/demand ratio, and quantities are allocated pro-rata through an AMM pool.
+The allocations go out as bilateral buyer–seller matches at the clearing price.
 It consumes and produces the GSY DEX `int.*` ontology objects.
 
 ## Components

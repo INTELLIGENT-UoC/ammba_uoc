@@ -16,7 +16,7 @@ Usage:
         --measurements history.json \
         --community 11111111-1111-4111-8111-111111111111 \
         --k-upper 28.5 --k-lower 8.0 --alpha 0.5 \
-        --pool-id AMM_POOL_x --pool-actor-uuid <uuid> --out params.yaml
+        --pool-id AMM_POOL_x --out params.yaml
 """
 
 import argparse
@@ -56,7 +56,6 @@ def to_config_snippet(
     k_lower: float,
     params: dict,
     pool_id: str | None = None,
-    pool_actor_uuid: str | None = None,
 ) -> dict:
     """Render a clearing-node ``communities:`` entry for the calibrated params."""
     entry = {
@@ -67,8 +66,6 @@ def to_config_snippet(
     }
     if pool_id is not None:
         entry["pool_id"] = pool_id
-    if pool_actor_uuid is not None:
-        entry["pool_actor_uuid"] = pool_actor_uuid
     return {"communities": {community_uuid: entry}}
 
 
@@ -85,7 +82,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--k-lower", type=float, required=True)
     parser.add_argument("--alpha", type=float, default=DEFAULT_ALPHA)
     parser.add_argument("--pool-id", default=None)
-    parser.add_argument("--pool-actor-uuid", default=None)
     parser.add_argument(
         "--injection-positive",
         action="store_true",
@@ -116,7 +112,6 @@ def main(argv: list[str] | None = None) -> int:
         args.k_lower,
         params,
         pool_id=args.pool_id,
-        pool_actor_uuid=args.pool_actor_uuid,
     )
     rendered = yaml.safe_dump(snippet, sort_keys=False)
     if args.out:

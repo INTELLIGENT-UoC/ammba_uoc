@@ -14,8 +14,9 @@ exchange this is the `preferredTradingPartner` field of an order.
    names the buyer.
 2. Each mutual pair trades directly with each other, at the uniform clearing
    price, up to the smaller of their two pro-rata allocations.
-3. The direct volume is deducted from both partners' pool allocations; the
-   remainder clears against the pool as usual.
+3. The direct volume is deducted from both partners' allocations; the
+   remainder clears as usual and is paired with other participants in the
+   [bilateral decomposition](../implementation/clearing-engine.md#bilateral-decomposition).
 
 Preference matching therefore changes _with whom_ a participant trades, not
 _how much_ or _at what price_. Each participant's total allocation and price
@@ -28,10 +29,11 @@ through the data model but not used for clearing in the current version.
 ## Energy-type differential pricing
 
 A community can reward green generation. The scheme is seller-side: buyers
-always pay the uniform clearing price $\pi_t$, and only the prices of pool sales
-by sellers are adjusted.
+always pay the uniform clearing price $\pi_t$, and only the prices of sellers'
+pool sales (their allocations outside direct preference trades) are adjusted.
 
-Offers with a remaining pool allocation are classified by their energy type:
+Offers with a remaining allocation after the preference step are classified by
+their energy type:
 green (`GREEN`, `PV`, `HYDRO`, `BIOMASS`, `BATTERY`), grey (`GREY`), or
 neutral (no type). With community-set rates $g$ (green subsidy rate) and $l$
 (grey levy rate), and a levy cap $c$ in ct/kWh:
@@ -51,10 +53,16 @@ an energy type count as neutral, not as grey, so with the current ontology the
 scheme makes no adjustment even when enabled; it takes effect once the
 ontology provides a grey energy type. When the levy revenue exceeds the
 subsidy paid, the difference remains with the pool and is reported as the
-pool residual. The adjusted price is written directly into the price of the
-affected pool–seller trades, and the clearing summary records the full
-provenance: base price, subsidy, levy, scaling factor, volumes, and the
-per-seller adjustments.
+pool residual.
+
+Every trade on the exchange is a bilateral match with one price for both
+sides, so a seller-side adjustment cannot be written into the trade price.
+Trades therefore carry the uniform clearing price, and the clearing summary
+reports the adjustments: base price, subsidy, levy, scaling factor, volumes,
+and the per-seller adjustments. Applying them is a task of the execution step,
+which supports individual prices
+([#121](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/121)). Until then,
+the engine logs a warning when the scheme is enabled.
 
 The scheme is disabled by default. It is enabled per community with
 `green_subsidy_rate`, `grey_levy_rate` and `levy_cap_ct_per_kwh`; see the

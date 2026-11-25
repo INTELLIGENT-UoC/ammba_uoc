@@ -18,11 +18,13 @@ Contract checks mirrored (TradeSettlement.sol, GSYDEXv2 ``f0ea6c8``):
 
 Two checks are where the AMM's mechanism meets the contract's order-book
 semantics. AMM clearing does not condition on participant limit prices, so a
-buyer whose priceLimit lies below the clearing price produces a match the
-contract rejects. And a pool-mediated allocation is two matches (buyer → pool,
-pool → seller), so a market's matches sum to about twice its traded quantity.
-Both are open design points with GSY; until resolved, this validator makes
-them visible instead of a revert.
+buyer whose priceLimit lies below the clearing price (or a seller whose limit
+lies above it) produces a match the contract rejects; the limit-price
+convention is an open design point. And the sequential fill can pair an actor
+with itself when only its own bids remain (a self-trade). Until resolved, this
+validator makes both visible instead of a revert. The quantity check passes by
+construction: every trade is one bilateral match, and the clearing result
+states the sum of the trades.
 """
 
 from dataclasses import dataclass
@@ -128,7 +130,7 @@ def validate_settlement(settlement: MarketSettlement) -> list[Violation]:
                 settlement.market_id,
                 "TradedQuantityMismatch",
                 f"matches sum to {selected / SCALING_FACTOR} kWh, clearing result reports "
-                f"{traded / SCALING_FACTOR} kWh (a pool-mediated allocation is two matches)",
+                f"{traded / SCALING_FACTOR} kWh",
             )
         )
     return violations

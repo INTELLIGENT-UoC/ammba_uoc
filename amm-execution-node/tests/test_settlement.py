@@ -9,7 +9,7 @@ from src.ids import ZERO_BYTES16, actor_onchain_id, bytes16_to_uuid, uuid_to_byt
 from src.match_builder import (
     BuildResult,
     build_settlements,
-    pool_settle_order_uuid,
+    is_mutual_pair,
     residual_order_uuid,
 )
 from src.structs import (
@@ -25,10 +25,8 @@ from src.structs import (
 )
 from src.validator import validate_match, validate_settlement
 
-POOL = str(uuid.uuid4())
 MARKET = str(uuid.uuid4())
 SLOT = 1787580000
-K_UPPER, K_LOWER = 0.285, 0.08
 
 
 def u() -> str:
@@ -54,26 +52,11 @@ def int_order(order_id, actor, otype, kwh, limit, energy_type=None, partner=None
     return order
 
 
-def pool_trade(trade_id, order_id, actor, qty, price, seller_is_pool=True, market=MARKET):
-    pool_order = pool_settle_order_uuid(trade_id)
+def trade(trade_id, bid_id, buyer, offer_id, seller, qty, price, market=MARKET):
+    """A bilateral int:Trade, as the clearing node emits it."""
     return {
         "tradeId": trade_id,
         "marketId": market,
-        "bidId": order_id if seller_is_pool else pool_order,
-        "buyerId": actor if seller_is_pool else POOL,
-        "offerId": pool_order if seller_is_pool else order_id,
-        "sellerId": POOL if seller_is_pool else actor,
-        "tradeStatus": "matched",
-        "tradeQuantity": qty,
-        "tradePrice": price,
-        "timestamp": "2026-08-24T14:00:00Z",
-    }
-
-
-def direct_trade(trade_id, bid_id, buyer, offer_id, seller, qty, price):
-    return {
-        "tradeId": trade_id,
-        "marketId": MARKET,
         "bidId": bid_id,
         "buyerId": buyer,
         "offerId": offer_id,
@@ -113,7 +96,7 @@ def order_params(is_bid, rate, kwh=5.0, actor=None, slot=SLOT, **kwargs):
 
 
 def build(trades, orders, results):
-    return build_settlements(trades, orders, results, POOL, k_upper=K_UPPER, k_lower=K_LOWER)
+    return build_settlements(trades, orders, results)
 
 
 class TestIds:
@@ -207,7 +190,6 @@ class TestStructs:
 
         client = SettlementChainClient(
             rpc_url="http://localhost:8545",
-            order_registry_address="0x" + "11" * 20,
             trade_settlement_address="0x" + "22" * 20,
             private_key="0x" + "33" * 32,
         )
@@ -222,97 +204,141 @@ class TestStructs:
         settlement = MarketSettlement(
             MARKET, (match,), ClearingResult(MARKET, "final", 0.195, 5.0, 5.0, 5.0, 1)
         )
-        place = client.registry.functions.placeOrder(offer.to_tuple())
         settle = client.settlement.functions.settleBatch([settlement.to_tuple()])
-        assert place._encode_transaction_data().startswith("0x")
         assert settle._encode_transaction_data().startswith("0x")
 
 
 class TestMatchBuilder:
-    def test_buyer_pool_trade_synthesizes_floor_priced_pool_offer(self):
-        buyer, bid_id, trade_id = u(), u(), u()
-        orders = {bid_id: int_order(bid_id, buyer, "bid", 5.4, 0.27)}
-        trades = [pool_trade(trade_id, bid_id, buyer, 5.4, 0.195)]
+    def test_bilateral_trade_is_a_standard_match_of_two_participant_orders(self):
+        buyer, seller, bid_id, offer_id, trade_id = u(), u(), u(), u(), u()
+        orders = {
+            bid_id: int_order(bid_id, buyer, "bid", 5.4, 0.27),
+            offer_id: int_order(offer_id, seller, "offer", 5.4, 0.09, "PV"),
+        }
+        trades = [trade(trade_id, bid_id, buyer, offer_id, seller, 5.4, 0.195)]
 
         result = build(trades, orders, [clearing_result(5.4)])
 
-        assert len(result.matches) == 1
-        match = result.matches[0]
+        (match,) = result.matches
         assert match.match_type == MATCH_TYPE_STANDARD
-        assert match.bid.order_id == bid_id
-        assert match.bid.is_bid is True
-        assert match.offer.created_by == POOL
-        assert match.offer.energy_rate == K_LOWER  # floor ⇒ never a PriceMismatch
-        assert match.offer.order_id == pool_settle_order_uuid(trade_id)
-        assert result.pool_orders == [match.offer]
-        assert result.pool_orders[0].is_bid is False
-
-    def test_pool_seller_trade_synthesizes_ceiling_priced_pool_bid(self):
-        seller, offer_id, trade_id = u(), u(), u()
-        orders = {offer_id: int_order(offer_id, seller, "offer", 5.0, 0.09, "PV")}
-        trades = [pool_trade(trade_id, offer_id, seller, 5.0, 0.195, seller_is_pool=False)]
-
-        result = build(trades, orders, [clearing_result(5.0)])
-
-        match = result.matches[0]
-        assert match.offer.order_id == offer_id
+        assert match.trade_id == trade_id
+        assert (match.bid.order_id, match.bid.created_by) == (bid_id, buyer)
+        assert (match.offer.order_id, match.offer.created_by) == (offer_id, seller)
+        assert match.bid.is_bid is True and match.offer.is_bid is False
         assert match.offer.energy_type == "PV"
-        assert match.bid.created_by == POOL
-        assert match.bid.energy_rate == K_UPPER  # ceiling
-        assert result.pool_orders[0].is_bid is True
+        assert match.bid.energy_rate == 0.27  # the participant's own limit
+        assert (match.residual_bid_id, match.residual_offer_id) == (None, None)
+        assert validate_settlement(result.settlements[0]) == []
 
-    def test_direct_pair_is_a_preferred_match_without_pool_orders(self):
+    def test_direct_pair_is_a_preferred_match(self):
         buyer, seller, bid_id, offer_id = u(), u(), u(), u()
         orders = {
             bid_id: int_order(bid_id, buyer, "bid", 5.0, 0.27, partner=seller),
             offer_id: int_order(offer_id, seller, "offer", 5.0, 0.09, partner=buyer),
         }
-        trades = [direct_trade(u(), bid_id, buyer, offer_id, seller, 5.0, 0.195)]
+        trades = [trade(u(), bid_id, buyer, offer_id, seller, 5.0, 0.195)]
 
         result = build(trades, orders, [clearing_result(5.0)])
 
-        assert result.pool_orders == []
         match = result.matches[0]
         assert match.match_type == MATCH_TYPE_PREFERRED
         assert (match.bid.order_id, match.offer.order_id) == (bid_id, offer_id)
         assert match.bid.preferred_trading_partner == seller
         assert validate_settlement(result.settlements[0]) == []
 
-    def test_partial_fill_leaves_a_residual_the_next_match_consumes(self):
-        """A bid filled first by a direct trade, then by the pool, chains through its residual."""
+    def test_one_sided_preference_is_a_standard_match(self):
+        """Only mutual partners trade as Preferred; a one-sided wish is a fill match."""
         buyer, seller, bid_id, offer_id = u(), u(), u(), u()
-        direct_id, pool_id = u(), u()
+        bid = int_order(bid_id, buyer, "bid", 5.0, 0.27, partner=seller)
+        offer = int_order(offer_id, seller, "offer", 5.0, 0.09)
+        assert not is_mutual_pair(bid, offer)
+
+        result = build(
+            [trade(u(), bid_id, buyer, offer_id, seller, 5.0, 0.195)],
+            {bid_id: bid, offer_id: offer},
+            [clearing_result(5.0)],
+        )
+
+        assert result.matches[0].match_type == MATCH_TYPE_STANDARD
+
+    def test_partial_fill_leaves_a_residual_the_next_match_consumes(self):
+        """A bid filled first by a direct trade, then by a fill match, chains through its residual."""
+        buyer, partner, other = u(), u(), u()
+        bid_id, pref_offer_id, other_offer_id = u(), u(), u()
+        direct_id, fill_id = u(), u()
         orders = {
-            bid_id: int_order(bid_id, buyer, "bid", 6.0, 0.27, partner=seller),
-            offer_id: int_order(offer_id, seller, "offer", 2.0, 0.09, partner=buyer),
+            bid_id: int_order(bid_id, buyer, "bid", 6.0, 0.27, partner=partner),
+            pref_offer_id: int_order(pref_offer_id, partner, "offer", 2.0, 0.09, partner=buyer),
+            other_offer_id: int_order(other_offer_id, other, "offer", 4.0, 0.09),
         }
         trades = [
-            direct_trade(direct_id, bid_id, buyer, offer_id, seller, 2.0, 0.195),
-            pool_trade(pool_id, bid_id, buyer, 4.0, 0.195),
+            trade(direct_id, bid_id, buyer, pref_offer_id, partner, 2.0, 0.195),
+            trade(fill_id, bid_id, buyer, other_offer_id, other, 4.0, 0.195),
         ]
 
         result = build(trades, orders, [clearing_result(6.0)])
 
         first, second = result.matches
         residual = residual_order_uuid(bid_id, direct_id)
+        assert first.match_type == MATCH_TYPE_PREFERRED
         assert first.residual_bid_id == residual
         assert first.residual_offer_id is None  # offer fully filled
+        assert second.match_type == MATCH_TYPE_STANDARD
         assert second.bid.order_id == residual
         assert second.bid.energy_kwh == 4.0
         assert second.residual_bid_id is None
-        assert validate_match(second) == []
+        assert validate_settlement(result.settlements[0]) == []
+
+    def test_decomposed_market_passes_the_traded_quantity_check(self):
+        """Sellers 6 + 4, buyers 5 + 5: three bilateral matches sum to the traded 10 kWh."""
+        s1, s2, b1, b2 = u(), u(), u(), u()
+        o1, o2, d1, d2 = u(), u(), u(), u()
+        orders = {
+            o1: int_order(o1, s1, "offer", 6.0, 0.09),
+            o2: int_order(o2, s2, "offer", 4.0, 0.09),
+            d1: int_order(d1, b1, "bid", 5.0, 0.27),
+            d2: int_order(d2, b2, "bid", 5.0, 0.27),
+        }
+        trades = [
+            trade(u(), d1, b1, o1, s1, 5.0, 0.195),
+            trade(u(), d2, b2, o1, s1, 1.0, 0.195),
+            trade(u(), d2, b2, o2, s2, 4.0, 0.195),
+        ]
+
+        settlement = build(trades, orders, [clearing_result(10.0)]).settlements[0]
+
+        assert validate_settlement(settlement) == []
+        assert settlement.clearing_result.num_trades == 3
+        # o1 is split over two matches: the second consumes its residual.
+        assert settlement.matches[1].offer.order_id == settlement.matches[0].residual_offer_id
+
+    def test_quantity_mismatch_is_still_flagged(self):
+        buyer, seller, bid_id, offer_id = u(), u(), u(), u()
+        orders = {
+            bid_id: int_order(bid_id, buyer, "bid", 5.0, 0.27),
+            offer_id: int_order(offer_id, seller, "offer", 5.0, 0.09),
+        }
+        trades = [trade(u(), bid_id, buyer, offer_id, seller, 5.0, 0.195)]
+        settlement = build(trades, orders, [clearing_result(4.0)]).settlements[0]
+
+        violations = validate_settlement(settlement)
+
+        assert [v.code for v in violations] == ["TradedQuantityMismatch"]
+        assert violations[0].subject == MARKET
 
     def test_matches_are_grouped_per_market_with_their_clearing_result(self):
         other = u()
-        b1, b2, a1, a2 = u(), u(), u(), u()
-        orders = {
-            b1: int_order(b1, a1, "bid", 3.0, 0.27),
-            b2: int_order(b2, a2, "bid", 2.0, 0.27, market=other),
-        }
-        trades = [
-            pool_trade(u(), b1, a1, 3.0, 0.195),
-            pool_trade(u(), b2, a2, 2.0, 0.195, market=other),
-        ]
+        buyers = [(u(), u()) for _ in range(2)]  # (actor, bid id)
+        sellers = [(u(), u()) for _ in range(2)]  # (actor, offer id)
+        markets = [MARKET, other]
+        orders = {}
+        trades = []
+        for (buyer, bid_id), (seller, offer_id), market, qty in zip(
+            buyers, sellers, markets, (3.0, 2.0), strict=True
+        ):
+            orders[bid_id] = int_order(bid_id, buyer, "bid", qty, 0.27, market=market)
+            orders[offer_id] = int_order(offer_id, seller, "offer", qty, 0.09, market=market)
+            trades.append(trade(u(), bid_id, buyer, offer_id, seller, qty, 0.195, market=market))
         # The storage may hand back the market id in its 0x-hex form.
         results = [clearing_result(3.0), clearing_result(2.0, market="0x" + other.replace("-", ""))]
 
@@ -324,15 +350,13 @@ class TestMatchBuilder:
         assert all(s.clearing_result.num_trades == 1 for s in result.settlements)
 
     def test_missing_clearing_result_raises(self):
-        buyer, bid_id = u(), u()
-        orders = {bid_id: int_order(bid_id, buyer, "bid", 5.0, 0.27)}
+        buyer, seller, bid_id, offer_id = u(), u(), u(), u()
+        orders = {
+            bid_id: int_order(bid_id, buyer, "bid", 5.0, 0.27),
+            offer_id: int_order(offer_id, seller, "offer", 5.0, 0.09),
+        }
         with pytest.raises(ValueError, match="no clearing result"):
-            build([pool_trade(u(), bid_id, buyer, 5.0, 0.195)], orders, [])
-
-    def test_pool_on_both_sides_raises(self):
-        trade = pool_trade(u(), u(), POOL, 5.0, 0.195)
-        with pytest.raises(ValueError, match="pool on both sides"):
-            build([trade], {}, [clearing_result(5.0)])
+            build([trade(u(), bid_id, buyer, offer_id, seller, 5.0, 0.195)], orders, [])
 
 
 class TestValidator:
@@ -417,62 +441,41 @@ class TestValidator:
         )
         assert any(v.code == "PriceMismatch" for v in validate_match(match))
 
-    def test_two_leg_pool_market_fails_the_traded_quantity_check(self):
-        """A pool allocation is two matches; the contract sums them against tradedQuantity."""
-        buyer, seller, bid_id, offer_id = u(), u(), u(), u()
-        orders = {
-            bid_id: int_order(bid_id, buyer, "bid", 5.0, 0.27),
-            offer_id: int_order(offer_id, seller, "offer", 5.0, 0.09),
-        }
-        trades = [
-            pool_trade(u(), bid_id, buyer, 5.0, 0.195),
-            pool_trade(u(), offer_id, seller, 5.0, 0.195, seller_is_pool=False),
-        ]
-        settlement = build(trades, orders, [clearing_result(5.0)]).settlements[0]
-
-        violations = validate_settlement(settlement)
-
-        assert [v.code for v in violations] == ["TradedQuantityMismatch"]
-        assert violations[0].subject == MARKET
+    def test_offer_limit_above_clearing_is_flagged(self):
+        violations = validate_match(self._match(offer_limit=0.25, price=0.195))
+        assert any(v.code == "PriceMismatch" for v in violations)
 
 
 class FakeChain:
     def __init__(self):
-        self.placed: list[tuple] = []
         self.batches: list[list[tuple]] = []
-
-    async def place_order(self, params_tuple):
-        self.placed.append(params_tuple)
-        return f"0xplace{len(self.placed)}"
 
     async def settle_batch(self, settlement_tuples):
         self.batches.append(settlement_tuples)
         return f"0xsettle{len(self.batches)}"
 
 
-def one_leg_build(market=MARKET, limit=0.27):
-    """One buyer→pool match whose clearing result reports that leg, so the market
-    passes the quantity check and the tests exercise the engine's mechanics."""
-    buyer, bid_id = u(), u()
-    orders = {bid_id: int_order(bid_id, buyer, "bid", 5.4, limit, market=market)}
-    trades = [pool_trade(u(), bid_id, buyer, 5.4, 0.195, market=market)]
+def bilateral_build(market=MARKET, limit=0.27):
+    """One buyer↔seller match of a market whose clearing result reports it."""
+    buyer, seller, bid_id, offer_id = u(), u(), u(), u()
+    orders = {
+        bid_id: int_order(bid_id, buyer, "bid", 5.4, limit, market=market),
+        offer_id: int_order(offer_id, seller, "offer", 5.4, 0.09, market=market),
+    }
+    trades = [trade(u(), bid_id, buyer, offer_id, seller, 5.4, 0.195, market=market)]
     return build(trades, orders, [clearing_result(5.4, market=market)])
 
 
 def merge(builds):
-    return BuildResult(
-        settlements=[s for b in builds for s in b.settlements],
-        pool_orders=[p for b in builds for p in b.pool_orders],
-    )
+    return BuildResult(settlements=[s for b in builds for s in b.settlements])
 
 
 class TestEngine:
     @pytest.mark.asyncio
-    async def test_happy_path_places_pool_orders_then_settles(self):
+    async def test_happy_path_settles_in_one_transaction(self):
         chain = FakeChain()
-        report = await SettlementEngine(chain).settle(one_leg_build())
+        report = await SettlementEngine(chain).settle(bilateral_build())
 
-        assert len(chain.placed) == 1
         assert len(chain.batches) == 1
         assert report.settled == {MARKET: "0xsettle1"}
         assert report.rejected == {}
@@ -481,7 +484,7 @@ class TestEngine:
     async def test_idempotent_rerun_settles_nothing(self):
         chain = FakeChain()
         engine = SettlementEngine(chain, SettlementLedger())
-        result = one_leg_build()
+        result = bilateral_build()
 
         await engine.settle(result)
         report2 = await engine.settle(result)
@@ -494,28 +497,27 @@ class TestEngine:
     async def test_invalid_market_is_held_back_without_burning_gas(self):
         chain = FakeChain()
         # Buyer limit below clearing price → the contract would revert; we hold back.
-        report = await SettlementEngine(chain).settle(one_leg_build(limit=0.10))
+        report = await SettlementEngine(chain).settle(bilateral_build(limit=0.10))
 
         assert MARKET in report.rejected
         assert chain.batches == []
-        assert chain.placed == []
 
     @pytest.mark.asyncio
     async def test_one_bad_market_does_not_block_the_others(self):
         chain = FakeChain()
         good, bad = u(), u()
-        result = merge([one_leg_build(market=good), one_leg_build(market=bad, limit=0.10)])
+        result = merge([bilateral_build(market=good), bilateral_build(market=bad, limit=0.10)])
 
         report = await SettlementEngine(chain).settle(result)
 
         assert set(report.settled) == {good}
         assert set(report.rejected) == {bad}
-        assert len(chain.placed) == 1  # only the good market's pool order
+        assert len(chain.batches[0]) == 1  # only the good market
 
     @pytest.mark.asyncio
     async def test_transactions_pack_whole_markets(self):
         chain = FakeChain()
-        result = merge([one_leg_build(market=u()) for _ in range(3)])
+        result = merge([bilateral_build(market=u()) for _ in range(3)])
 
         report = await SettlementEngine(chain, batch_size=2).settle(result)
 
@@ -525,11 +527,13 @@ class TestEngine:
     @pytest.mark.asyncio
     async def test_market_larger_than_batch_size_is_sent_alone(self):
         chain = FakeChain()
+        seller, offer_id = u(), u()
         buyers = [(u(), u()) for _ in range(3)]
         orders = {b: int_order(b, a, "bid", 1.0, 0.27) for a, b in buyers}
-        trades = [pool_trade(u(), b, a, 1.0, 0.195) for a, b in buyers]
+        orders[offer_id] = int_order(offer_id, seller, "offer", 3.0, 0.09)
+        trades = [trade(u(), b, a, offer_id, seller, 1.0, 0.195) for a, b in buyers]
         big = build(trades, orders, [clearing_result(3.0)])
-        small = one_leg_build(market=u())
+        small = bilateral_build(market=u())
 
         await SettlementEngine(chain, batch_size=2).settle(merge([big, small]))
 
@@ -583,15 +587,16 @@ class RecordingRegistrar:
 
 class TestActorRegistration:
     @pytest.mark.asyncio
-    async def test_all_actors_including_pool_are_registered_before_settling(self):
+    async def test_all_actors_are_registered_before_settling(self):
         registrar = RecordingRegistrar()
-        result = one_leg_build()
+        result = bilateral_build()
         buyer = result.matches[0].bid.created_by
+        seller = result.matches[0].offer.created_by
 
         await SettlementEngine(FakeChain(), registrar=registrar).settle(result)
 
         assert len(registrar.calls) == 1
-        assert set(registrar.calls[0]) == {buyer, POOL}
+        assert set(registrar.calls[0]) == {buyer, seller}
 
     @pytest.mark.asyncio
     async def test_preferred_partners_are_registered(self):
@@ -601,7 +606,7 @@ class TestActorRegistration:
             bid_id: int_order(bid_id, buyer, "bid", 5.0, 0.27, partner=seller),
             offer_id: int_order(offer_id, seller, "offer", 5.0, 0.09, partner=buyer),
         }
-        trades = [direct_trade(u(), bid_id, buyer, offer_id, seller, 5.0, 0.195)]
+        trades = [trade(u(), bid_id, buyer, offer_id, seller, 5.0, 0.195)]
 
         await SettlementEngine(FakeChain(), registrar=registrar).settle(
             build(trades, orders, [clearing_result(5.0)])
@@ -613,7 +618,7 @@ class TestActorRegistration:
     async def test_nothing_registered_when_nothing_fresh(self):
         registrar = RecordingRegistrar()
         engine = SettlementEngine(FakeChain(), SettlementLedger(), registrar=registrar)
-        result = one_leg_build()
+        result = bilateral_build()
 
         await engine.settle(result)
         await engine.settle(result)  # everything already settled

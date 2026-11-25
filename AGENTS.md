@@ -15,7 +15,8 @@ that gets you from zero to making changes safely.
 AMMBA is a **P2P energy market** and an alternative matching engine for the GSY
 Decentralized Exchange: every 15 minutes, buyers and sellers submit orders, a
 **sigmoid-based clearing price** is computed from supply/demand, quantities are
-**pro-rata allocated**, and trades go through an **AMM pool**. It consumes and
+**pro-rata allocated** through an **AMM pool**, and the allocations go out as
+**bilateral buyer–seller matches** at the clearing price. It consumes and
 produces the GSY DEX `int.*` ontology objects (orders in, trades + clearing
 result out). Clearing results can be anchored on the **Energy Web Chain**.
 
@@ -68,6 +69,7 @@ ammba_uoc/
 │   │   ├── ontology.py             # schema loader + dependency-free validator
 │   │   ├── sigmoid.py               # price function
 │   │   ├── preferences.py           # mutual preferred-pair matching; differential pricing
+│   │   ├── decompose.py             # ★ integer apportionment; sequential fill into bilateral matches
 │   │   ├── offchain_db.py           # "rest" transport: httpx client for the off-chain DB
 │   │   ├── ewds_client.py           # "ewds" transport: publish/poll via the EWDS gateway
 │   │   ├── scheduler.py             # self-trigger: discover closed AMM markets, clear them
@@ -78,7 +80,7 @@ ammba_uoc/
 │   ├── configuration.yaml           # static parameters, communities
 │   ├── schemas/intelligent/         # vendored GSY DEX int.* schemas (wire contract)
 │   ├── sim/                         # local off-chain DB + gateway simulator, staging test data (dev only)
-│   └── tests/                       # 129 pytest tests (incl. conftest fake DB + e2e)
+│   └── tests/                       # 160 pytest tests (incl. conftest fake DB + e2e)
 │
 ├── amm-calibration/                # offline sigmoid-param optimization (a job, not a service)
 │   ├── AGENTS.md
@@ -144,15 +146,21 @@ local end-to-end flow.
    names onto the wire. The old nested `bid_component`/`offer_component` shape and
    `trade_builder.py` are retired.
 
-3. **Trade IDs are deterministic `uuid5`** (`adapters.trade_uuid`); pool actor and
-   pool order UUIDs are likewise derived in `adapters.py`. (Replaces the previous
-   blake2b `_id` convention.)
+3. **Trade IDs are deterministic `uuid5`** (`adapters.trade_uuid`), keyed by the
+   market, the trade kind (`pref` for a mutual pair, `pair` for a fill match) and
+   the two order ids. (Replaces the previous blake2b `_id` convention.)
 
-4. **Pool-mediated trades**: every participant trades with the pool, not with
-   each other. Two trades per allocation: Buyer→Pool and Pool→Seller. The **only
-   exception** is preference-matched mutual pairs (direct buyer↔seller trade). On
-   the wire, the pool is a configured actor (`pool_actor_uuid` per community) with
-   deterministic standing orders; see `docs/integration/data-model.md`.
+4. **Bilateral matches at the clearing price**: the pool sets the price and the
+   pro-rata allocation but never appears on the wire or on-chain. Mutual
+   preferred pairs trade directly first; the remaining allocations are cut into
+   buyer↔seller matches by a sequential fill (`decompose.py`: sorted by actor id,
+   then order id; at most n + m − 1 trades). Every trade pairs two participant
+   orders at π_t, and every participant trades exactly its allocation.
+   Individual prices (energy-type adjustments, preferred rates, penalties)
+   belong to the execution step, never to `tradePrice`. Allocations are integers
+   of 1e-4 kWh (largest-remainder apportionment), so both sides of a slot sum to
+   the same total; wire quantities and prices carry 4 decimals. See
+   `docs/integration/data-model.md`.
 
 5. **Price units**: internal computation is ct/kWh (the sigmoid bounds); the wire
    is EUR/kWh. The `CT_PER_EUR` conversion lives only in `adapters.py`.
@@ -189,9 +197,9 @@ local end-to-end flow.
 1. Read [`amm-clearing-node/src/clearing.py`](amm-clearing-node/src/clearing.py)
    end-to-end — it orchestrates the whole flow; each numbered step (0–8) is a
    clear seam.
-2. Most feature work goes in `preferences.py` or `sigmoid.py`; anything touching
-   the wire format goes in `adapters.py` (+ the schema in `schemas/intelligent/`).
-   `clearing.py` itself is just the pipeline.
+2. Most feature work goes in `preferences.py`, `decompose.py` or `sigmoid.py`;
+   anything touching the wire format goes in `adapters.py` (+ the schema in
+   `schemas/intelligent/`). `clearing.py` itself is just the pipeline.
 3. Add tests in `amm-clearing-node/tests/`. Use `conftest.py:make_int_order` for
    schema-valid `int:Order` fixtures and `FakeDBClient` (it validates every
    posted trade / clearing result against the ontology).
@@ -237,8 +245,10 @@ local end-to-end flow.
 | Wire format / adapter            | `pytest tests/test_adapters.py tests/test_ontology.py`                           |
 | Trade construction               | `pytest tests/test_adapters.py` — built trades must validate against `int:Trade` |
 | Preferences                      | `pytest tests/test_preferences.py`                                               |
+| Allocation rounding / fill       | `pytest tests/test_decompose.py tests/test_clearing.py`                          |
 | Clearing pipeline                | `pytest tests/test_clearing.py`                                                  |
 | End-to-end (node ↔ off-chain DB) | `pytest tests/test_e2e.py` (runs against the simulator)                          |
+| Settlement engine                | `pytest` in `amm-execution-node` (builder, validator, engine)                    |
 | Smart contract                   | `npx hardhat test`                                                               |
 | Documentation                    | `uvx --with-requirements docs/requirements.txt mkdocs build --strict`            |
 | Anything in CI                   | Push to a branch and watch the GitHub Actions run                                |

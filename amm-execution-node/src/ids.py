@@ -7,7 +7,7 @@ Mirrors ``primitives/src/utils/mod.rs`` in gsy-decentralized-exchange
   ``parse_uuid_or_hex_bytes16``: dashes stripped (or a ``0x`` prefix
   removed), 32 hex chars → 16 bytes. For a UUID this is exactly its RFC 4122
   byte form.
-- **Actor ids** (buyer, seller, facility, pool) are NOT converted — they are
+- **Actor ids** (buyer, seller, facility) are NOT converted — they are
   *mapped*: ``onchain_id = blake2b-128(offchain_id_string)`` (their
   ``create_encrypted_bytes16_from_string``; a keyless hash despite the name).
   The storage keeps the mapping in its DB (``POST /ids?offchain_id=`` /

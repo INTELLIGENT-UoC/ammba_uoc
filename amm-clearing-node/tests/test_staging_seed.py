@@ -8,12 +8,12 @@ import pytest
 import yaml
 from sim.offchain_sim import create_app
 from sim.staging_seed import (
+    PREFERRED_PAIR,
     actor_uuid,
     build_seed,
     community_snippet,
     community_uuid,
     main,
-    pool_actor_uuid,
 )
 from src.adapters import iso_to_unix
 from src.config import CommunityConfig, Settings
@@ -70,7 +70,7 @@ def test_community_snippet_is_valid_config():
     config = yaml.safe_load(community_snippet())
     assert list(config) == [community_uuid()]
     parsed = CommunityConfig(**config[community_uuid()])
-    assert parsed.pool_actor_uuid == pool_actor_uuid()
+    assert parsed.pool_id == "AMM_POOL_staging_test"
 
 
 @pytest.mark.asyncio
@@ -101,6 +101,20 @@ async def test_scheduler_clears_the_seeded_day(tmp_path, monkeypatch):
     trades = app.state.store.trades
     for trade in trades:
         validate_trade(trade)
-    pool = pool_actor_uuid()
-    direct = {t["marketId"] for t in trades if pool not in (t["buyerId"], t["sellerId"])}
+    buyer, seller = (actor_uuid(label) for label in PREFERRED_PAIR)
+    direct = {t["marketId"] for t in trades if (t["buyerId"], t["sellerId"]) == (buyer, seller)}
     assert len(direct) == 49  # the mutual preferred pair trades directly in every market
+
+    # Every market's trades sum to its traded quantity, and every participant
+    # appears with its own orders only (bilateral matches, no third party).
+    by_market = defaultdict(list)
+    for trade in trades:
+        by_market[trade["marketId"]].append(trade)
+    order_actor = {o["orderId"]: o["createdBy"] for o in app.state.store.orders}
+    for result in app.state.store.clearing_results:
+        market_trades = by_market[result["marketId"]]
+        assert round(sum(t["tradeQuantity"] for t in market_trades), 4) == result["tradeQuantity"]
+        assert result["numTrades"] == len(market_trades)
+    for trade in trades:
+        assert order_actor[trade["bidId"]] == trade["buyerId"]
+        assert order_actor[trade["offerId"]] == trade["sellerId"]

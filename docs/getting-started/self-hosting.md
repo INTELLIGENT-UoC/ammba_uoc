@@ -45,7 +45,7 @@ keyed by the community's UUID. An entry sets:
 - the price band: `k_upper_ct_per_kwh` (retail price) and `k_lower_ct_per_kwh`
   (feed-in tariff), in ct/kWh;
 - the shape of the pricing function: `theta` and `steepness`;
-- the identity of the pool on the exchange: `pool_id` and `pool_actor_uuid`;
+- a human-readable pool label: `pool_id`;
 - optionally, seller-side differential pricing: `green_subsidy_rate`,
   `grey_levy_rate` and `levy_cap_ct_per_kwh`. It is disabled by default; see
   [preferences and differential pricing](../model/extensions.md).
@@ -62,7 +62,7 @@ uv run python -m src.fetch_measurements --start <from> --end <to> \
 cd ../amm-calibration
 uv run python -m src.calibrate --measurements history.json \
   --community <community-uuid> --k-upper 28.5 --k-lower 8.0 \
-  --pool-id <pool-label> --pool-actor-uuid <pool-actor-uuid> --out params.yaml
+  --pool-id <pool-label> --out params.yaml
 ```
 
 `history.json` is a list of measurement records. By default, a positive

@@ -71,8 +71,8 @@ def energy_type_code(value: str | None) -> int:
 class OrderParams:
     """OrderRegistry.OrderParams — an order as registered on-chain.
 
-    Used for placing (pool) orders and for both sides of a ``Match``; the
-    contract checks every field against the registered order.
+    Describes both sides of a ``Match``; the contract checks every field
+    against the order the community client registered.
     """
 
     order_id: str  # UUID or 0x-hex
