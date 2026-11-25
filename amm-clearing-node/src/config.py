@@ -61,7 +61,7 @@ class Settings(BaseModel):
     ewds_publish_max_backoff_ms: int = 30000  # re-publish back-off ceiling
 
 
-def load_settings(config_path: Path | None = None) -> Settings:
+def load_settings(config_path: Path | None = None) -> Settings:  # noqa: C901 (#131)
     """Load settings from YAML, then override with environment variables."""
     data: dict = {}
 

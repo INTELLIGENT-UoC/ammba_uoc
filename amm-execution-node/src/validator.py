@@ -51,7 +51,7 @@ def _effective_rate(order) -> float:
     return order.preferred_energy_rate if order.preferred_energy_rate else order.energy_rate
 
 
-def validate_match(match: Match) -> list[Violation]:
+def validate_match(match: Match) -> list[Violation]:  # noqa: C901 (#131)
     violations = []
 
     def flag(code: str, detail: str) -> None:

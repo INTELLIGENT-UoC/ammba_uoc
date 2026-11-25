@@ -21,11 +21,35 @@ select = [
     "B",   # bugbear
     "UP",  # pyupgrade
     "SIM", # simplify
+    "C90", # mccabe complexity
 ]
 ignore = [
     "E501",  # line length handled by formatter
     "B008",  # FastAPI uses Depends() in defaults
 ]
+
+[tool.ruff.lint.mccabe]
+# Functions above this need a refactor or an explicit, ticketed `# noqa: C901`.
+max-complexity = 15
+
+[tool.ruff.lint.per-file-ignores]
+# Development simulator and figure script: not shipped code.
+"amm-clearing-node/sim/**" = ["C901"]
+"docs/**" = ["C901"]
+
+[tool.vulture]
+# Dead-code check in CI. At 80 % confidence only clearly unused code is
+# reported; the ignored names are FastAPI query parameters of the simulator
+# and a Protocol parameter.
+paths = [
+    "amm-clearing-node/src",
+    "amm-clearing-node/sim",
+    "amm-execution-node/src",
+    "amm-calibration/src",
+    "scripts",
+]
+min_confidence = 80
+ignore_names = ["fqcn", "topicOwner", "offchain_ids"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -56,3 +56,7 @@ params.yaml
 
 # Generated staging test data (default output of sim.staging_seed)
 staging-seed/
+
+# Coverage data from the quality gates
+.coverage
+htmlcov/

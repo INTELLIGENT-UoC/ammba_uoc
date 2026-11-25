@@ -94,7 +94,7 @@ def _type_ok(value, type_name: str) -> bool:
     return True
 
 
-def _check(value, schema: dict, path: str, errors: list[str]) -> None:
+def _check(value, schema: dict, path: str, errors: list[str]) -> None:  # noqa: C901 (#131)
     if "$ref" in schema:
         schema = _resolve_ref(schema["$ref"])
 

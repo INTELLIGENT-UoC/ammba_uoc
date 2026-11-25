@@ -34,7 +34,12 @@ own token, see [#60](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/60)). A
 suites run, and a final job reports a single status for the whole pipeline.
 Linting with `ruff` and a check that the three copies of the pricing function
 (clearing engine, settlement engine, calibration tool) agree on a grid of
-ratios and parameters run on every change. When a service or the Compose
+ratios and parameters run on every change. Three quality gates keep unused or
+overgrown code from accumulating: `ruff` limits the cyclomatic complexity of a
+function to 15, `vulture` reports unused code, and each Python test suite must
+keep its line coverage above a floor (clearing engine 88 %, settlement engine
+83 %, calibration tool 94 %). All three are configured in the root
+`pyproject.toml` and the CI workflow. When a service or the Compose
 configuration changes, both Docker images are built and the
 [quick start](../getting-started/quickstart.md) runs against the Compose `dev`
 stack. The documentation is built with `mkdocs build --strict` whenever it
