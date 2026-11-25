@@ -94,7 +94,45 @@ def _type_ok(value, type_name: str) -> bool:
     return True
 
 
-def _check(value, schema: dict, path: str, errors: list[str]) -> None:  # noqa: C901 (#131)
+def _check_string(value: str, schema: dict, path: str, errors: list[str]) -> None:
+    fmt = schema.get("format")
+    if fmt == "uuid" and not _UUID_RE.match(value):
+        errors.append(f"{path}: not a valid uuid: {value!r}")
+    elif fmt == "date-time" and not _is_datetime(value):
+        errors.append(f"{path}: not a valid ISO 8601 date-time: {value!r}")
+
+    pattern = schema.get("pattern")
+    if pattern and not re.search(pattern, value):
+        errors.append(f"{path}: {value!r} does not match pattern {pattern}")
+
+    if "minLength" in schema and len(value) < schema["minLength"]:
+        errors.append(f"{path}: shorter than minLength {schema['minLength']}")
+    if "maxLength" in schema and len(value) > schema["maxLength"]:
+        errors.append(f"{path}: longer than maxLength {schema['maxLength']}")
+
+
+def _check_number(value: int | float, schema: dict, path: str, errors: list[str]) -> None:
+    if "minimum" in schema and value < schema["minimum"]:
+        errors.append(f"{path}: {value} < minimum {schema['minimum']}")
+    if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
+        errors.append(f"{path}: {value} <= exclusiveMinimum {schema['exclusiveMinimum']}")
+
+
+def _check_object(value: dict, schema: dict, path: str, errors: list[str]) -> None:
+    props = schema.get("properties", {})
+    for required in schema.get("required", []):
+        if required not in value:
+            errors.append(f"{path}: missing required property '{required}'")
+    if schema.get("additionalProperties") is False:
+        for key in value:
+            if key not in props:
+                errors.append(f"{path}: additional property '{key}' not allowed")
+    for key, child in value.items():
+        if key in props:
+            _check(child, props[key], f"{path}.{key}", errors)
+
+
+def _check(value, schema: dict, path: str, errors: list[str]) -> None:
     if "$ref" in schema:
         schema = _resolve_ref(schema["$ref"])
 
@@ -108,43 +146,15 @@ def _check(value, schema: dict, path: str, errors: list[str]) -> None:  # noqa: 
     if "enum" in schema and value not in schema["enum"]:
         errors.append(f"{path}: {value!r} not in enum {schema['enum']}")
 
-    fmt = schema.get("format")
-    if fmt and isinstance(value, str):
-        if fmt == "uuid" and not _UUID_RE.match(value):
-            errors.append(f"{path}: not a valid uuid: {value!r}")
-        elif fmt == "date-time" and not _is_datetime(value):
-            errors.append(f"{path}: not a valid ISO 8601 date-time: {value!r}")
-
-    pattern = schema.get("pattern")
-    if pattern and isinstance(value, str) and not re.search(pattern, value):
-        errors.append(f"{path}: {value!r} does not match pattern {pattern}")
-
+    # The kinds are disjoint (bool is neither a number here nor a container).
     if isinstance(value, str):
-        if "minLength" in schema and len(value) < schema["minLength"]:
-            errors.append(f"{path}: shorter than minLength {schema['minLength']}")
-        if "maxLength" in schema and len(value) > schema["maxLength"]:
-            errors.append(f"{path}: longer than maxLength {schema['maxLength']}")
-
-    if isinstance(value, int | float) and not isinstance(value, bool):
-        if "minimum" in schema and value < schema["minimum"]:
-            errors.append(f"{path}: {value} < minimum {schema['minimum']}")
-        if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
-            errors.append(f"{path}: {value} <= exclusiveMinimum {schema['exclusiveMinimum']}")
-
-    if isinstance(value, dict) and (schema.get("type") == "object" or "properties" in schema):
-        props = schema.get("properties", {})
-        for required in schema.get("required", []):
-            if required not in value:
-                errors.append(f"{path}: missing required property '{required}'")
-        if schema.get("additionalProperties") is False:
-            for key in value:
-                if key not in props:
-                    errors.append(f"{path}: additional property '{key}' not allowed")
-        for key, child in value.items():
-            if key in props:
-                _check(child, props[key], f"{path}.{key}", errors)
-
-    if isinstance(value, list) and "items" in schema:
+        _check_string(value, schema, path, errors)
+    elif isinstance(value, int | float) and not isinstance(value, bool):
+        _check_number(value, schema, path, errors)
+    elif isinstance(value, dict):
+        if schema.get("type") == "object" or "properties" in schema:
+            _check_object(value, schema, path, errors)
+    elif isinstance(value, list) and "items" in schema:
         for i, item in enumerate(value):
             _check(item, schema["items"], f"{path}[{i}]", errors)
 
