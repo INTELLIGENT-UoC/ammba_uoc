@@ -74,6 +74,9 @@ The last three parameters configure
 | `EWDS_RESPONSE_TIMEOUT_MS`                             | `60000`                                 | Time to wait for a response                                                                         |
 | `EWDS_RESPONSE_POLL_INTERVAL_MS`                       | `1000`                                  | Delay before the first response poll                                                                |
 | `EWDS_RESPONSE_POLL_MAX_INTERVAL_MS`                   | `5000`                                  | Ceiling of the polling back-off                                                                     |
+| `EWDS_EMPTY_RESPONSE_GRACE_MS`                         | `10000`                                 | Wait for a non-empty response after an empty one; `0` accepts the first response                    |
+| `EWDS_RATE_LIMIT_BACKOFF_MS`                           | `2000`                                  | First re-publish delay when a publish reached no recipient or got HTTP 429                          |
+| `EWDS_RATE_LIMIT_MAX_BACKOFF_MS`                       | `30000`                                 | Ceiling of the re-publish back-off                                                                  |
 | `RPC_URL`                                              | `https://volta-rpc.energyweb.org`       | Chain endpoint, for the optional audit anchor                                                       |
 | `CONTRACT_ADDRESS`                                     | empty                                   | Address of the audit-anchor contract                                                                |
 | `AUDIT_ANCHOR_PRIVATE_KEY`                             | none                                    | Key that signs audit-anchor transactions (formerly `CLEARING_NODE_PRIVATE_KEY`, still accepted)     |

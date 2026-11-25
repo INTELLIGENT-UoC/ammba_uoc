@@ -131,7 +131,12 @@ async def test_scheduler_tick_end_to_end_ewds(community):  # noqa: F811
     """Same discovery flow over the EWDS gateway (marketsQuery publish/poll)."""
     app = create_app()
     client = EwdsOffchainClient(
-        EwdsConfig(gateway_url="http://sim", poll_interval_ms=5, timeout_ms=2000)
+        EwdsConfig(
+            gateway_url="http://sim",
+            poll_interval_ms=5,
+            timeout_ms=2000,
+            empty_response_grace_ms=50,
+        )
     )
     client._client = httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://sim"

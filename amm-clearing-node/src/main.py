@@ -79,6 +79,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 timeout_ms=settings.ewds_response_timeout_ms,
                 poll_interval_ms=settings.ewds_poll_interval_ms,
                 poll_max_interval_ms=settings.ewds_poll_max_interval_ms,
+                empty_response_grace_ms=settings.ewds_empty_response_grace_ms,
+                publish_backoff_ms=settings.ewds_publish_backoff_ms,
+                publish_max_backoff_ms=settings.ewds_publish_max_backoff_ms,
             )
         )
         logger.info(

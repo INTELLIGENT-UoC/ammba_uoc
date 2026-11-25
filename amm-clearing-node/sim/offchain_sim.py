@@ -16,7 +16,10 @@ Run:
 
 It serves both transports: the plain REST surface (``rest``) and an emulation
 of the EWDS Client Gateway's publish/poll request-response channels (``ewds``),
-including ``measurementsQuery`` for the calibration fetch step.
+including ``measurementsQuery`` for the calibration fetch step. Tests can
+script transient gateway faults on the store: undelivered or rate-limited
+publishes (``publish_faults``) and an empty response followed later by the real
+one (``empty_then_data``).
 """
 
 import hashlib
@@ -24,6 +27,8 @@ import json
 import logging
 import os
 import time
+import uuid
+from dataclasses import dataclass
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException
@@ -41,6 +46,18 @@ logger = logging.getLogger(__name__)
 SEED_DIR = Path(__file__).parent  # override with SIM_SEED_DIR (e.g. a sim.staging_seed set)
 MEASUREMENT_SCHEMA = "int.measurement.schema.v1.json"
 
+# publish_faults entry: the gateway accepts the message but delivers it to nobody.
+NO_RECIPIENTS = "no_recipients"
+
+
+@dataclass
+class _Deferred:
+    """A message that becomes visible on its topic after ``polls_left`` more polls."""
+
+    topic: str
+    payload: str
+    polls_left: int
+
 
 class Store:
     def __init__(self) -> None:
@@ -53,11 +70,36 @@ class Store:
         # clientId) consumer offsets, mimicking the CGW's consumer groups.
         self.topics: dict[str, list[dict]] = {}
         self.offsets: dict[tuple[str, str], int] = {}
+        self.deferred: list[_Deferred] = []
+        # Scripted gateway faults (consumed in order, one per publish):
+        # NO_RECIPIENTS answers with recipients.sent == 0, an int answers with
+        # that HTTP status; either way the message is dropped.
+        self.publish_faults: list[str | int] = []
+        # Request topic -> n: the next request on that topic is answered with
+        # an empty result at once, and the real response is withheld for the
+        # next n polls of the response topic (one-shot).
+        self.empty_then_data: dict[str, int] = {}
 
     def publish(self, topic: str, payload: str) -> None:
         self.topics.setdefault(topic, []).append({"payload": payload})
 
+    def defer(self, topic: str, payload: str, polls: int) -> None:
+        """Publish ``payload`` on ``topic`` once ``polls`` polls of it have passed."""
+        self.deferred.append(_Deferred(topic, payload, polls))
+
+    def _release_deferred(self, topic: str) -> None:
+        pending = []
+        for entry in self.deferred:
+            if entry.topic == topic:
+                if entry.polls_left <= 0:
+                    self.publish(topic, entry.payload)
+                    continue
+                entry.polls_left -= 1
+            pending.append(entry)
+        self.deferred = pending
+
     def consume(self, topic: str, client_id: str, amount: int) -> list[dict]:
+        self._release_deferred(topic)
         queue = self.topics.get(topic, [])
         cursor = self.offsets.get((topic, client_id), 0)
         batch = queue[cursor : cursor + amount]
@@ -199,6 +241,9 @@ def create_app(store: Store | None = None) -> FastAPI:
         store.clearing_results.clear()
         store.topics.clear()
         store.offsets.clear()
+        store.deferred.clear()
+        store.publish_faults.clear()
+        store.empty_then_data.clear()
         store.seed_from_file()
         return {"status": "reset"}
 
@@ -228,6 +273,13 @@ def create_app(store: Store | None = None) -> FastAPI:
             "offchain_id": offchain_id,
             "onchain_id": "0x" + digest,
             "creation_time": int(time.time()),
+        }
+
+    def _delivery_summary(sent: int) -> dict:
+        """The gateway's publish answer: a message id and per-recipient delivery counts."""
+        return {
+            "clientGatewayMessageId": str(uuid.uuid4()),
+            "recipients": {"total": 1, "sent": sent, "failed": 1 - sent},
         }
 
     def _handle_request(topic: str, envelope: dict) -> None:
@@ -290,7 +342,12 @@ def create_app(store: Store | None = None) -> FastAPI:
             "data": results,
             "error": None,
         }
-        store.publish(response_topic, json.dumps(response))
+        withheld_polls = store.empty_then_data.pop(topic, None)
+        if withheld_polls is None:
+            store.publish(response_topic, json.dumps(response))
+        else:
+            store.publish(response_topic, json.dumps({**response, "data": []}))
+            store.defer(response_topic, json.dumps(response), withheld_polls)
 
     @app.post("/ids")
     async def get_or_create_ids(offchain_id: str):
@@ -299,6 +356,12 @@ def create_app(store: Store | None = None) -> FastAPI:
 
     @app.post("/api/v2/messages")
     async def gateway_publish(message: dict = Body(...)):
+        # Gateway-level faults come first: the message never reaches a handler.
+        fault = store.publish_faults.pop(0) if store.publish_faults else None
+        if isinstance(fault, int):
+            raise HTTPException(status_code=fault, detail=f"scripted gateway fault {fault}")
+        if fault == NO_RECIPIENTS:
+            return _delivery_summary(sent=0)
         topic = message.get("topicName", "")
         try:
             envelope = json.loads(message.get("payload", ""))
@@ -309,7 +372,7 @@ def create_app(store: Store | None = None) -> FastAPI:
         else:
             # Unknown topic: store the raw message (lets tests seed noise).
             store.publish(topic, message.get("payload", ""))
-        return {"status": "accepted"}
+        return _delivery_summary(sent=1)
 
     @app.get("/api/v2/messages")
     async def gateway_consume(

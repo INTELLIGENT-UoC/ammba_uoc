@@ -11,6 +11,11 @@ Two-layer message format: the transport DTO (camelCase, ``payload`` is a JSON
 ``{requestId, operation, payload}``. Responses come back the same way —
 ``{requestId, success, data, error}`` stringified inside ``message.payload``.
 
+Two transient gateway behaviours are absorbed within the response timeout: a
+publish that reached no recipient (or hit the rate limit, HTTP 429) is
+re-published with back-off, and an empty response is held back briefly in case
+a non-empty response with the same ``requestId`` follows.
+
 Exposes the same interface as ``OffchainDBClient`` so ``run_clearing`` is
 transport-agnostic. Reads (orders, trades, markets, measurements, id mappings)
 go over EWDS; writes are a no-op with a warning, because the gateway offers no
@@ -52,6 +57,12 @@ DEFAULT_TIMEOUT_MS = 60_000
 DEFAULT_POLL_INTERVAL_MS = 1000  # first poll delay; grows geometrically
 DEFAULT_POLL_MAX_INTERVAL_MS = 5000  # ceiling of the back-off
 POLL_BACKOFF_FACTOR = 1.5
+# An empty result is held back this long in case a non-empty response for the
+# same request follows (0 disables the wait).
+DEFAULT_EMPTY_RESPONSE_GRACE_MS = 10_000
+# Back-off for publishes the gateway did not deliver (zero recipients, HTTP 429).
+DEFAULT_PUBLISH_BACKOFF_MS = 2000
+DEFAULT_PUBLISH_MAX_BACKOFF_MS = 30_000
 DIAGNOSTIC_CLIENT_ID = "ammclearingnodediag"  # the ONE id for ad-hoc probe scripts
 
 
@@ -61,6 +72,10 @@ class EwdsError(RuntimeError):
 
 class EwdsTimeout(EwdsError):
     """No matching response arrived within the configured timeout."""
+
+
+class EwdsUndelivered(EwdsError):
+    """The gateway kept refusing or not delivering the request until the timeout."""
 
 
 def client_id_for_suffix(base: str, suffix: str) -> str:
@@ -82,6 +97,9 @@ class EwdsConfig:
     timeout_ms: int = DEFAULT_TIMEOUT_MS
     poll_interval_ms: int = DEFAULT_POLL_INTERVAL_MS  # initial delay
     poll_max_interval_ms: int = DEFAULT_POLL_MAX_INTERVAL_MS  # back-off ceiling
+    empty_response_grace_ms: int = DEFAULT_EMPTY_RESPONSE_GRACE_MS
+    publish_backoff_ms: int = DEFAULT_PUBLISH_BACKOFF_MS  # first re-publish delay
+    publish_max_backoff_ms: int = DEFAULT_PUBLISH_MAX_BACKOFF_MS  # re-publish ceiling
     topics: dict = field(
         default_factory=lambda: {
             "orders.query": ("ordersQuery", "ordersQueryResponse"),
@@ -124,6 +142,42 @@ def poll_delays_ms(
         elapsed += step
         current = min(current * factor, float(max_ms))
     return delays
+
+
+def publish_backoff_ms(attempt: int, initial_ms: int, max_ms: int) -> int:
+    """Delay before re-publishing after the ``attempt``-th undelivered publish (0-based).
+
+    Doubles from ``initial_ms`` up to ``max_ms``: with the defaults 2, 4, 8,
+    16, 30, 30, … s.
+    """
+    max_ms = max(max_ms, initial_ms)
+    return min(initial_ms * (2 ** min(attempt, 30)), max_ms)
+
+
+def undelivered_reason(response: httpx.Response) -> str | None:
+    """Why a publish did not reach the request handler, or ``None`` if it did.
+
+    The gateway answers a publish with a delivery summary
+    ``{"recipients": {"total", "sent", "failed"}}``; ``sent == 0`` means it
+    accepted the message but delivered it to nobody. HTTP 429 is its rate
+    limit. Both are transient. A body without a delivery summary counts as
+    delivered.
+    """
+    if response.status_code == 429:
+        return "HTTP 429 (rate limited)"
+    if response.status_code >= 300:
+        return None
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    recipients = body.get("recipients") if isinstance(body, dict) else None
+    if isinstance(recipients, dict) and recipients.get("sent") == 0:
+        return (
+            "no recipients "
+            f"(failed={recipients.get('failed', '?')}, total={recipients.get('total', '?')})"
+        )
+    return None
 
 
 class EwdsOffchainClient:
@@ -269,8 +323,13 @@ class EwdsOffchainClient:
     # ── request/response mechanics ───────────────────────────────────
 
     async def _query(self, operation: str, payload: dict) -> list[dict]:
+        """Publish one request and wait for its response.
+
+        Publishing and polling share one deadline, ``timeout_ms`` from now.
+        """
         request_topic, response_topic = self.config.topics[operation]
         request_id = f"{operation.replace('.', '-')}-" f"{int(time.time() * 1000)}-{os.getpid()}"
+        deadline = time.monotonic() + self.config.timeout_ms / 1000.0
 
         envelope = {
             "requestId": request_id,
@@ -287,20 +346,74 @@ class EwdsOffchainClient:
             "anonymousRecipient": [],
         }
 
-        resp = await request_with_retries(
-            self._client, "POST", self._messages_url, json=transport_dto
-        )
-        if resp.status_code >= 300:
-            raise EwdsError(
-                f"EWDS publish failed for {operation}: "
-                f"HTTP {resp.status_code}: {resp.text[:500]}"
+        await self._publish(operation, request_id, transport_dto, deadline)
+        return await self._poll(operation, request_id, response_topic, deadline=deadline)
+
+    async def _publish(
+        self, operation: str, request_id: str, transport_dto: dict, deadline: float
+    ) -> None:
+        """Publish the request, re-publishing while the gateway does not deliver it.
+
+        Zero recipients and HTTP 429 are retried with doubling back-off as long
+        as the next attempt still starts before ``deadline``. Re-publishing
+        under the same ``requestId`` is safe: the request handler de-duplicates
+        by it. Any other HTTP error raises at once.
+        """
+        attempt = 0
+        while True:
+            resp = await request_with_retries(
+                self._client, "POST", self._messages_url, json=transport_dto
             )
+            reason = undelivered_reason(resp)
+            if reason is None:
+                if resp.status_code >= 300:
+                    raise EwdsError(
+                        f"EWDS publish failed for {operation}: "
+                        f"HTTP {resp.status_code}: {resp.text[:500]}"
+                    )
+                return
 
-        return await self._poll(operation, request_id, response_topic)
+            delay_ms = publish_backoff_ms(
+                attempt, self.config.publish_backoff_ms, self.config.publish_max_backoff_ms
+            )
+            attempt += 1
+            if time.monotonic() + delay_ms / 1000.0 >= deadline:
+                raise EwdsUndelivered(
+                    f"EWDS publish for {operation} not delivered after {attempt} "
+                    f"attempt(s) within {self.config.timeout_ms} ms "
+                    f"(request_id={request_id}): {reason}"
+                )
+            logger.warning(
+                "EWDS publish for %s not delivered (request_id=%s, attempt %d): %s; "
+                "retrying in %d ms",
+                operation,
+                request_id,
+                attempt,
+                reason,
+                delay_ms,
+            )
+            await asyncio.sleep(delay_ms / 1000.0)
 
-    async def _poll(self, operation: str, request_id: str, response_topic: str) -> list[dict]:
+    async def _poll(
+        self,
+        operation: str,
+        request_id: str,
+        response_topic: str,
+        deadline: float | None = None,
+    ) -> list[dict]:
+        """Poll the response topic until the response for ``request_id`` arrives.
+
+        A non-empty result is returned at once. An empty one is held back for
+        ``empty_response_grace_ms``, because the handler can answer a request
+        once more after a transient empty answer; a non-empty response with the
+        same ``requestId`` within that time wins. The empty result is returned
+        when the grace period or the deadline runs out, whichever comes first.
+        """
         poll_client_id = client_id_for_suffix(self.config.client_id, response_topic)
-        deadline = time.monotonic() + self.config.timeout_ms / 1000.0
+        if deadline is None:
+            deadline = time.monotonic() + self.config.timeout_ms / 1000.0
+        grace_s = max(0, self.config.empty_response_grace_ms) / 1000.0
+        empty_seen_at: float | None = None
         delays = iter(
             poll_delays_ms(
                 self.config.poll_interval_ms,
@@ -310,11 +423,6 @@ class EwdsOffchainClient:
         )
 
         while True:
-            if time.monotonic() > deadline:
-                raise EwdsTimeout(
-                    f"EWDS timeout waiting for {operation} response " f"(request_id={request_id})"
-                )
-
             resp = await request_with_retries(
                 self._client,
                 "GET",
@@ -349,13 +457,41 @@ class EwdsOffchainClient:
                         f"(request_id={request_id}): "
                         f"{error.get('code', '?')}: {error.get('message', '?')}"
                     )
-                return parsed.get("data") or []
+                data = parsed.get("data") or []
+                if data or grace_s == 0:
+                    return data
+                if empty_seen_at is None:
+                    empty_seen_at = time.monotonic()
+                    logger.debug(
+                        "EWDS %s returned an empty result (request_id=%s); "
+                        "waiting up to %d ms for a non-empty one",
+                        operation,
+                        request_id,
+                        self.config.empty_response_grace_ms,
+                    )
 
-            # Geometric back-off between polls (see poll_delays_ms).
+            now = time.monotonic()
+            if empty_seen_at is not None:
+                wake_at = min(empty_seen_at + grace_s, deadline)
+                if now >= wake_at:
+                    logger.info(
+                        "EWDS %s: accepting empty result after %.1f s (request_id=%s)",
+                        operation,
+                        now - empty_seen_at,
+                        request_id,
+                    )
+                    return []
+            else:
+                wake_at = deadline
+
+            # Geometric back-off between polls (see poll_delays_ms); the last
+            # sleep ends at the grace period's end or the deadline, and one
+            # more poll follows it.
             delay_ms = next(delays, None)
-            if delay_ms is None:
+            if delay_ms is None or now >= deadline:
+                if empty_seen_at is not None:
+                    return []
                 raise EwdsTimeout(
                     f"EWDS timeout waiting for {operation} response " f"(request_id={request_id})"
                 )
-            remaining_s = max(0.0, deadline - time.monotonic())
-            await asyncio.sleep(min(delay_ms / 1000.0, remaining_s))
+            await asyncio.sleep(max(0.0, min(delay_ms / 1000.0, wake_at - now)))

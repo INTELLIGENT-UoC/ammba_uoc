@@ -18,6 +18,9 @@ ENV_KEYS = (
     "OFFCHAIN_STRICT_VALIDATION",
     "SCHEDULER_ENABLED",
     "SCHEDULER_POLL_INTERVAL_SEC",
+    "EWDS_EMPTY_RESPONSE_GRACE_MS",
+    "EWDS_RATE_LIMIT_BACKOFF_MS",
+    "EWDS_RATE_LIMIT_MAX_BACKOFF_MS",
 )
 
 
@@ -49,6 +52,20 @@ def test_empty_variables_count_as_unset(monkeypatch):
     assert settings.port == 8081
     assert settings.time_slot_sec == 900
     assert settings.scheduler_enabled is False
+
+
+def test_ewds_delivery_settings(monkeypatch):
+    defaults = load_settings(REPO_CONFIG)
+    assert defaults.ewds_empty_response_grace_ms == 10000
+    assert defaults.ewds_publish_backoff_ms == 2000
+    assert defaults.ewds_publish_max_backoff_ms == 30000
+    monkeypatch.setenv("EWDS_EMPTY_RESPONSE_GRACE_MS", "0")  # "0" is a value, not unset
+    monkeypatch.setenv("EWDS_RATE_LIMIT_BACKOFF_MS", "500")
+    monkeypatch.setenv("EWDS_RATE_LIMIT_MAX_BACKOFF_MS", "8000")
+    settings = load_settings(REPO_CONFIG)
+    assert settings.ewds_empty_response_grace_ms == 0
+    assert settings.ewds_publish_backoff_ms == 500
+    assert settings.ewds_publish_max_backoff_ms == 8000
 
 
 @pytest.mark.parametrize(

@@ -59,6 +59,9 @@ class Settings(BaseModel):
     ewds_response_timeout_ms: int = 60000
     ewds_poll_interval_ms: int = 1000  # initial response-poll delay
     ewds_poll_max_interval_ms: int = 5000  # back-off ceiling
+    ewds_empty_response_grace_ms: int = 10000  # wait for a non-empty response
+    ewds_publish_backoff_ms: int = 2000  # first re-publish delay (undelivered/429)
+    ewds_publish_max_backoff_ms: int = 30000  # re-publish back-off ceiling
 
 
 def load_settings(config_path: Path | None = None) -> Settings:
@@ -105,6 +108,9 @@ def load_settings(config_path: Path | None = None) -> Settings:
         "EWDS_RESPONSE_TIMEOUT_MS": "ewds_response_timeout_ms",
         "EWDS_RESPONSE_POLL_INTERVAL_MS": "ewds_poll_interval_ms",
         "EWDS_RESPONSE_POLL_MAX_INTERVAL_MS": "ewds_poll_max_interval_ms",
+        "EWDS_EMPTY_RESPONSE_GRACE_MS": "ewds_empty_response_grace_ms",
+        "EWDS_RATE_LIMIT_BACKOFF_MS": "ewds_publish_backoff_ms",
+        "EWDS_RATE_LIMIT_MAX_BACKOFF_MS": "ewds_publish_max_backoff_ms",
     }
     int_fields = {
         "time_slot_sec",
@@ -112,6 +118,9 @@ def load_settings(config_path: Path | None = None) -> Settings:
         "ewds_response_timeout_ms",
         "ewds_poll_interval_ms",
         "ewds_poll_max_interval_ms",
+        "ewds_empty_response_grace_ms",
+        "ewds_publish_backoff_ms",
+        "ewds_publish_max_backoff_ms",
     }
     # An empty variable counts as unset, so ``PORT=`` falls back to the default.
     for env_key, field in env_map.items():
