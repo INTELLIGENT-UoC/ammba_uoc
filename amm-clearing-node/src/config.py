@@ -61,104 +61,105 @@ class Settings(BaseModel):
     ewds_publish_max_backoff_ms: int = 30000  # re-publish back-off ceiling
 
 
-def load_settings(config_path: Path | None = None) -> Settings:  # noqa: C901 (#131)
-    """Load settings from YAML, then override with environment variables."""
+# Environment variable overrides; they always win over the YAML file. An empty
+# variable counts as unset, so ``PORT=`` falls back to the default.
+_ENV_FIELDS = {
+    "OFFCHAIN_DB_URL": "offchain_db_url",
+    "OFFCHAIN_TRANSPORT": "offchain_transport",
+    "RPC_URL": "rpc_url",
+    "CONTRACT_ADDRESS": "contract_address",
+    "TIME_SLOT_SEC": "time_slot_sec",
+    "HOST": "host",
+    "PORT": "port",
+    "EWDS_GATEWAY_URL": "ewds_gateway_url",
+    "EWDS_TOPIC_OWNER": "ewds_topic_owner",
+    "EWDS_TOPIC_VERSION": "ewds_topic_version",
+    "EWDS_RESPONSE_TIMEOUT_MS": "ewds_response_timeout_ms",
+    "EWDS_RESPONSE_POLL_INTERVAL_MS": "ewds_poll_interval_ms",
+    "EWDS_RESPONSE_POLL_MAX_INTERVAL_MS": "ewds_poll_max_interval_ms",
+    "EWDS_EMPTY_RESPONSE_GRACE_MS": "ewds_empty_response_grace_ms",
+    "EWDS_RATE_LIMIT_BACKOFF_MS": "ewds_publish_backoff_ms",
+    "EWDS_RATE_LIMIT_MAX_BACKOFF_MS": "ewds_publish_max_backoff_ms",
+    "SCHEDULER_POLL_INTERVAL_SEC": "scheduler_poll_interval_sec",
+}
+_INT_FIELDS = {
+    "time_slot_sec",
+    "port",
+    "ewds_response_timeout_ms",
+    "ewds_poll_interval_ms",
+    "ewds_poll_max_interval_ms",
+    "ewds_empty_response_grace_ms",
+    "ewds_publish_backoff_ms",
+    "ewds_publish_max_backoff_ms",
+    "scheduler_poll_interval_sec",
+}
+# Fallback chains matching GSY's EwdsClient env conventions: the first set
+# variable wins.
+_ENV_FALLBACK_CHAINS = {
+    "ewds_request_fqcn": ("EWDS_REQUEST_PUBLISH_FQCN", "EWDS_REQUEST_FQCN"),
+    "ewds_response_fqcn": ("EWDS_RESPONSE_SUBSCRIBE_FQCN", "EWDS_RESPONSE_FQCN"),
+    "ewds_client_id": ("EWDS_AMM_CLIENT_ID", "EWDS_RESPONSE_CLIENT_ID"),
+    # CLEARING_NODE_PRIVATE_KEY is the former name, still read by existing deployments.
+    "audit_anchor_private_key": ("AUDIT_ANCHOR_PRIVATE_KEY", "CLEARING_NODE_PRIVATE_KEY"),
+}
+_ENV_BOOL_FIELDS = {
+    "OFFCHAIN_STRICT_VALIDATION": "strict_order_validation",
+    "SCHEDULER_ENABLED": "scheduler_enabled",
+}
+
+
+def _yaml_settings(config_path: Path) -> dict:
+    """Settings from the YAML file; empty when the file does not exist."""
+    if not config_path.exists():
+        return {}
+    with open(config_path) as f:
+        raw = yaml.safe_load(f) or {}
+    app = raw.get("application", {})
+    blockchain = raw.get("blockchain", {})
+    return {
+        "host": app.get("host", "0.0.0.0"),
+        "port": app.get("port", 8081),
+        "offchain_db_url": raw.get("offchain_db", {}).get("base_url", "http://localhost:8080"),
+        "rpc_url": blockchain.get("rpc_url", "https://volta-rpc.energyweb.org"),
+        "contract_address": blockchain.get("contract_address", ""),
+        "time_slot_sec": raw.get("market", {}).get("time_slot_sec", 900),
+        "communities": {
+            cid: CommunityConfig(**cdata) for cid, cdata in raw.get("communities", {}).items()
+        },
+    }
+
+
+def _env_bool(key: str) -> bool | None:
+    raw = (os.environ.get(key) or "").strip().lower()
+    if not raw:
+        return None
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    raise ValueError(f"{key} must be true/false, got {raw!r}")
+
+
+def _env_overrides() -> dict:
+    """Settings from environment variables."""
     data: dict = {}
-
-    if config_path is None:
-        config_path = Path(__file__).parent.parent / "configuration.yaml"
-
-    if config_path.exists():
-        with open(config_path) as f:
-            raw = yaml.safe_load(f) or {}
-
-        app = raw.get("application", {})
-        data["host"] = app.get("host", "0.0.0.0")
-        data["port"] = app.get("port", 8081)
-        data["offchain_db_url"] = raw.get("offchain_db", {}).get(
-            "base_url", "http://localhost:8080"
-        )
-        data["rpc_url"] = raw.get("blockchain", {}).get(
-            "rpc_url", "https://volta-rpc.energyweb.org"
-        )
-        data["contract_address"] = raw.get("blockchain", {}).get("contract_address", "")
-        data["time_slot_sec"] = raw.get("market", {}).get("time_slot_sec", 900)
-
-        communities_raw = raw.get("communities", {})
-        communities = {}
-        for cid, cdata in communities_raw.items():
-            communities[cid] = CommunityConfig(**cdata)
-        data["communities"] = communities
-
-    # Environment variable overrides always win
-    env_map = {
-        "OFFCHAIN_DB_URL": "offchain_db_url",
-        "OFFCHAIN_TRANSPORT": "offchain_transport",
-        "RPC_URL": "rpc_url",
-        "CONTRACT_ADDRESS": "contract_address",
-        "TIME_SLOT_SEC": "time_slot_sec",
-        "HOST": "host",
-        "PORT": "port",
-        "EWDS_GATEWAY_URL": "ewds_gateway_url",
-        "EWDS_TOPIC_OWNER": "ewds_topic_owner",
-        "EWDS_TOPIC_VERSION": "ewds_topic_version",
-        "EWDS_RESPONSE_TIMEOUT_MS": "ewds_response_timeout_ms",
-        "EWDS_RESPONSE_POLL_INTERVAL_MS": "ewds_poll_interval_ms",
-        "EWDS_RESPONSE_POLL_MAX_INTERVAL_MS": "ewds_poll_max_interval_ms",
-        "EWDS_EMPTY_RESPONSE_GRACE_MS": "ewds_empty_response_grace_ms",
-        "EWDS_RATE_LIMIT_BACKOFF_MS": "ewds_publish_backoff_ms",
-        "EWDS_RATE_LIMIT_MAX_BACKOFF_MS": "ewds_publish_max_backoff_ms",
-    }
-    int_fields = {
-        "time_slot_sec",
-        "port",
-        "ewds_response_timeout_ms",
-        "ewds_poll_interval_ms",
-        "ewds_poll_max_interval_ms",
-        "ewds_empty_response_grace_ms",
-        "ewds_publish_backoff_ms",
-        "ewds_publish_max_backoff_ms",
-    }
-    # An empty variable counts as unset, so ``PORT=`` falls back to the default.
-    for env_key, field in env_map.items():
+    for env_key, field in _ENV_FIELDS.items():
         val = os.environ.get(env_key)
         if val:
-            data[field] = int(val) if field in int_fields else val
+            data[field] = int(val) if field in _INT_FIELDS else val
+    for field, env_keys in _ENV_FALLBACK_CHAINS.items():
+        val = next((os.environ[k] for k in env_keys if os.environ.get(k)), None)
+        if val:
+            data[field] = val
+    for env_key, field in _ENV_BOOL_FIELDS.items():
+        flag = _env_bool(env_key)
+        if flag is not None:
+            data[field] = flag
+    return data
 
-    # Fallback chains matching GSY's EwdsClient env conventions.
-    fallback_chains = {
-        "ewds_request_fqcn": ("EWDS_REQUEST_PUBLISH_FQCN", "EWDS_REQUEST_FQCN"),
-        "ewds_response_fqcn": ("EWDS_RESPONSE_SUBSCRIBE_FQCN", "EWDS_RESPONSE_FQCN"),
-        "ewds_client_id": ("EWDS_AMM_CLIENT_ID", "EWDS_RESPONSE_CLIENT_ID"),
-        # CLEARING_NODE_PRIVATE_KEY is the former name, still read by existing deployments.
-        "audit_anchor_private_key": ("AUDIT_ANCHOR_PRIVATE_KEY", "CLEARING_NODE_PRIVATE_KEY"),
-    }
-    for field, env_keys in fallback_chains.items():
-        for env_key in env_keys:
-            val = os.environ.get(env_key)
-            if val:
-                data[field] = val
-                break
 
-    def _env_bool(key: str) -> bool | None:
-        raw = (os.environ.get(key) or "").strip().lower()
-        if not raw:
-            return None
-        if raw in ("1", "true", "yes", "on"):
-            return True
-        if raw in ("0", "false", "no", "off"):
-            return False
-        raise ValueError(f"{key} must be true/false, got {raw!r}")
-
-    strict = _env_bool("OFFCHAIN_STRICT_VALIDATION")
-    if strict is not None:
-        data["strict_order_validation"] = strict
-
-    sched = _env_bool("SCHEDULER_ENABLED")
-    if sched is not None:
-        data["scheduler_enabled"] = sched
-    interval = os.environ.get("SCHEDULER_POLL_INTERVAL_SEC")
-    if interval:
-        data["scheduler_poll_interval_sec"] = int(interval)
-
-    return Settings(**data)
+def load_settings(config_path: Path | None = None) -> Settings:
+    """Load settings from YAML, then override with environment variables."""
+    if config_path is None:
+        config_path = Path(__file__).parent.parent / "configuration.yaml"
+    return Settings(**{**_yaml_settings(config_path), **_env_overrides()})

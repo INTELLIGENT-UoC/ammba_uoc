@@ -51,72 +51,100 @@ def _effective_rate(order) -> float:
     return order.preferred_energy_rate if order.preferred_energy_rate else order.energy_rate
 
 
-def validate_match(match: Match) -> list[Violation]:  # noqa: C901 (#131)
-    violations = []
+Issue = tuple[str, str]  # (contract error code, detail)
 
-    def flag(code: str, detail: str) -> None:
-        violations.append(Violation(match.trade_id, code, detail))
 
-    for label, value in (
-        ("tradeId", match.trade_id),
-        ("bid.orderId", match.bid.order_id),
-        ("offer.orderId", match.offer.order_id),
-        ("bid.createdBy", match.bid.created_by),
-        ("offer.createdBy", match.offer.created_by),
-    ):
-        if not value:
-            flag("InvalidOrderParams", f"{label} is empty")
-
+def _order_param_issues(match: Match) -> list[Issue]:
+    """InvalidOrderParams: ids, self-trade, market and time slot, bid/offer sides."""
+    issues = [
+        ("InvalidOrderParams", f"{label} is empty")
+        for label, value in (
+            ("tradeId", match.trade_id),
+            ("bid.orderId", match.bid.order_id),
+            ("offer.orderId", match.offer.order_id),
+            ("bid.createdBy", match.bid.created_by),
+            ("offer.createdBy", match.offer.created_by),
+        )
+        if not value
+    ]
     if match.bid.created_by == match.offer.created_by:
-        flag("InvalidOrderParams", "self-trade: bid and offer have the same creator")
+        issues.append(("InvalidOrderParams", "self-trade: bid and offer have the same creator"))
     if _bytes(match.bid.market_id) != _bytes(match.offer.market_id):
-        flag("InvalidOrderParams", "bid/offer market mismatch")
+        issues.append(("InvalidOrderParams", "bid/offer market mismatch"))
     if match.bid.time_slot != match.offer.time_slot:
-        flag("InvalidOrderParams", "bid/offer timeSlot mismatch")
+        issues.append(("InvalidOrderParams", "bid/offer timeSlot mismatch"))
     if not match.bid.is_bid or match.offer.is_bid:
-        flag("InvalidOrderParams", "isBid flags do not match the bid/offer sides")
+        issues.append(("InvalidOrderParams", "isBid flags do not match the bid/offer sides"))
+    return issues
 
-    # The contract compares scaled integers; do the same to avoid float edge cases.
-    price = scale(match.clearing_price)
-    if match.match_type == MATCH_TYPE_PREFERRED:
-        bid_partner = match.bid.preferred_trading_partner
-        offer_partner = match.offer.preferred_trading_partner
-        if not bid_partner and not offer_partner:
-            flag("InvalidPreferredPartner", "preferred match without a declared partner")
-        if bid_partner and bid_partner != match.offer.created_by:
-            flag("InvalidPreferredPartner", "the bid's partner is not the offer's creator")
-        if offer_partner and offer_partner != match.bid.created_by:
-            flag("InvalidPreferredPartner", "the offer's partner is not the bid's creator")
-        bid_rate = scale(_effective_rate(match.bid))
-        offer_rate = scale(_effective_rate(match.offer))
-        if bid_rate < offer_rate or price > bid_rate or price < offer_rate:
-            flag(
+
+def _preferred_issues(match: Match, price: int) -> list[Issue]:
+    """InvalidPreferredPartner and PriceMismatch of a ``Preferred`` match."""
+    issues = []
+    bid_partner = match.bid.preferred_trading_partner
+    offer_partner = match.offer.preferred_trading_partner
+    if not bid_partner and not offer_partner:
+        issues.append(("InvalidPreferredPartner", "preferred match without a declared partner"))
+    if bid_partner and bid_partner != match.offer.created_by:
+        issues.append(("InvalidPreferredPartner", "the bid's partner is not the offer's creator"))
+    if offer_partner and offer_partner != match.bid.created_by:
+        issues.append(("InvalidPreferredPartner", "the offer's partner is not the bid's creator"))
+    bid_rate = scale(_effective_rate(match.bid))
+    offer_rate = scale(_effective_rate(match.offer))
+    if bid_rate < offer_rate or price > bid_rate or price < offer_rate:
+        issues.append(
+            (
                 "PriceMismatch",
                 f"clearing {match.clearing_price} outside the effective rates "
                 f"[{_effective_rate(match.offer)}, {_effective_rate(match.bid)}]",
             )
-    else:
-        if scale(match.bid.energy_rate) < price:
-            flag(
+        )
+    return issues
+
+
+def _standard_price_issues(match: Match, price: int) -> list[Issue]:
+    """PriceMismatch of a ``Standard`` match: bid limit ≥ price ≥ offer limit."""
+    issues = []
+    if scale(match.bid.energy_rate) < price:
+        issues.append(
+            (
                 "PriceMismatch",
                 f"bid limit {match.bid.energy_rate} < clearing {match.clearing_price} "
                 "(AMM clearing ignores limit prices; the contract does not)",
             )
-        if scale(match.offer.energy_rate) > price:
-            flag(
+        )
+    if scale(match.offer.energy_rate) > price:
+        issues.append(
+            (
                 "PriceMismatch",
                 f"offer limit {match.offer.energy_rate} > clearing {match.clearing_price}",
             )
+        )
+    return issues
 
+
+def _energy_issues(match: Match) -> list[Issue]:
+    """EnergyMismatch: selected energy is positive and fits both orders."""
+    issues = []
     selected = scale(match.selected_energy_kwh)
     if selected <= 0:
-        flag("EnergyMismatch", "selectedEnergy must be positive")
+        issues.append(("EnergyMismatch", "selectedEnergy must be positive"))
     if selected > scale(match.bid.energy_kwh):
-        flag("EnergyMismatch", "selectedEnergy exceeds bid energy")
+        issues.append(("EnergyMismatch", "selectedEnergy exceeds bid energy"))
     if selected > scale(match.offer.energy_kwh):
-        flag("EnergyMismatch", "selectedEnergy exceeds offer energy")
+        issues.append(("EnergyMismatch", "selectedEnergy exceeds offer energy"))
+    return issues
 
-    return violations
+
+def validate_match(match: Match) -> list[Violation]:
+    # The contract compares scaled integers; do the same to avoid float edge cases.
+    price = scale(match.clearing_price)
+    if match.match_type == MATCH_TYPE_PREFERRED:
+        price_issues = _preferred_issues(match, price)
+    else:
+        price_issues = _standard_price_issues(match, price)
+    issues = _order_param_issues(match) + price_issues + _energy_issues(match)
+    return [Violation(match.trade_id, code, detail) for code, detail in issues]
 
 
 def validate_settlement(settlement: MarketSettlement) -> list[Violation]:

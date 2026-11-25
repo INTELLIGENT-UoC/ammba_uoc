@@ -51,38 +51,8 @@ from src.sigmoid import from_node_int, sigmoid_price, to_node_int
 logger = logging.getLogger(__name__)
 
 
-async def run_clearing(  # noqa: C901 (#131)
-    market_id: str,
-    community_uuid: str,
-    time_slot: int,
-    community_config: CommunityConfig,
-    db_client: OffchainDBClient,
-    contract_client: AMMContractClient | None,
-    time_slot_sec: int = 900,
-    strict_validation: bool = True,
-) -> dict:
-    """Execute the full clearing cycle for a single market slot.
-
-    ``strict_validation=False`` keeps inbound orders that fail int:Order
-    validation (logging the violation) — needed against the GSY staging
-    gateway while their DTOs are still being aligned with the ontology.
-
-    Returns a summary dict with clearing results.
-    """
-    # ── Step 0: Idempotency check ────────────────────────────────────
-    existing_trades = await db_client.get_trades(market_id)
-    if existing_trades:
-        logger.warning(
-            "Trades already exist for market_id=%s, skipping clearing",
-            market_id,
-        )
-        return {"status": "skipped", "reason": "trades_already_exist"}
-
-    # ── Step 1: Fetch open orders + translate from the int:Order ontology ──
-    start_time = time_slot
-    end_time = time_slot + time_slot_sec
-    raw_orders = await db_client.get_orders(market_id, start_time, end_time)
-
+def _translate_orders(raw_orders: list[dict], strict_validation: bool) -> list[dict]:
+    """Step 1: validate inbound ``int:Order`` objects and convert them to internal orders."""
     internal_orders = []
     for raw in raw_orders:
         try:
@@ -108,97 +78,84 @@ async def run_clearing(  # noqa: C901 (#131)
                 raw.get("orderId", "<no id>"),
                 exc_info=True,
             )
+    return internal_orders
 
-    # Sorted by actor id, then order id, so every later step (rounding ties,
-    # preference pairs, the fill) is independent of the order of arrival.
-    open_orders = sorted((o for o in internal_orders if o.get("status") == "Open"), key=order_key)
-    bids = [o for o in open_orders if o.get("order_type") == "Bid"]
-    offers = [o for o in open_orders if o.get("order_type") == "Offer"]
 
+async def _no_trade(
+    db_client: OffchainDBClient,
+    market_id: str,
+    total_supply_kwh: float,
+    total_demand_kwh: float,
+    traded_at: str,
+) -> dict:
+    """Step 2 with an empty side: post a ``no_bid`` clearing result."""
     logger.info(
-        "Market %s: %d bids, %d offers (from %d orders)",
+        "Market %s: no trade (supply=%.3f, demand=%.3f)",
         market_id,
-        len(bids),
-        len(offers),
-        len(raw_orders),
+        total_supply_kwh,
+        total_demand_kwh,
     )
-
-    now = int(time.time())
-    traded_at = unix_to_iso(now)
-
-    # ── Step 2: Aggregate ────────────────────────────────────────────
-    total_supply_kwh = sum(o["energy"] for o in offers)
-    total_demand_kwh = sum(b["energy"] for b in bids)
-
-    if total_supply_kwh == 0 or total_demand_kwh == 0:
-        logger.info(
-            "Market %s: no trade (supply=%.3f, demand=%.3f)",
-            market_id,
-            total_supply_kwh,
-            total_demand_kwh,
-        )
-        await _post_clearing_result(
-            db_client,
-            build_int_clearing_result(
-                market_id=market_id,
-                clearing_status="no_bid",
-                clearing_price_eur=0.0,
-                total_supply_kwh=total_supply_kwh,
-                total_demand_kwh=total_demand_kwh,
-                traded_quantity_kwh=0.0,
-                num_trades=0,
-                tx_hash="0x0",
-                created_at_iso=traded_at,
-                no_bid_reason="invalid_inputs",
-            ),
-        )
-        return {
-            "status": "no_trade",
-            "total_supply_kwh": total_supply_kwh,
-            "total_demand_kwh": total_demand_kwh,
-        }
-
-    # ── Step 3: Compute clearing price ───────────────────────────────
-    ratio = total_supply_kwh / total_demand_kwh
-    clearing_price_ct = sigmoid_price(
-        ratio,
-        community_config.k_upper_ct_per_kwh,
-        community_config.k_lower_ct_per_kwh,
-        community_config.theta,
-        community_config.steepness,
+    await _post_clearing_result(
+        db_client,
+        build_int_clearing_result(
+            market_id=market_id,
+            clearing_status="no_bid",
+            clearing_price_eur=0.0,
+            total_supply_kwh=total_supply_kwh,
+            total_demand_kwh=total_demand_kwh,
+            traded_quantity_kwh=0.0,
+            num_trades=0,
+            tx_hash="0x0",
+            created_at_iso=traded_at,
+            no_bid_reason="invalid_inputs",
+        ),
     )
-    clearing_price_eur = ct_to_eur(clearing_price_ct)
+    return {
+        "status": "no_trade",
+        "total_supply_kwh": total_supply_kwh,
+        "total_demand_kwh": total_demand_kwh,
+    }
 
-    logger.info(
-        "Market %s: ratio=%.4f, clearing_price=%.4f ct/kWh",
-        market_id,
-        ratio,
-        clearing_price_ct,
-    )
 
-    # ── Step 4: Record on-chain (optional; deferred for the MVP) ──────
-    tx_hash = "0x0"
-    if contract_client is not None:
-        try:
-            tx_hash = await contract_client.clear_market(
-                market_id=market_id,
-                community_uuid=community_uuid,
-                time_slot=time_slot,
-                total_supply_kwh=total_supply_kwh,
-                total_demand_kwh=total_demand_kwh,
-                clearing_price=clearing_price_ct,
-            )
-        except Exception:
-            logger.exception("On-chain clearMarket failed for market_id=%s", market_id)
-            return {"status": "error", "reason": "on_chain_tx_failed"}
-    else:
+async def _record_on_chain(
+    contract_client: AMMContractClient | None,
+    market_id: str,
+    community_uuid: str,
+    time_slot: int,
+    total_supply_kwh: float,
+    total_demand_kwh: float,
+    clearing_price_ct: float,
+) -> str | None:
+    """Step 4 (optional): anchor the clearing on-chain.
+
+    Returns the transaction hash, ``"0x0"`` without a contract client, or
+    ``None`` when the transaction failed.
+    """
+    if contract_client is None:
         logger.warning("No contract client configured, skipping on-chain recording")
+        return "0x0"
+    try:
+        return await contract_client.clear_market(
+            market_id=market_id,
+            community_uuid=community_uuid,
+            time_slot=time_slot,
+            total_supply_kwh=total_supply_kwh,
+            total_demand_kwh=total_demand_kwh,
+            clearing_price=clearing_price_ct,
+        )
+    except Exception:
+        logger.exception("On-chain clearMarket failed for market_id=%s", market_id)
+        return None
 
-    # ── Step 5: Pro-rata allocation, quantised ───────────────────────
-    # Quantities are integers of the on-chain resolution (1e-4 kWh). The
-    # traded quantity is apportioned over each side by the largest-remainder
-    # method, so both sides sum to the same integer total and the short side
-    # receives exactly its order quantities.
+
+def _allocate(offers: list[dict], bids: list[dict]) -> None:
+    """Step 5: pro-rata allocation, quantised.
+
+    Quantities are integers of the on-chain resolution (1e-4 kWh). The traded
+    quantity is apportioned over each side by the largest-remainder method, so
+    both sides sum to the same integer total and the short side receives
+    exactly its order quantities.
+    """
     offer_units = [to_node_int(o["energy"]) for o in offers]
     bid_units = [to_node_int(b["energy"]) for b in bids]
     traded_units = min(sum(offer_units), sum(bid_units))
@@ -207,14 +164,20 @@ async def run_clearing(  # noqa: C901 (#131)
     for bid, units in zip(bids, apportion(bid_units, traded_units), strict=True):
         bid["allocated_energy"] = from_node_int(units)
 
-    # ── Step 6: Preference allocation (mutual preferred pairs) ────────
-    bids, offers = apply_preference_allocation(bids, offers, clearing_price_ct)
 
-    # ── Step 6b: Energy-type adjustments (summary only) ──────────────
-    # A match has one price for both sides, so individual prices (energy-type
-    # subsidy and levy, preferred rates, penalties) cannot go into the trade
-    # price. They belong to the execution step; until it applies them, the
-    # adjustments are computed for the clearing summary only.
+def _energy_type_adjustments(
+    community_config: CommunityConfig,
+    offers: list[dict],
+    clearing_price_ct: float,
+    market_id: str,
+) -> dict | None:
+    """Step 6b: energy-type adjustments, for the clearing summary only.
+
+    A match has one price for both sides, so individual prices (energy-type
+    subsidy and levy, preferred rates, penalties) cannot go into the trade
+    price. They belong to the execution step; until it applies them, the
+    adjustments are computed for the clearing summary only.
+    """
     multipliers = None
     if community_config.green_subsidy_rate or community_config.grey_levy_rate:
         multipliers = EnergyTypeMultipliers(
@@ -229,8 +192,17 @@ async def run_clearing(  # noqa: C901 (#131)
             market_id,
         )
     _, price_provenance = compute_seller_price_adjustments(offers, clearing_price_ct, multipliers)
+    return price_provenance
 
-    # ── Step 7: Generate int:Trade objects ───────────────────────────
+
+def _build_trades(
+    bids: list[dict],
+    offers: list[dict],
+    market_id: str,
+    clearing_price_eur: float,
+    traded_at: str,
+) -> tuple[list[dict], int]:
+    """Step 7: ``int:Trade`` objects and the traded quantity in node units."""
     trades: list[dict] = []
     traded_trade_units = 0
 
@@ -262,7 +234,108 @@ async def run_clearing(  # noqa: C901 (#131)
             )
         )
         traded_trade_units += units
+    return trades, traded_trade_units
 
+
+async def run_clearing(
+    market_id: str,
+    community_uuid: str,
+    time_slot: int,
+    community_config: CommunityConfig,
+    db_client: OffchainDBClient,
+    contract_client: AMMContractClient | None,
+    time_slot_sec: int = 900,
+    strict_validation: bool = True,
+) -> dict:
+    """Execute the full clearing cycle for a single market slot.
+
+    ``strict_validation=False`` keeps inbound orders that fail int:Order
+    validation (logging the violation) — needed against the GSY staging
+    gateway while their DTOs are still being aligned with the ontology.
+
+    Returns a summary dict with clearing results.
+    """
+    # ── Step 0: Idempotency check ────────────────────────────────────
+    existing_trades = await db_client.get_trades(market_id)
+    if existing_trades:
+        logger.warning(
+            "Trades already exist for market_id=%s, skipping clearing",
+            market_id,
+        )
+        return {"status": "skipped", "reason": "trades_already_exist"}
+
+    # ── Step 1: Fetch open orders + translate from the int:Order ontology ──
+    raw_orders = await db_client.get_orders(market_id, time_slot, time_slot + time_slot_sec)
+    internal_orders = _translate_orders(raw_orders, strict_validation)
+
+    # Sorted by actor id, then order id, so every later step (rounding ties,
+    # preference pairs, the fill) is independent of the order of arrival.
+    open_orders = sorted((o for o in internal_orders if o.get("status") == "Open"), key=order_key)
+    bids = [o for o in open_orders if o.get("order_type") == "Bid"]
+    offers = [o for o in open_orders if o.get("order_type") == "Offer"]
+
+    logger.info(
+        "Market %s: %d bids, %d offers (from %d orders)",
+        market_id,
+        len(bids),
+        len(offers),
+        len(raw_orders),
+    )
+
+    traded_at = unix_to_iso(int(time.time()))
+
+    # ── Step 2: Aggregate ────────────────────────────────────────────
+    total_supply_kwh = sum(o["energy"] for o in offers)
+    total_demand_kwh = sum(b["energy"] for b in bids)
+    if total_supply_kwh == 0 or total_demand_kwh == 0:
+        return await _no_trade(db_client, market_id, total_supply_kwh, total_demand_kwh, traded_at)
+
+    # ── Step 3: Compute clearing price ───────────────────────────────
+    ratio = total_supply_kwh / total_demand_kwh
+    clearing_price_ct = sigmoid_price(
+        ratio,
+        community_config.k_upper_ct_per_kwh,
+        community_config.k_lower_ct_per_kwh,
+        community_config.theta,
+        community_config.steepness,
+    )
+    clearing_price_eur = ct_to_eur(clearing_price_ct)
+
+    logger.info(
+        "Market %s: ratio=%.4f, clearing_price=%.4f ct/kWh",
+        market_id,
+        ratio,
+        clearing_price_ct,
+    )
+
+    # ── Step 4: Record on-chain (optional; deferred for the MVP) ──────
+    tx_hash = await _record_on_chain(
+        contract_client,
+        market_id,
+        community_uuid,
+        time_slot,
+        total_supply_kwh,
+        total_demand_kwh,
+        clearing_price_ct,
+    )
+    if tx_hash is None:
+        return {"status": "error", "reason": "on_chain_tx_failed"}
+
+    # ── Step 5: Pro-rata allocation, quantised ───────────────────────
+    _allocate(offers, bids)
+
+    # ── Step 6: Preference allocation (mutual preferred pairs) ────────
+    bids, offers = apply_preference_allocation(bids, offers, clearing_price_ct)
+
+    # ── Step 6b: Energy-type adjustments (summary only) ──────────────
+    price_provenance = _energy_type_adjustments(
+        community_config, offers, clearing_price_ct, market_id
+    )
+
+    # ── Step 7: Generate int:Trade objects ───────────────────────────
+    trades, traded_trade_units = _build_trades(
+        bids, offers, market_id, clearing_price_eur, traded_at
+    )
     # The clearing result states what the trades carry.
     traded_quantity = from_node_int(traded_trade_units)
 
