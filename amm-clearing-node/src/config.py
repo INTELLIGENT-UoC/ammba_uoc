@@ -13,13 +13,11 @@ class CommunityConfig(BaseModel):
     theta: float
     steepness: float
     pool_id: str
-    # Actor identity (UUID) the AMM pool trades as on the int:Trade wire. The
-    # pool is a virtual counterparty; this is the FK used as buyerId/sellerId for
-    # pool trades.
-    pool_actor_uuid: str
     # Seller-side energy-type differential pricing (zero-sum: green subsidy
-    # funded by the grey levy; disabled while both rates are 0). Buyers keep
-    # the uniform clearing price.
+    # funded by the grey levy; disabled while both rates are 0). Computed for
+    # the clearing summary only; trade prices stay at the clearing price.
+    # Unknown keys are ignored, so a configuration that still carries the
+    # former pool_actor_uuid keeps loading.
     green_subsidy_rate: float = 0.0
     grey_levy_rate: float = 0.0
     levy_cap_ct_per_kwh: float = 5.0

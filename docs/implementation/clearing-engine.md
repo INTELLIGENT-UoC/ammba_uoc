@@ -16,9 +16,9 @@ market slot.
 |    2 | Aggregate the supply $E_t$ and the demand $D_t$.                                                                                                                        |
 |    3 | Compute the clearing price with [Eq. (1)](../model/pricing.md#the-pricing-function) on the ratio $E_t / D_t$. If one side of the market is empty, finish without trade. |
 |    4 | Optionally record the result with the [audit anchor](smart-contract.md). Skipped when no contract is configured.                                                        |
-|    5 | Allocate the quantities pro rata with [Eq. (2)](../model/allocation.md#pro-rata-allocation).                                                                            |
-|    6 | Serve mutual preferred partners first, then apply the optional [differential pricing](../model/extensions.md).                                                          |
-|    7 | Generate the trades: buyer–pool and pool–seller trades for pool allocations, direct trades for preference pairs.                                                        |
+|    5 | Allocate the quantities pro rata with [Eq. (2)](../model/allocation.md#pro-rata-allocation), in steps of 0.0001 kWh (see below).                                        |
+|    6 | Serve mutual preferred partners first. The optional [differential pricing](../model/extensions.md) is computed for the summary only.                                    |
+|    7 | Generate the trades: direct trades for preference pairs, then the [bilateral decomposition](#bilateral-decomposition) of the remaining allocations.                     |
 |    8 | Publish the trades and the clearing result to the off-chain store.                                                                                                      |
 
 The GSY DEX off-chain storage sets every `submitted` order to `expired` once
@@ -27,11 +27,49 @@ delivery slot, and the engine clears it only after the close, so its orders
 may already be expired by then. The engine therefore treats `expired` orders
 like `submitted` ones and ignores orders in any other status.
 
-Each pool allocation becomes two trades so that the bilateral trade object of
-the ontology can describe pool-mediated exchanges; the pool appears as a
-configured actor of the community. Trade identifiers are deterministic UUIDs
-derived from the trade's inputs, so re-running a clearing reproduces them. The
+Before allocating, the engine sorts the orders by actor identifier and then by
+order identifier, so the result does not depend on the order in which the
+orders arrive. Trade identifiers are deterministic UUIDs derived from the
+trade's inputs, so re-running a clearing reproduces them. The
 [data model](../integration/data-model.md) describes the wire objects.
+
+### Quantised allocation
+
+Quantities are allocated in steps of 0.0001 kWh, the resolution of the
+on-chain encoding. Each side's share of the traded quantity $Q_t$ is rounded
+down to a whole step, and the steps left over go to the orders with the largest
+remainders. Both sides therefore sum to exactly $Q_t$, the short side trades
+its full order quantities, and no order deviates from its exact pro-rata share
+by more than one step. Prices are rounded to four decimals in EUR/kWh on the
+wire.
+
+### Bilateral decomposition
+
+The trade object of the ontology is bilateral, and settlement settles one match
+per trade. After the preference step, the engine therefore cuts the remaining
+allocations into buyer–seller matches at the clearing price with a sequential
+fill:
+
+1. Sort the sellers and the buyers with a remaining allocation by actor
+   identifier, then by order identifier.
+2. Line both sides up along the remaining traded quantity, which is the same
+   on both sides.
+3. Cut at every boundary between two orders: each cut gives one match.
+
+Each match exhausts at least one order, so $n$ sellers and $m$ buyers give at
+most $n + m - 1$ matches. Every participant trades exactly its allocation at
+the clearing price; only the counterparty is a result of the fill. Sorting by
+actor identifier lines up the same participants in the same order every slot,
+so pairings repeat across slots.
+
+If a match would pair an actor with itself (an actor with both an offer and a
+bid in the slot), the fill moves the next bid of another actor forward. A
+self-match remains only when every remaining bid belongs to that actor
+([#125](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/125)).
+
+The pool remains the mechanism that sets the price and the allocation; it does
+not appear in the trades. The decomposition itself is in
+`src/decompose.py`, independent of the pricing function.
 
 The pricing function limits its exponent to $[-500, 500]$ to prevent overflow
 and clamps its result to the band.
@@ -48,11 +86,11 @@ that point:
 | `status`                                                  | `cleared`; `no_trade` if one side of the market is empty; `skipped` if the slot was already cleared; `error` if the audit-anchor transaction failed |
 | `market_id`                                               | The cleared market                                                                                                                                  |
 | `total_supply_kwh`, `total_demand_kwh`                    | $E_t$ and $D_t$                                                                                                                                     |
-| `clearing_price_ct_per_kwh`, `clearing_price_eur_per_kwh` | $\pi_t$ in both units                                                                                                                               |
-| `traded_quantity_kwh`                                     | $Q_t$                                                                                                                                               |
+| `clearing_price_ct_per_kwh`, `clearing_price_eur_per_kwh` | $\pi_t$ in both units; the EUR/kWh value as on the wire, at four decimals                                                                           |
+| `traded_quantity_kwh`                                     | $Q_t$, the sum of the trades                                                                                                                        |
 | `num_trades`                                              | Number of trades generated                                                                                                                          |
 | `tx_hash`                                                 | Transaction of the audit anchor, or `0x0` without one                                                                                               |
-| `price_adjustments`                                       | Provenance of differential pricing, or `null`                                                                                                       |
+| `price_adjustments`                                       | Differential-pricing adjustments, reported only and not applied to trade prices, or `null`                                                          |
 
 ## Triggering a clearing
 

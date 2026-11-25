@@ -94,3 +94,21 @@ def test_former_audit_anchor_key_name_is_still_accepted(monkeypatch):
     monkeypatch.setenv("CLEARING_NODE_PRIVATE_KEY", "0x" + "22" * 32)
     settings = load_settings(REPO_CONFIG)
     assert settings.audit_anchor_private_key == "0x" + "22" * 32
+
+
+def test_configuration_with_the_former_pool_actor_key_still_loads(tmp_path):
+    """pool_actor_uuid was removed; an existing file that still carries it loads."""
+    config = tmp_path / "configuration.yaml"
+    config.write_text(
+        "communities:\n"
+        "  11111111-1111-4111-8111-111111111111:\n"
+        "    k_upper_ct_per_kwh: 28.5\n"
+        "    k_lower_ct_per_kwh: 8.0\n"
+        "    theta: 1.0\n"
+        "    steepness: 2.5\n"
+        '    pool_id: "AMM_POOL_x"\n'
+        '    pool_actor_uuid: "22222222-2222-4222-8222-222222222222"\n'
+    )
+    community = load_settings(config).communities["11111111-1111-4111-8111-111111111111"]
+    assert community.k_upper_ct_per_kwh == 28.5
+    assert not hasattr(community, "pool_actor_uuid")

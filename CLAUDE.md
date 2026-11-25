@@ -36,6 +36,7 @@ guidance only. Maintainer-specific, git-ignored instructions live in
 | Change the wire format (orders/trades)  | [`amm-clearing-node/src/adapters.py`](amm-clearing-node/src/adapters.py) + [`schemas/intelligent/`](amm-clearing-node/schemas/intelligent) |
 | Validate against the ontology           | [`amm-clearing-node/src/ontology.py`](amm-clearing-node/src/ontology.py)                                                                   |
 | Change the price function               | [`amm-clearing-node/src/sigmoid.py`](amm-clearing-node/src/sigmoid.py)                                                                     |
+| Change rounding or the bilateral fill   | [`amm-clearing-node/src/decompose.py`](amm-clearing-node/src/decompose.py)                                                                 |
 | Test end-to-end locally                 | [`amm-clearing-node/sim/`](amm-clearing-node/sim) (off-chain DB simulator)                                                                 |
 | Change the contract                     | [`amm-smart-contract/contracts/AMMContract.sol`](amm-smart-contract/contracts/AMMContract.sol)                                             |
 | Per-component dev guide                 | `<component>/AGENTS.md`                                                                                                                    |
@@ -64,6 +65,17 @@ green run.
   (`energy`, `energy_rate`, `status`, nested `requirements`) onto the wire.
 - **Trade IDs are deterministic `uuid5`** (`adapters.trade_uuid`), not blake2b.
   Don't reintroduce blake2b hashing for trade/order IDs.
+- **Trades are bilateral; the pool is not on the wire.** Every `int:Trade`
+  pairs a participant bid with a participant offer at the clearing price
+  (mutual pairs first, then `decompose.sequential_fill`). Don't reintroduce
+  pool legs, a pool actor or pool orders, and don't write individual prices
+  (energy-type adjustments, preferred rates, penalties) into `tradePrice`:
+  they belong to the execution step.
+- **Allocations are integers of 1e-4 kWh** (`to_node_int`, largest-remainder
+  `apportion`), so both sides of a slot sum to the same total; wire values go
+  through `adapters.wire_value` (4 decimals) and the clearing result's
+  `tradeQuantity` is the sum of the trades. Don't compare or subtract raw
+  float allocations across steps.
 - **Validation is dependency-free on purpose** (`src/ontology.py`). Don't pull in
   `jsonschema`; extend the small validator if a schema feature is missing.
 - **Prices cross the boundary in EUR/kWh; the sigmoid runs in ct/kWh.** The

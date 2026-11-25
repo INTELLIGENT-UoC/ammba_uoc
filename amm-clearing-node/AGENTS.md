@@ -15,16 +15,19 @@ Runs the clearing pipeline when a market slot closes:
 2. Aggregate supply / demand
 3. Compute the uniform clearing price via the sigmoid
 4. Record on-chain via `clearMarket()` (optional; deferred for the MVP)
-5. Pro-rata allocation
+5. Pro-rata allocation in integers of 1e-4 kWh (largest remainder, `decompose.apportion`)
 6. Preference matching (mutual preferred pairs); 6b. optional seller-side
-   energy-type differential pricing (zero-sum against the pool)
-7. Generate `int:Trade` objects (direct preference pairs, Buyer→Pool, Pool→Seller)
+   energy-type adjustments, computed for the summary only (never in `tradePrice`)
+7. Generate `int:Trade` objects: direct preference pairs, then the sequential
+   fill of the remaining allocations into buyer↔seller matches
+   (`decompose.sequential_fill`)
 8. POST `int:Trade` list + the `int:ClearingResult` back to the off-chain DB
 
-The AMM pool is a virtual counterparty: participants trade with the pool at the
-uniform price, except preference-matched mutual pairs who trade directly. Pool
-half-trades serialize to the bilateral `int:Trade` schema via a configured pool
-actor UUID and deterministic pool standing orders (see `adapters.py`).
+The AMM pool sets the uniform price and the pro-rata allocation; it is not a
+party to any trade. Every `int:Trade` pairs a participant bid with a
+participant offer at the clearing price, and every participant trades exactly
+its allocation. Orders are sorted by actor id, then order id, at step 1, so
+the result does not depend on arrival order and pairings repeat across slots.
 
 ## File map
 
@@ -36,6 +39,7 @@ src/
 ├── ontology.py        # loads schemas/intelligent/*, dependency-free validator
 ├── sigmoid.py         # sigmoid_price(), to_node_int(), from_node_int()
 ├── preferences.py     # mutual preferred-pair matching; differential pricing
+├── decompose.py       # ★ apportion() (largest remainder), sequential_fill() into matches
 ├── offchain_db.py     # "rest" transport: httpx client for the off-chain DB API
 ├── ewds_client.py     # "ewds" transport: publish/poll via the EW CGW gateway
 ├── scheduler.py       # self-trigger: discover closed AMM markets, clear them
@@ -46,7 +50,7 @@ src/
 schemas/intelligent/   # vendored GSY DEX int.* JSON Schemas (the wire contract)
 sim/                   # local off-chain DB + CGW gateway simulator, staging test data (dev only)
 tests/
-└── test_*.py          # incl. conftest.py (schema-validating fake DB), 129 tests total
+└── test_*.py          # incl. conftest.py (schema-validating fake DB), 184 tests total
 ```
 
 Transport is selected by `OFFCHAIN_TRANSPORT` (`rest` default, `ewds` for the
@@ -115,7 +119,7 @@ default), clearing runs **off-chain only** (step 4 is skipped).
 
 ```bash
 uv sync --extra dev                              # install (incl. pytest)
-uv run pytest -v                                 # 129 tests
+uv run pytest -v                                 # 184 tests
 uv run pytest tests/test_clearing.py -v          # subset
 uv run uvicorn src.main:app --port 8081 --reload # local server
 uv run uvicorn sim.offchain_sim:app --port 8080  # local off-chain DB simulator
@@ -128,12 +132,13 @@ See [`sim/README.md`](sim/README.md) for the full local end-to-end flow.
 - **Async everywhere.** `httpx.AsyncClient`, `async def` endpoints, `await`
   every I/O call. `pytest-asyncio` in `auto` mode handles tests.
 - **Pure functions for algorithms.** `sigmoid_price`, `apply_priority_allocation`,
-  `compute_seller_price_adjustments` all take data in and return data out — no
-  side effects, easy to test with concrete numbers.
+  `compute_seller_price_adjustments`, `apportion` and `sequential_fill` all take
+  data in and return data out — no side effects, easy to test with concrete
+  numbers.
 - **I/O stays at the edges.** The transport clients (`offchain_db.py`,
   `ewds_client.py`), `contract.py`, `scheduler.py`, `fetch_measurements.py` and
   `main.py` do I/O; `clearing.py` orchestrates them. The algorithm modules
-  (`sigmoid.py`, `preferences.py`, the `adapters.py` builders) stay pure and
+  (`sigmoid.py`, `preferences.py`, `decompose.py`, the `adapters.py` builders) stay pure and
   unit-testable in isolation.
 - **Pydantic for boundaries**, dataclasses or plain dicts internally. Don't
   push Pydantic models through every internal function — it adds noise.
@@ -152,12 +157,18 @@ See [`sim/README.md`](sim/README.md) for the full local end-to-end flow.
    `adapters.py` helpers; don't hand-assemble `int:Trade` / `int:ClearingResult`
    dicts elsewhere.
 3. **Trade IDs are deterministic `uuid5`** (`adapters.trade_uuid`) so a re-run is
-   reproducible. Pool order/actor UUIDs are likewise derived in `adapters.py`.
+   reproducible: kind `pref` for a mutual pair, `pair` for a fill match, keyed by
+   `bid_id:offer_id`.
 4. **Price units:** internal is ct/kWh (sigmoid bounds); the wire is EUR/kWh.
    Convert only via `CT_PER_EUR` in `adapters.py`.
-5. **`pool_actor_uuid`** (per community in `config.py`) is the pool's identity on
-   the wire. The `int:Trade` representation of pool half-trades is provisional
-   until the on-chain pool representation is final (see the settlement engine).
+5. **Bilateral trades only.** No pool actor or pool order on the wire; the
+   former `pool_actor_uuid` config key is ignored if present. A match has one
+   price for both sides, so individual prices go to the execution step.
+6. **Quantities are integers of 1e-4 kWh** between steps 5 and 7
+   (`to_node_int` / `from_node_int`); both sides of a slot must sum to the same
+   integer total (`sequential_fill` raises otherwise). Wire values pass through
+   `adapters.wire_value` (4 decimals), and the clearing result's
+   `tradeQuantity` is the sum of the trades.
 
 ## Common change recipes
 

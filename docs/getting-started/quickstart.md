@@ -49,17 +49,20 @@ the summary reads:
   "total_supply_kwh": 11.0,
   "total_demand_kwh": 10.0,
   "clearing_price_ct_per_kwh": 16.97538173184114,
-  "clearing_price_eur_per_kwh": 0.16975381731841138,
+  "clearing_price_eur_per_kwh": 0.1698,
   "traded_quantity_kwh": 10.0,
-  "num_trades": 4,
+  "num_trades": 3,
   "tx_hash": "0x0",
   "price_adjustments": null
 }
 ```
 
 Supply exceeds demand (ratio 1.1), so the price lies slightly below the
-midpoint of the band and buyers are served in full. `tx_hash` is `0x0` because
-no on-chain anchor is configured. Inspect the trades the simulator received:
+midpoint of the band and buyers are served in full. The three trades are the
+direct trade of the sample's mutual preferred partners and two bilateral
+matches of the remaining allocations, all at the clearing price. `tx_hash` is
+`0x0` because no on-chain anchor is configured. Inspect the trades the
+simulator received:
 
 ```bash
 curl 'http://localhost:8080/trades?market_id=33333333-3333-4333-8333-333333333333'

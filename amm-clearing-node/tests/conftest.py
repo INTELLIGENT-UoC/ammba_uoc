@@ -18,7 +18,6 @@ from src.ontology import (
     validate_trade,
 )
 
-POOL_ACTOR_UUID = "22222222-2222-4222-8222-222222222222"
 MARKET_ID = "33333333-3333-4333-8333-333333333333"
 TIME_SLOT_ISO = "2026-07-01T10:00:00Z"
 TIME_SLOT_UNIX = int(datetime.fromisoformat("2026-07-01T10:00:00+00:00").timestamp())
@@ -78,7 +77,6 @@ def community() -> CommunityConfig:
         theta=1.0,
         steepness=2.5,
         pool_id="AMM_POOL_test",
-        pool_actor_uuid=POOL_ACTOR_UUID,
     )
 
 

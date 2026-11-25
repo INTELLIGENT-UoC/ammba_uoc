@@ -69,10 +69,6 @@ def community_uuid() -> str:
     return stable_uuid("community:ammba-staging-test")
 
 
-def pool_actor_uuid() -> str:
-    return stable_uuid("actor:pool")
-
-
 def actor_uuid(label: str) -> str:
     return stable_uuid(f"actor:{label}")
 
@@ -234,7 +230,6 @@ def community_snippet() -> str:
         "  theta: 1.0\n"
         "  steepness: 2.5\n"
         '  pool_id: "AMM_POOL_staging_test"\n'
-        f'  pool_actor_uuid: "{pool_actor_uuid()}"\n'
     )
 
 

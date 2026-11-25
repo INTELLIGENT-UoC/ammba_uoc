@@ -1,4 +1,4 @@
-"""Settlement engine orchestration: validate → map actors → place pool orders → settleBatch.
+"""Settlement engine orchestration: validate → map actors → settleBatch.
 
 ``settleBatch`` takes one ``MarketSettlement`` per market and reverts the whole
 transaction on any invalid match, so the market is the unit of everything
@@ -8,14 +8,9 @@ markets so a crash or re-run cannot double-settle (the contract would also
 reject re-settling because the orders flip to Executed, but we avoid burning
 gas to find out).
 
-⚠ Known open constraint (raised with GSY): ``OrderRegistry.placeOrder``
-requires the market to be open (``openingTime ≤ now < closingTime``) and the
-pool actor to be authorized for our signer in ActorRegistry. AMM matches are
-only known after the market closes, so pool standing orders cannot be placed
-post-clearing under current contract rules. Resolution options are with GSY
-(a settlement-role exemption from the open check, or bilateral matches without
-pool orders). The engine keeps placement as an explicit separate phase so
-either resolution slots in.
+Every match pairs two participant orders that the community client placed in
+the order registry during the open market, so the engine places no orders of
+its own.
 """
 
 import logging
@@ -32,8 +27,6 @@ DEFAULT_BATCH_SIZE = 50  # matches per transaction; a larger market goes alone
 
 
 class ChainClient(Protocol):
-    async def place_order(self, params_tuple: tuple) -> str: ...
-
     async def settle_batch(self, settlement_tuples: list[tuple]) -> str: ...
 
 
@@ -42,9 +35,8 @@ class IdRegistrar(Protocol):
 
     The on-chain actor id is a deterministic hash we compute locally
     (ids.actor_onchain_id), but the storage must hold the mapping so it can
-    attribute on-chain settlement events back to off-chain actors — the pool
-    actor in particular is known to nobody else. Wire to the storage's
-    ``ids.query`` (EWDS) or ``POST /ids`` (REST); idempotent upstream.
+    attribute on-chain settlement events back to off-chain actors. Wire to the
+    storage's ``ids.query`` (EWDS) or ``POST /ids`` (REST); idempotent upstream.
     """
 
     async def ensure_mapped(self, offchain_ids: list[str]) -> None: ...
@@ -56,7 +48,6 @@ class SettlementLedger:
 
     def __init__(self) -> None:
         self._settled: dict[str, str] = {}  # market_id -> tx hash
-        self._placed_orders: set[str] = set()
 
     def is_settled(self, market_id: str) -> bool:
         return market_id in self._settled
@@ -65,19 +56,12 @@ class SettlementLedger:
         for market_id in market_ids:
             self._settled[market_id] = tx_hash
 
-    def is_placed(self, order_id: str) -> bool:
-        return order_id in self._placed_orders
-
-    def mark_placed(self, order_id: str) -> None:
-        self._placed_orders.add(order_id)
-
 
 @dataclass
 class SettlementReport:
     settled: dict[str, str] = field(default_factory=dict)  # market_id -> tx
     skipped_already_settled: list[str] = field(default_factory=list)  # market ids
     rejected: dict[str, list[Violation]] = field(default_factory=dict)  # market_id -> why
-    pool_orders_placed: list[str] = field(default_factory=list)
 
 
 def _pack(settlements: list[MarketSettlement], max_matches: int) -> list[list[MarketSettlement]]:
@@ -153,15 +137,7 @@ class SettlementEngine:
         else:
             await self.registrar.ensure_mapped(actors)
 
-        # 4. Place the pool standing orders backing the fresh matches.
-        used_orders = {o.order_id for m in fresh_matches for o in (m.bid, m.offer)}
-        for params in build.pool_orders:
-            if params.order_id in used_orders and not self.ledger.is_placed(params.order_id):
-                await self.chain.place_order(params.to_tuple())
-                self.ledger.mark_placed(params.order_id)
-                report.pool_orders_placed.append(params.order_id)
-
-        # 5. Settle whole markets in bounded transactions.
+        # 4. Settle whole markets in bounded transactions.
         for chunk in _pack(fresh, self.batch_size):
             tx_hash = await self.chain.settle_batch([s.to_tuple() for s in chunk])
             market_ids = [s.market_id for s in chunk]

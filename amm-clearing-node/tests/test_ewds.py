@@ -9,7 +9,13 @@ import httpx
 import pytest
 import yaml
 from sim.offchain_sim import NO_RECIPIENTS, create_app
-from sim.staging_seed import build_seed, community_snippet, community_uuid, pool_actor_uuid
+from sim.staging_seed import (
+    PREFERRED_PAIR,
+    build_seed,
+    community_snippet,
+    community_uuid,
+)
+from sim.staging_seed import actor_uuid as seed_actor_uuid
 from src.adapters import ewds_order_to_int_order, int_order_to_internal, iso_to_unix
 from src.clearing import run_clearing
 from src.config import CommunityConfig
@@ -261,7 +267,7 @@ async def test_clearing_end_to_end_over_ewds(community):
     )
 
     assert result["status"] == "cleared"
-    assert result["num_trades"] == 4  # direct pref pair + pool trades
+    assert result["num_trades"] == 3  # direct pref pair + two bilateral matches
     # Writes are a documented no-op on the EWDS transport (settlement is v2).
     assert app.state.store.trades == []
     assert app.state.store.clearing_results == []
@@ -299,8 +305,8 @@ async def test_captured_staging_payload_clears_like_the_seed():
     assert staged["status"] == "cleared"
     for key in ("total_supply_kwh", "total_demand_kwh", "clearing_price_ct_per_kwh", "num_trades"):
         assert staged[key] == expected[key]
-    pool = pool_actor_uuid()
-    assert any(pool not in (t["buyerId"], t["sellerId"]) for t in trades)  # preferred pair
+    buyer, seller = (seed_actor_uuid(label) for label in PREFERRED_PAIR)
+    assert any((t["buyerId"], t["sellerId"]) == (buyer, seller) for t in trades)
 
 
 class TestEnergyTypeSentinel:

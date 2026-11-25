@@ -33,7 +33,6 @@ communities:
     theta: 1.0 # midpoint of the pricing function
     steepness: 2.5 # steepness of the pricing function
     pool_id: "AMM_POOL_communityid_1"
-    pool_actor_uuid: "22222222-2222-4222-8222-222222222222"
     green_subsidy_rate: 0.0 # differential pricing, off when both rates are 0
     grey_levy_rate: 0.0
     levy_cap_ct_per_kwh: 5.0
@@ -46,13 +45,15 @@ communities:
 | `theta`               | number | required | Midpoint $\Theta$; see [calibration](../model/calibration.md) |
 | `steepness`           | number | required | Steepness $B$                                                 |
 | `pool_id`             | string | required | Human-readable pool label                                     |
-| `pool_actor_uuid`     | UUID   | required | The pool's actor identity on the exchange                     |
 | `green_subsidy_rate`  | number | 0.0      | Target subsidy for green sellers, as a fraction of the price  |
 | `grey_levy_rate`      | number | 0.0      | Levy on grey sellers, as a fraction of the price              |
 | `levy_cap_ct_per_kwh` | number | 5.0      | Upper limit of the levy per kWh                               |
 
 The last three parameters configure
 [differential pricing](../model/extensions.md#energy-type-differential-pricing).
+Its adjustments are reported in the clearing summary but not applied to trade
+prices. Older configuration files may still carry `pool_actor_uuid`; the key is
+no longer used and is ignored.
 
 ## Environment variables
 
@@ -92,8 +93,8 @@ any other value stops the service at start-up.
 [calibration tool](../implementation/calibration-tool.md#usage).
 
 **Settlement engine.** Live execution needs `SETTLEMENT_RPC_URL`,
-`ORDER_REGISTRY_ADDRESS`, `TRADE_SETTLEMENT_ADDRESS` and
-`SETTLEMENT_PRIVATE_KEY`; the dry-run planner needs none of them. See the
+`TRADE_SETTLEMENT_ADDRESS` and `SETTLEMENT_PRIVATE_KEY`; the dry-run planner
+needs none of them. See the
 [settlement engine](../implementation/settlement-engine.md).
 
 **Contract deployment.** `amm-smart-contract/scripts/deploy.js` needs

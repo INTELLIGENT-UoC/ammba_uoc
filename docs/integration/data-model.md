@@ -15,7 +15,7 @@ tool as received.
 | `int:Order`          | in        | Bids and offers of a market slot                                        |
 | `int:Market`         | in        | Market discovery for the self-trigger scheduler                         |
 | `int:Measurement`    | in        | Metering history for calibration, retrieved by `src.fetch_measurements` |
-| `int:Trade`          | out       | Buyer–pool, pool–seller and direct preference trades                    |
+| `int:Trade`          | out       | Bilateral buyer–seller matches at the clearing price                    |
 | `int:ClearingResult` | out       | Per-slot summary: price, volumes, status                                |
 
 The wire objects are flat, use camelCase field names, lower-case enumeration
@@ -30,31 +30,47 @@ names.
 
 ## Units
 
-| Quantity   | Inside the engine                        | On the wire |
-| ---------- | ---------------------------------------- | ----------- |
-| Prices     | ct/kWh, as the tariff band is configured | EUR/kWh     |
-| Energy     | kWh                                      | kWh         |
-| Time slots | Unix seconds                             | ISO-8601    |
+| Quantity   | Inside the engine                        | On the wire         |
+| ---------- | ---------------------------------------- | ------------------- |
+| Prices     | ct/kWh, as the tariff band is configured | EUR/kWh, 4 decimals |
+| Energy     | kWh, in steps of 0.0001 kWh              | kWh, 4 decimals     |
+| Time slots | Unix seconds                             | ISO-8601            |
 
-## The pool on the wire
+Four decimals are the resolution of the on-chain encoding, which scales energy
+and prices by 10,000 to integers, so a wire value encodes to the same integer
+the settlement contract stores. The engine allocates in steps of 0.0001 kWh
+with the largest-remainder method, so the bids and the offers of a slot sum to
+the same total, and the traded quantity of the clearing result is the sum of
+the slot's trades.
+
+## Trades
 
 The trade object is bilateral: it references a bid, an offer, a buyer and a
-seller. Pool-mediated exchanges are represented as two trades each, buyer–pool
-and pool–seller, in which the pool appears as a configured actor
-(`pool_actor_uuid` of the community). The pool is modelled as holding one
-standing bid and one standing offer per market slot, with identifiers derived
-deterministically from the market and the side, so every trade references valid
-orders on both sides and validates against the schema. For on-chain settlement, the
-settlement engine instead derives one pool order per trade, because a settled
-order cannot be reused; see the
-[settlement engine](../implementation/settlement-engine.md#representing-the-pool-on-chain).
+seller. Every trade of AMMBA pairs a participant's bid with a participant's
+offer at the uniform clearing price. The pool is the pricing and allocation
+mechanism; it does not appear on the wire.
+
+- **Direct trades.** Mutual preferred partners trade with each other first;
+  see [preferences](../model/extensions.md#preferred-trading-partners).
+- **Matches of the sequential fill.** The remaining allocations are cut into
+  buyer–seller matches; see the
+  [clearing engine](../implementation/clearing-engine.md#bilateral-decomposition).
+
+Every participant trades exactly its allocation, at the clearing price, and the
+trades of a slot sum to its traded quantity. Apart from mutual preferred
+partners, no participant chooses its counterparty, so the pairing has no
+economic meaning beyond settlement. Individual price components, such as
+energy-type adjustments, preferred rates and deviation penalties, are not part
+of the trade price; they belong to the execution step
+([#121](https://github.com/INTELLIGENT-UoC/ammba_uoc/issues/121)).
 
 ## Deterministic identifiers
 
 Trade identifiers are version 5 UUIDs derived from the market, the kind of
-trade and the orders involved, and pool order identifiers are derived in the
-same way. Re-running the clearing of a slot therefore reproduces the same identifiers, and repeated runs can be detected
-reliably.
+trade (`pref` for a direct trade of mutual preferred partners, `pair` for a
+match of the sequential fill) and the two orders involved. Re-running the
+clearing of a slot therefore reproduces the same identifiers, and repeated runs
+can be detected reliably.
 
 ## On-chain identifiers
 
@@ -63,7 +79,7 @@ DEX:
 
 - **Orders, trades and markets** are encoded as the 16 bytes of their UUID;
   the storage's `0x`-hex form of an identifier encodes to the same bytes.
-- **Actors** (buyers, sellers, the pool) are not encoded directly but _mapped_:
+- **Actors** (buyers and sellers) are not encoded directly but _mapped_:
   the on-chain identifier is the BLAKE2b-128 hash of the off-chain identifier
   string. The off-chain storage keeps the mapping and returns it through
   `ids.query` or `POST /ids?offchain_id=…`, creating it on first use; the

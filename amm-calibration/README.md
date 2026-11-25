@@ -42,7 +42,7 @@ uv run python -m src.calibrate \
   --measurements history.json \
   --community 11111111-1111-4111-8111-111111111111 \
   --k-upper 28.5 --k-lower 8.0 --alpha 0.5 \
-  --pool-id AMM_POOL_x --pool-actor-uuid 22222222-2222-4222-8222-222222222222 \
+  --pool-id AMM_POOL_x \
   --out params.yaml
 ```
 

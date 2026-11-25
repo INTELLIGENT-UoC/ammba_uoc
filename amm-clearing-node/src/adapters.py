@@ -9,13 +9,15 @@ preference fields, EUR/kWh prices, UUID identifiers.
 Everything that crosses the service boundary is converted here so the rest of
 the codebase never sees ontology field names, and both transports (direct REST
 and EWDS publish/poll) share one mapping. Keeping the mapping in one place also
-keeps the integration conventions (price units, the pool actor / pool order
-representation, which order statuses count as matchable) explicit and easy to
+keeps the integration conventions (price units, wire precision, trade
+identifiers, which order statuses count as matchable) explicit and easy to
 revisit.
 """
 
 import uuid
 from datetime import UTC, datetime
+
+from src.sigmoid import from_node_int, to_node_int
 
 # Internal prices are in ct/kWh (matches the sigmoid community bounds); the
 # ontology carries EUR/kWh. Convert only at the boundary.
@@ -34,13 +36,23 @@ INTERNAL_OPEN = "Open"
 # allocated but not yet settled on-chain (settlement sets "settled").
 CLEARED_TRADE_STATUS = "matched"
 
-# Deterministic namespace for derived UUIDs (pool actor, pool orders, trade ids).
-# Fixed so re-running a clearing cycle yields identical identifiers (idempotency).
+# Deterministic namespace for derived UUIDs (trade ids). Fixed so re-running a
+# clearing cycle yields identical identifiers (idempotency).
 _AMMBA_NS = uuid.uuid5(uuid.NAMESPACE_URL, "https://ammba.uoc/ontology")
 
 
 def ct_to_eur(value_ct: float) -> float:
     return value_ct / CT_PER_EUR
+
+
+def wire_value(value: float) -> float:
+    """Round a kWh or EUR/kWh value to the wire precision of 4 decimals.
+
+    The precision is the on-chain resolution (values are scaled by
+    ``NODE_FLOAT_SCALING_FACTOR`` = 10 000 to integers), so a wire value scales
+    to the same integer the settlement contract stores.
+    """
+    return from_node_int(to_node_int(value))
 
 
 def iso_to_unix(value: str) -> int:
@@ -76,23 +88,6 @@ def storage_market_id(market_id: str) -> str:
     return text
 
 
-def pool_actor_uuid(community_pool_uuid: str) -> str:
-    """The pool's actor identity. Configured per community; passed through."""
-    return community_pool_uuid
-
-
-def pool_order_uuid(market_id: str, side: str) -> str:
-    """Deterministic UUID for the pool's standing order on a side of a market.
-
-    The AMM pool is a virtual counterparty: it does not submit real orders, but
-    ``int:Trade`` requires both a ``bidId`` and an ``offerId``. We model the pool
-    as holding one standing bid and one standing offer per market slot, with
-    stable derived UUIDs. On-chain, the settlement engine registers one
-    synthetic pool order per pool trade instead (see amm-execution-node).
-    """
-    return str(uuid.uuid5(_AMMBA_NS, f"pool-order:{side}:{market_id}"))
-
-
 def trade_uuid(market_id: str, kind: str, key: str) -> str:
     """Deterministic ``tradeId`` so a re-run produces stable identifiers."""
     return str(uuid.uuid5(_AMMBA_NS, f"trade:{market_id}:{kind}:{key}"))
@@ -119,8 +114,9 @@ def int_order_to_internal(order: dict) -> dict:
         "time_slot": iso_to_unix(order["timeSlot"]),
         "creation_time": iso_to_unix(order["creationTime"]),
         "energy": order["quantity"],
-        # priceLimit is EUR/kWh; the AMM pool sets price from the supply/demand
-        # ratio and does not use limit prices, so it is carried only for record.
+        # priceLimit is EUR/kWh; AMM clearing sets the price from the
+        # supply/demand ratio and does not use limit prices, so it is carried
+        # only for the record.
         "energy_rate": order.get("priceLimit"),
     }
 
@@ -262,7 +258,7 @@ def _int_trade(
     traded_at_iso: str,
     status: str = CLEARED_TRADE_STATUS,
 ) -> dict:
-    """Assemble a flat ``int:Trade`` object."""
+    """Assemble a flat ``int:Trade`` object (quantity and price at wire precision)."""
     return {
         "tradeId": trade_id,
         "marketId": market_id,
@@ -271,8 +267,8 @@ def _int_trade(
         "offerId": offer_id,
         "sellerId": seller_id,
         "tradeStatus": status,
-        "tradeQuantity": quantity,
-        "tradePrice": price_eur,
+        "tradeQuantity": wire_value(quantity),
+        "tradePrice": wire_value(price_eur),
         "timestamp": traded_at_iso,
     }
 
@@ -299,45 +295,28 @@ def build_direct_int_trade(
     )
 
 
-def build_buyer_pool_int_trade(
+def build_bilateral_int_trade(
     bid: dict,
-    pool_actor: str,
-    pool_offer_id: str,
+    offer: dict,
+    quantity_kwh: float,
     market_id: str,
     price_eur: float,
     traded_at_iso: str,
 ) -> dict:
-    """``int:Trade`` for Buyer → Pool: the buyer's order vs the pool's offer."""
+    """``int:Trade`` for one match of the sequential fill (buyer↔seller).
+
+    ``bid`` and ``offer`` are internal order dicts. The trade kind ``pair``
+    keeps the id distinct from a preference trade (``pref``) of the same two
+    orders.
+    """
     return _int_trade(
-        trade_id=trade_uuid(market_id, "buyer-pool", bid["order_id"]),
+        trade_id=trade_uuid(market_id, "pair", f"{bid['order_id']}:{offer['order_id']}"),
         market_id=market_id,
         bid_id=bid["order_id"],
         buyer_id=bid["created_by"],
-        offer_id=pool_offer_id,
-        seller_id=pool_actor,
-        quantity=bid["allocated_energy"],
-        price_eur=price_eur,
-        traded_at_iso=traded_at_iso,
-    )
-
-
-def build_pool_seller_int_trade(
-    offer: dict,
-    pool_actor: str,
-    pool_bid_id: str,
-    market_id: str,
-    price_eur: float,
-    traded_at_iso: str,
-) -> dict:
-    """``int:Trade`` for Pool → Seller: the pool's bid vs the seller's order."""
-    return _int_trade(
-        trade_id=trade_uuid(market_id, "pool-seller", offer["order_id"]),
-        market_id=market_id,
-        bid_id=pool_bid_id,
-        buyer_id=pool_actor,
         offer_id=offer["order_id"],
         seller_id=offer["created_by"],
-        quantity=offer["allocated_energy"],
+        quantity=quantity_kwh,
         price_eur=price_eur,
         traded_at_iso=traded_at_iso,
     )
@@ -355,15 +334,15 @@ def build_int_clearing_result(
     created_at_iso: str,
     no_bid_reason: str | None = None,
 ) -> dict:
-    """Assemble an ``int:ClearingResult`` for the market slot."""
+    """Assemble an ``int:ClearingResult`` for the market slot (values at wire precision)."""
     return {
         "marketId": market_id,
         "clearingStatus": clearing_status,
         "noBidReason": no_bid_reason,
-        "clearingPrice": clearing_price_eur,
-        "totalSupply": total_supply_kwh,
-        "totalDemand": total_demand_kwh,
-        "tradeQuantity": traded_quantity_kwh,
+        "clearingPrice": wire_value(clearing_price_eur),
+        "totalSupply": wire_value(total_supply_kwh),
+        "totalDemand": wire_value(total_demand_kwh),
+        "tradeQuantity": wire_value(traded_quantity_kwh),
         "numTrades": num_trades,
         "txHash": tx_hash,
         "createdAt": created_at_iso,

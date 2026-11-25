@@ -35,9 +35,10 @@ working in that component.
 - Trade IDs are deterministic `uuid5` (`adapters.trade_uuid`), not blake2b.
 - Prices: internal ct/kWh, wire EUR/kWh — convert via `CT_PER_EUR` in `adapters.py`.
 - All on-chain integers are scaled × 10000 (`NODE_FLOAT_SCALING_FACTOR`).
-- Every participant trades with the AMM pool, not directly with each other.
-  Exception: preference-matched mutual pairs. On the wire the pool is a configured
-  actor (`pool_actor_uuid`) with deterministic standing orders.
+- Trades are bilateral buyer↔seller matches at the uniform clearing price
+  (`src/decompose.py` sequential fill; mutual preferred pairs trade directly
+  first). The AMM pool prices and allocates but never appears on the wire;
+  individual prices belong to the execution step, not to `tradePrice`.
 - Validate against the schemas with `src/ontology.py` (no `jsonschema` dep).
 - The service is fully async — no blocking I/O in request paths.
 

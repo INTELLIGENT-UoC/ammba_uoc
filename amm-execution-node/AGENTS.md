@@ -12,18 +12,16 @@ The **AMM execution engine** for settlement on the GSY DEX: it takes the
 clearing node's output (int:Trade list, the int:Order objects they reference
 and the int:ClearingResult of each market), transforms it into one on-chain
 `MarketSettlement` per market (its `Match` structs plus its `ClearingResult`),
-registers the pool's standing orders, and submits
-`TradeSettlement.settleBatch` transactions. The off-chain
+and submits `TradeSettlement.settleBatch` transactions. The off-chain
 storage then writes trades from the resulting on-chain events — the engine is
 how AMM matches become settled trades.
 
-**Status: skeleton.** The full pipeline (build → validate → place pool orders
-→ settle, with idempotency and batching) is implemented against the
+**Status: skeleton.** The full pipeline (build → validate → settle, with
+idempotency and batching) is implemented against the
 `settleBatch(MarketSettlement[])` interface of GSYDEXv2 `f0ea6c8` and tested
 against a mocked chain. Live execution needs the production settlement
-environment (deployed contract addresses, the `OPERATOR_ROLE` for the engine's
-signer, the target chain with a funded signer) and a resolution of the
-pool-leg quantity conflict (issue #87). The identifier conventions are
+environment (deployed contract address, the `OPERATOR_ROLE` for the engine's
+signer, the target chain with a funded signer). The identifier conventions are
 implemented in `ids.py`.
 
 The penalty formulas (`penalties.py`, `sigmoid.py`) live in this component: the
@@ -34,12 +32,12 @@ They are tested but not yet wired into a data flow.
 
 ```
 src/
-├── engine.py         # ★ orchestration: validate → pool orders → settleBatch; per-market ledger
-├── match_builder.py  # ★ int:Trade/Order/ClearingResult → MarketSettlement; pool orders, residuals
+├── engine.py         # ★ orchestration: validate → register actors → settleBatch; per-market ledger
+├── match_builder.py  # ★ int:Trade/Order/ClearingResult → MarketSettlement; match types, residuals
 ├── validator.py      # pre-flight mirror of settleBatch: per-match rules + traded-quantity check
 ├── structs.py        # OrderParams/Match/ClearingResult/MarketSettlement mirrors, ×10000, u8 codes
 ├── ids.py            # GSY id conventions: UUID bytes for order/trade/market, blake2b-128 for actors
-├── chain.py          # async web3 client for placeOrder/settleBatch (hand-declared ABI fragments)
+├── chain.py          # async web3 client for settleBatch (hand-declared ABI fragment)
 ├── main.py           # CLI: dry-run planner; --execute gated on the missing environment
 ├── penalties.py      # dormant: shortfall + VCG penalty math (future submitPenalties path)
 └── sigmoid.py        # dormant: kept in sync with the clearing node's copy for counterfactuals
@@ -50,19 +48,19 @@ tests/
 
 ## Design notes
 
-1. **Pool representation:** the engine registers standing pool orders
-   on-chain; the pool holds its own signer key; no contract changes.
-2. **One pool order per pool match.** `_settleTrade` flips both orders to
-   `Executed`, so a pool order can settle exactly once → `match_builder`
-   synthesizes a deterministic pool order per trade
-   (`pool_settle_order_uuid(trade_id)`).
-3. **Pool orders can never cause `PriceMismatch`.** The contract requires
-   `bid.energyRate ≥ clearingPrice ≥ offer.energyRate`; pool bids are priced
-   at the community ceiling and pool offers at the floor.
+1. **Bilateral matches only.** Every `int:Trade` of the clearing node pairs two
+   participant orders that the community client registered during the open
+   market; the engine places no orders and needs no contract changes.
+2. **One trade = one match.** A market's matches therefore sum to its traded
+   quantity (the clearing node derives `tradeQuantity` from the rounded
+   trades), so the `TradedQuantityMismatch` check passes by construction.
+3. **All matches carry the uniform clearing price.** Individual prices
+   (energy-type adjustments, preferred rates, penalties) are to be applied at
+   this step (issue #121); they are not in `tradePrice`.
 4. **Participant limit prices are surfaced, not silently fixed.** AMM clearing
    does not condition on limits, but the contract enforces them at settlement.
    The validator rejects such matches pre-flight with an explicit message
-   instead of letting them fail on-chain.
+   instead of letting them fail on-chain (convention: issue #122).
 5. **The market is the unit.** `settleBatch` reverts the whole transaction on
    any invalid match, so the validator holds back a whole market, the ledger
    (in-memory for the skeleton; persist before production) is keyed by market,
@@ -71,9 +69,9 @@ tests/
 6. **Residual chaining.** An order that a match fills only partly leaves a
    residual (`residual_order_uuid(order_id, trade_id)`); the next match of the
    same order references the residual, as `settleOrder` requires.
-7. **Match types.** Pool legs are `Standard`; direct trades of mutual
-   preferred partners are `Preferred`, priced against `preferredEnergyRate`
-   when set.
+7. **Match types.** A trade whose two orders name each other as preferred
+   partners (`match_builder.is_mutual_pair`) is `Preferred`, priced against
+   `preferredEnergyRate` when set; every other trade is `Standard`.
 8. **Two id conventions, following the GSY DEX.**
    Order/trade/market ids are the UUID's 16 bytes (`parse_uuid_or_hex_bytes16`
    parity). Actor ids are _mapped_, not converted: `blake2b-128(offchain_id)`,
@@ -85,23 +83,20 @@ tests/
 
 ## ⚠ Known limitations (do not work around silently)
 
-- `settleBatch` reverts with `TradedQuantityMismatch` unless a market's
-  matches sum to its traded quantity. Pool allocations are two legs, so a
-  market with pool trades sums to ≈2× and the validator holds it back
-  (issue #87). Don't "fix" this by reporting the leg sum as the traded
-  quantity.
-- `OrderRegistry.placeOrder` requires the market to be **open**
-  (`openingTime ≤ now < closingTime`) and the actor to be **authorized in
-  ActorRegistry** for the sender. AMM matches are only known after market
-  close → pool standing orders cannot be placed post-clearing under current
-  rules (issue #26).
 - Participant limit prices vs the uniform AMM price: see design note 4.
+- Self-trades: the clearing node's fill can pair an actor with itself when
+  only its own bids remain; the contract rejects it and the validator holds
+  the market back (issue #125).
+- `settleBatch` reverts with `TradedQuantityMismatch` unless a market's
+  matches sum to its traded quantity. Bilateral output satisfies this; if the
+  validator flags it, the clearing output is inconsistent — don't "fix" it by
+  adjusting the reported traded quantity.
 
 ## Dev loop
 
 ```bash
 uv sync --extra dev
-uv run pytest -v                 # 56 tests
+uv run pytest -v                 # 57 tests
 uv run python -m src.main        # CLI status / dry-run planner
 ```
 

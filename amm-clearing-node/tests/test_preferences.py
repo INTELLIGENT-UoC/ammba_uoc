@@ -105,7 +105,7 @@ class TestApplyPriorityAllocation:
         assert matches[0]["energy"] == 5.0
         assert matches[0]["buyer"] == "B1"
         assert matches[0]["seller"] == "S1"
-        # Pool allocation should be zero after preference match
+        # Nothing is left for the sequential fill after the preference match
         assert bids[0]["allocated_energy"] == 0.0
         assert offers[0]["allocated_energy"] == 0.0
 
@@ -117,7 +117,7 @@ class TestApplyPriorityAllocation:
         bids, offers, matches = apply_priority_allocation(bids, offers, clearing_price=18.0)
 
         assert matches[0]["energy"] == 3.0
-        assert bids[0]["allocated_energy"] == 5.0  # 8 - 3 remains for pool
+        assert bids[0]["allocated_energy"] == 5.0  # 8 - 3 remains for the fill
         assert offers[0]["allocated_energy"] == 0.0
 
     def test_no_preferences_returns_empty(self):

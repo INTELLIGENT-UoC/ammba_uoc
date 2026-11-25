@@ -6,34 +6,34 @@ Steps:
 2. Aggregate supply and demand
 3. Compute the uniform clearing price via the sigmoid
 4. Record the result on-chain via clearMarket() (optional / deferred)
-5. Compute pro-rata quantity allocations
-6. Apply user preference allocation (mutual preferred pairs), then optional
-   seller-side energy-type differential pricing (6b, zero-sum vs the pool)
-7. Generate int:Trade objects (direct preference pairs, Buyer→Pool, Pool→Seller)
+5. Compute pro-rata quantity allocations, quantised to the on-chain resolution
+6. Apply user preference allocation (mutual preferred pairs); 6b computes the
+   optional energy-type adjustments for the summary only
+7. Generate int:Trade objects: direct preference pairs, then the sequential
+   fill of the remaining allocations into buyer↔seller matches
 8. Post int:Trade list and the int:ClearingResult back to the off-chain DB
 
-The AMM pool is a virtual counterparty: every participant trades with the pool
-at the uniform clearing price, except preference-matched mutual pairs who trade
-directly. Pool half-trades serialize to the bilateral int:Trade schema by
-referencing a configured pool actor and deterministic pool standing orders.
+The AMM pool is the pricing and allocation mechanism: it sets the uniform price
+and allocates the traded energy pro rata. It does not appear on the wire. Every
+trade is a bilateral buyer↔seller match at the uniform clearing price; the
+pairing reproduces every participant's allocation.
 """
 
 import logging
 import time
 
 from src.adapters import (
-    build_buyer_pool_int_trade,
+    build_bilateral_int_trade,
     build_direct_int_trade,
     build_int_clearing_result,
-    build_pool_seller_int_trade,
     ct_to_eur,
     int_order_to_internal,
-    pool_actor_uuid,
-    pool_order_uuid,
     unix_to_iso,
+    wire_value,
 )
 from src.config import CommunityConfig
 from src.contract import AMMContractClient
+from src.decompose import apportion, order_key, sequential_fill
 from src.offchain_db import OffchainDBClient
 from src.ontology import (
     SchemaValidationError,
@@ -46,7 +46,7 @@ from src.preferences import (
     apply_preference_allocation,
     compute_seller_price_adjustments,
 )
-from src.sigmoid import sigmoid_price
+from src.sigmoid import from_node_int, sigmoid_price, to_node_int
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +69,6 @@ async def run_clearing(
 
     Returns a summary dict with clearing results.
     """
-    pool_actor = pool_actor_uuid(community_config.pool_actor_uuid)
-
     # ── Step 0: Idempotency check ────────────────────────────────────
     existing_trades = await db_client.get_trades(market_id)
     if existing_trades:
@@ -111,7 +109,9 @@ async def run_clearing(
                 exc_info=True,
             )
 
-    open_orders = [o for o in internal_orders if o.get("status") == "Open"]
+    # Sorted by actor id, then order id, so every later step (rounding ties,
+    # preference pairs, the fill) is independent of the order of arrival.
+    open_orders = sorted((o for o in internal_orders if o.get("status") == "Open"), key=order_key)
     bids = [o for o in open_orders if o.get("order_type") == "Bid"]
     offers = [o for o in open_orders if o.get("order_type") == "Offer"]
 
@@ -194,21 +194,27 @@ async def run_clearing(
     else:
         logger.warning("No contract client configured, skipping on-chain recording")
 
-    # ── Step 5: Pro-rata allocation ──────────────────────────────────
-    traded_quantity = min(total_supply_kwh, total_demand_kwh)
-    for offer in offers:
-        offer["allocated_energy"] = (offer["energy"] / total_supply_kwh) * traded_quantity
-    for bid in bids:
-        bid["allocated_energy"] = (bid["energy"] / total_demand_kwh) * traded_quantity
+    # ── Step 5: Pro-rata allocation, quantised ───────────────────────
+    # Quantities are integers of the on-chain resolution (1e-4 kWh). The
+    # traded quantity is apportioned over each side by the largest-remainder
+    # method, so both sides sum to the same integer total and the short side
+    # receives exactly its order quantities.
+    offer_units = [to_node_int(o["energy"]) for o in offers]
+    bid_units = [to_node_int(b["energy"]) for b in bids]
+    traded_units = min(sum(offer_units), sum(bid_units))
+    for offer, units in zip(offers, apportion(offer_units, traded_units), strict=True):
+        offer["allocated_energy"] = from_node_int(units)
+    for bid, units in zip(bids, apportion(bid_units, traded_units), strict=True):
+        bid["allocated_energy"] = from_node_int(units)
 
     # ── Step 6: Preference allocation (mutual preferred pairs) ────────
     bids, offers = apply_preference_allocation(bids, offers, clearing_price_ct)
 
-    # ── Step 6b: Seller-side differential pricing (optional) ──────────
-    # Green sellers receive clearing + subsidy, grey sellers clearing − levy
-    # (zero-sum against the pool). Buyers and direct preference trades keep
-    # the uniform clearing price. The adjusted price goes straight into the
-    # wire tradePrice; provenance is returned in the clearing summary.
+    # ── Step 6b: Energy-type adjustments (summary only) ──────────────
+    # A match has one price for both sides, so individual prices (energy-type
+    # subsidy and levy, preferred rates, penalties) cannot go into the trade
+    # price. They belong to the execution step; until it applies them, the
+    # adjustments are computed for the clearing summary only.
     multipliers = None
     if community_config.green_subsidy_rate or community_config.grey_levy_rate:
         multipliers = EnergyTypeMultipliers(
@@ -216,51 +222,49 @@ async def run_clearing(
             grey_levy_rate=community_config.grey_levy_rate,
             levy_cap_ct_per_kwh=community_config.levy_cap_ct_per_kwh,
         )
-    adjusted_seller_ct, price_provenance = compute_seller_price_adjustments(
-        offers, clearing_price_ct, multipliers
-    )
+        logger.warning(
+            "Market %s: energy-type differential pricing is configured, but trade "
+            "prices stay at the clearing price; the adjustments are reported in "
+            "the clearing summary only",
+            market_id,
+        )
+    _, price_provenance = compute_seller_price_adjustments(offers, clearing_price_ct, multipliers)
 
     # ── Step 7: Generate int:Trade objects ───────────────────────────
-    pool_bid_id = pool_order_uuid(market_id, "bid")
-    pool_offer_id = pool_order_uuid(market_id, "offer")
     trades: list[dict] = []
+    traded_trade_units = 0
 
-    # 7a: Direct preference-matched trades (buyer↔seller, no pool)
+    # 7a: Direct preference-matched trades (mutual pairs) at the clearing price
     for bid in bids:
         for match in bid.get("_preference_matches", []):
+            units = to_node_int(match["energy"])
+            if units <= 0:
+                continue
+            match["energy"] = from_node_int(units)
             trades.append(build_direct_int_trade(match, market_id, clearing_price_eur, traded_at))
+            traded_trade_units += units
 
-    # 7b: Buyer → Pool for remaining allocated energy
-    for bid in bids:
-        if bid.get("allocated_energy", 0) > 1e-9:
-            trades.append(
-                build_buyer_pool_int_trade(
-                    bid,
-                    pool_actor,
-                    pool_offer_id,
-                    market_id,
-                    clearing_price_eur,
-                    traded_at,
-                )
+    # 7b: Sequential fill of the remaining allocations into buyer↔seller
+    # matches at the clearing price (at most n + m − 1 trades)
+    fills = sequential_fill(
+        [(o, to_node_int(o.get("allocated_energy", 0.0))) for o in offers],
+        [(b, to_node_int(b.get("allocated_energy", 0.0))) for b in bids],
+    )
+    for offer, bid, units in fills:
+        trades.append(
+            build_bilateral_int_trade(
+                bid,
+                offer,
+                from_node_int(units),
+                market_id,
+                clearing_price_eur,
+                traded_at,
             )
+        )
+        traded_trade_units += units
 
-    # 7c: Pool → Seller for remaining allocated energy (price may carry the
-    # seller-side energy-type adjustment from step 6b)
-    for offer in offers:
-        if offer.get("allocated_energy", 0) > 1e-9:
-            seller_price_eur = ct_to_eur(
-                adjusted_seller_ct.get(offer["order_id"], clearing_price_ct)
-            )
-            trades.append(
-                build_pool_seller_int_trade(
-                    offer,
-                    pool_actor,
-                    pool_bid_id,
-                    market_id,
-                    seller_price_eur,
-                    traded_at,
-                )
-            )
+    # The clearing result states what the trades carry.
+    traded_quantity = from_node_int(traded_trade_units)
 
     for trade in trades:
         validate_trade(trade)
@@ -296,13 +300,14 @@ async def run_clearing(
         "total_supply_kwh": total_supply_kwh,
         "total_demand_kwh": total_demand_kwh,
         "clearing_price_ct_per_kwh": clearing_price_ct,
-        "clearing_price_eur_per_kwh": clearing_price_eur,
+        # Wire values: the price and the traded quantity the trades carry.
+        "clearing_price_eur_per_kwh": wire_value(clearing_price_eur),
         "traded_quantity_kwh": traded_quantity,
         "num_trades": len(trades),
         "tx_hash": tx_hash,
-        # Differential-pricing provenance (None when not applied). Kept out of
-        # the int.* wire objects on purpose — internal fields over ontology
-        # changes; a dedicated AMM topic can carry this later if needed.
+        # Energy-type adjustments (None when not configured or not applicable).
+        # Reported here only: trade prices stay at the clearing price, and the
+        # execution step is where individual prices are applied.
         "price_adjustments": price_provenance,
     }
 

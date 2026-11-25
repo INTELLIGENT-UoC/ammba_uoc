@@ -1,14 +1,16 @@
-"""On-chain access for settlement (OrderRegistry + TradeSettlement).
+"""On-chain access for settlement (TradeSettlement.settleBatch).
 
 Thin async web3 wrapper. Everything environment-specific (RPC URL, contract
-addresses, the pool/operator signer key, gas funding, chain id) comes from the
+address, the operator signer key, gas funding, chain id) comes from the
 settlement environment, which is not available yet: the engine tests
 substitute a FakeChain for this client, and ``main.py`` refuses --execute with
 a message listing what is missing.
 
-ABI fragments are hand-declared for exactly the two calls the engine needs
-(tests check them against the encoding signatures in structs.py); they are
-replaced by the compiled contract artifacts once the contracts freeze.
+The engine places no orders: every match pairs two participant orders the
+community client registered during the open market. The ABI fragment is
+hand-declared for the one call the engine needs (tests check it against the
+encoding signatures in structs.py); it is replaced by the compiled contract
+artifacts once the contracts freeze.
 """
 
 import logging
@@ -17,7 +19,8 @@ from web3 import AsyncHTTPProvider, AsyncWeb3
 
 logger = logging.getLogger(__name__)
 
-# Struct fields in contract order (OrderRegistry / TradeSettlement, GSYDEXv2 f0ea6c8).
+# Struct fields in contract order (OrderRegistry.OrderParams / TradeSettlement,
+# GSYDEXv2 f0ea6c8).
 _ORDER_PARAMS = [
     {"name": n, "type": t}
     for n, t in [
@@ -63,16 +66,6 @@ _MARKET_SETTLEMENT = [
 ]
 
 
-ORDER_REGISTRY_ABI = [
-    {
-        "name": "placeOrder",
-        "type": "function",
-        "stateMutability": "nonpayable",
-        "inputs": [{"name": "params", "type": "tuple", "components": _ORDER_PARAMS}],
-        "outputs": [],
-    }
-]
-
 TRADE_SETTLEMENT_ABI = [
     {
         "name": "settleBatch",
@@ -85,22 +78,17 @@ TRADE_SETTLEMENT_ABI = [
 
 
 class SettlementChainClient:
-    """Signs and submits placeOrder / settleBatch transactions."""
+    """Signs and submits settleBatch transactions."""
 
     def __init__(
         self,
         rpc_url: str,
-        order_registry_address: str,
         trade_settlement_address: str,
         private_key: str,
         gas_limit: int = 3_000_000,
     ):
         self.w3 = AsyncWeb3(AsyncHTTPProvider(rpc_url))
         self.account = self.w3.eth.account.from_key(private_key)
-        self.registry = self.w3.eth.contract(
-            address=self.w3.to_checksum_address(order_registry_address),
-            abi=ORDER_REGISTRY_ABI,
-        )
         self.settlement = self.w3.eth.contract(
             address=self.w3.to_checksum_address(trade_settlement_address),
             abi=TRADE_SETTLEMENT_ABI,
@@ -118,9 +106,6 @@ class SettlementChainClient:
         if receipt["status"] != 1:
             raise RuntimeError(f"transaction reverted: {receipt['transactionHash'].hex()}")
         return "0x" + receipt["transactionHash"].hex()
-
-    async def place_order(self, params_tuple: tuple) -> str:
-        return await self._send(self.registry.functions.placeOrder(params_tuple))
 
     async def settle_batch(self, settlement_tuples: list[tuple]) -> str:
         return await self._send(self.settlement.functions.settleBatch(settlement_tuples))

@@ -41,7 +41,7 @@ def test_health_trigger_and_shutdown(community):
         response = _trigger(client)
         assert response.status_code == 202
         assert response.json()["status"] == "cleared"
-        assert len(db.posted_trades) == 2
+        assert len(db.posted_trades) == 1  # one bilateral match
 
         assert _trigger(client, community_uuid="unknown").status_code == 400
 
